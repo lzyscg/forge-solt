@@ -671,6 +671,56 @@ M4 接上真实链路时查了一次模型目录，DeepSeek 现在的 `/v1/model
 因此 L3 的目标模型明确为 `deepseek-v4-pro`，并已加入 `providers.yaml` 的 `models` 列表
 （别名解析在加载期就校验模型是否在列表里，不加进去 L3 根本配不出来）。
 
+**新增第二个 Provider：OpenCode Zen（业务方要求，D-17 补正）**
+
+原文第 2、3 条写的是「`providers.yaml` 的 provider 与别名以 DeepSeek 为准」
+「`.env` 只需 `DEEPSEEK_API_KEY`」。业务方要求接入 **OpenCode Zen**
+（一个聚合网关）走它上面的 `deepseek-v4-flash`，理由是该套餐额度更充裕，
+DeepSeek 官方 Key 留作备用。
+
+**为什么这不是「换一个 provider」那么简单——接入前必须过两道闸**：
+
+1. **端点形状。** OpenCode Zen 按模型家族分路：
+   GPT/Grok 走 `/v1/responses`、Claude/Qwen 走 `/v1/messages`、
+   Gemini 走 `/v1/models/gemini-*`，只有 **DeepSeek/Kimi/GLM/MiniMax 走
+   `/v1/chat/completions`**。而本项目的 `openai-compatible` 适配器
+   写死打 `${baseUrl}/chat/completions`（`openai-compatible.ts:121`），
+   `anthropic` 那种 P0 未实现。
+   **因此 Zen 上只有 chat/completions 那一族能用**，选 Claude/GPT 等于要写新适配器。
+2. **工具调用 + 流式。** 引擎的整个循环建立在 tool call 上
+   （`report_work` / `complete_assignment`）。不支持 tools 的模型会卡在
+   `no_submission` 重试里——现象是「模型说了很多话但任务不动」。
+
+`deepseek-v4-flash` 两道都过（同族、支持 tools），因此是 Zen 上的正确选择。
+
+**实测结论（接入当日）：该 Key 余额不足，暂不可用。**
+
+```
+GET  /v1/models           → 200   认证有效，返回 64 个模型（含 deepseek-v4-flash）
+POST /v1/chat/completions → 401   {"type":"CreditsError","message":"Insufficient balance"}
+deepseek-v4-flash-free    → 上游 "Model is unavailable"
+```
+
+因此本次**只加 provider 条目，别名不动**（仍指向 DeepSeek 官方）。
+把别名切到一个证实无法完成任何一次请求的 provider，
+结果是每个任务都在第一次模型调用时失败，
+而现场看起来像是「配置写错了」——排查成本远高于不切。
+
+**顺带确认了一件本该确认的事**：余额不足返回的是 **HTTP 401** 而不是 200，
+因此 `probe`（一次真实的 1-token `/chat/completions`）会如实报 `down`，
+不会出现「Provider 设置页显示正常但任务全失败」的假绿。
+这正是 `probe` 坚持打真实端点、而不是打 `/v1/models` 的价值所在——
+`/v1/models` 在余额为 0 时**照样回 200**。
+
+**充值后切换的动作**（三行，`config/providers.yaml`）：
+把 `main` / `configured` / `structure` 三个别名的 `provider` 从 `deepseek`
+改成 `opencode-zen`、`model` 改成 `deepseek-v4-flash`。
+DeepSeek 官方条目原样保留，随时切回。
+
+模板不需要任何改动——它们引用的是**别名**。
+而且任务快照冻结的也是别名（D-03 晚绑定），
+所以切换**不会改写历史任务的记录**，它们仍忠实记着当时那次解析的结果。
+
 ### D-18 🟢 循环引用用延迟外键解决，不用放弃外键解决
 
 **背景（M0 实施时发现）**：§5.2 的原始 DDL 里有三处引用**没有外键约束**：
