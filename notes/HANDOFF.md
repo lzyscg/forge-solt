@@ -61,6 +61,40 @@ npx tsx src/server/cli/measure-runs.ts --help  # M4 的量化闸门
 **环境变量的坑**：`.env` 里已经有 `DATABASE_PATH`。若你在 shell 里 `export DATABASE_PATH=...`
 之后再 `set -a; . ./.env`，`.env` 会把你的覆盖掉。顺序要反过来。
 
+### 2.5 部署形态：前后端分离（Q-24 已定案）
+
+权威描述在方案 §10.6，这里只记你每天要用到的部分。
+
+```
+静态托管（生产是 nginx，本地是 vite preview）      Fastify :3311
+  └── dist/client/  ← npm run build 产出            └── /api/*  仅此一项
+```
+
+```bash
+npm run build      # → dist/client
+npm run preview    # 5274，serve 构建产物并代理 /api → 3311
+```
+
+**三条不能忘的**：
+
+1. **后端永远只有 `/api/*`。** 在 Fastify 上注册任何非 `/api` 前缀的路由，
+   就等于悄悄推翻了这个决定。`GET :3311/` 是 404，这是对的，不是 bug。
+2. **不需要 CORS，也不要加。** 分离的是部署件不是源——静态托管同时反代 `/api`，
+   浏览器看到的始终是一个源。前端用相对路径 `/api/...`，
+   也**不要**加 `VITE_API_BASE_URL`：那会是个没有任何部署在用的配置项。
+   真做跨源时再加，且必须与 CORS 同时加。
+3. **nginx 的 `/api/` 必须 `proxy_buffering off`**（完整配置在 §10.6）。
+   默认缓冲会把 SSE 事件攒着不发，现象是「工作台卡住不动、最后突然全部涌出」，
+   而后端日志一切正常——最难查的那类。SPA fallback（`try_files $uri /index.html`）
+   同样不可省，否则刷新 `/tasks/<id>` 直接 404。
+
+分离方案落地时实测过（经 5274 代理、全程不碰 3311）：深链接硬加载 200、
+`GET :3311/` 与 `:3311/tasks/<id>` 双双 404、SSE 34 条 trace + 39 条 delta + 11 条 state
+在 12.3 秒内**陆续**到达、任务 3/3 槽位完成并组装出产物。
+
+**但第 3 条（缓冲）本地验不到**：vite 的代理本来就是 pipe，
+`npm run preview` 绿了**不代表**生产的 nginx 不会缓冲。那条只能在真实 nginx 前面验。
+
 ---
 
 ## 2. 现在到哪了
@@ -91,10 +125,11 @@ M6/M7 之后做过一轮独立复查，找到并修了两个 bug（工作台状�
 
 ### 还没有的东西
 
-- **一个 git commit 都没有。** 整个仓库是 untracked 状态——首次提交刻意留给你。
-- **没有任何方式跑构建产物。** `npm run build` 产出 `dist/client`，但服务端只注册
-  `/api/*`（`GET /` 实测 404），也没人 serve 它。目前只有 `vite dev` 代理这一条路
-  能打开界面。`@fastify/static` 声明了却从未 import——见 Q-24，需要你定方向。
+- ~~**一个 git commit 都没有。**~~ 已提交：`622e62b` 是 M0–M7 完成态的一次性快照，
+  未拆分里程碑历史（拆一个已完成的快照只会编造出七个当时并不可运行的状态）。
+- ~~**没有任何方式跑构建产物。**~~ **Q-24 已定案：前后端分离**（§10.6）。
+  `@fastify/static` 已卸载，后端**永远只有 `/api/*`**；`dist/client` 由静态托管发出，
+  本地用 `npm run preview`（5274）验证构建产物。详见下面「§2.5 部署形态」。
 - `provider_health` 表没有写入方（刻意，见 Q-20）；`executions.*_tokens` 恒为 NULL（Q-18）。
 - UX §13.5 只做了一半：技术详情块有，但「复制 Trace / 导出 JSON / 导出 Markdown」
   没有，且已完成的槽位看不到技术详情——见 Q-25，同样需要你划范围。
@@ -326,7 +361,9 @@ npm run dev:client   # 5273，vite 代理 /api → 3311
 | 模型说完话但没提交 | 这是正常路径，走 `no_submission` 重试。给模型的反馈必须说「你没有提交」，不能说成别的（给模型一句与事实相反的反馈是最坏的反馈） |
 | 换个任务，时间线还是上一个任务的 | `/tasks/$taskId` 的 `remountDeps` 被删了。sequence 每任务从 1 起，去重会吃掉新任务的事件 |
 | 前端测试报「找到多个元素」 | 没写 `afterEach(cleanup)`。本仓库没开 `globals: true`，自动清理不生效 |
-| `npm run build` 成功但打不开页面 | 没人 serve `dist/client`，服务端只有 `/api/*`。见 Q-24 |
+| `npm run build` 成功但打不开页面 | 忘了 serve `dist/client`。后端只有 `/api/*`（这是定案，见 §2.5）。本地用 `npm run preview` |
+| 工作台卡住不动，最后事件突然全部涌出 | 反代开着缓冲。nginx 的 `/api/` 要 `proxy_buffering off`（§2.5 第 3 条） |
+| 刷新 `/tasks/<id>` 变 404 | 静态托管缺 SPA fallback（`try_files $uri /index.html`） |
 
 ---
 
@@ -334,13 +371,14 @@ npm run dev:client   # 5273，vite 代理 /api → 3311
 
 1. **轮换 DeepSeek API Key。** 它在聊天记录里以明文出现过。泄露点是聊天记录，不是仓库
    （仓库里只有 `.env`，已 gitignore；`providers.yaml` 只记环境变量**名**）。
-2. **首次 git commit。** 整个仓库还是 untracked。刻意留给你，因为提交粒度是你的决定。
+2. ~~**首次 git commit。**~~ ✅ 已完成（`622e62b`）。
 3. **以业务方身份审一遍 4 份 `SKILL.md`**（`skills/` 下）。它们是 M4 重写的，
    直接决定模型产出的质量。我能验证「结构合法」，验证不了「这一章好不好看」。
 4. **决定 D-17 的 L3 要不要动用**（Q-17）：`deepseek-v4-pro` 的价格与延迟没实测过。
    目前 L1 就够了（首次通过率 100%），L2/L3/L4 一次都没用上。
-5. **决定部署形态**（Q-24）：单端口（服务端 serve `dist/client` + SPA fallback）
-   还是前后端分开托管。现在两条路都没走，`@fastify/static` 装了没用。
+5. ~~**决定部署形态**（Q-24）~~ ✅ 已定案：**前后端分离**。理由是后续要加的功能
+   （CLI 操作方式、审核打回机制）会同时长在两侧，边界清晰比省一个进程更值钱。
+   落地见 §2.5 与方案 §10.6。
 6. **决定 UX §13.5 在 P0 做到哪**（Q-25）：导出三件套没做，已完成槽位也看不到技术详情。
    是补齐还是把 §13.5 标成 P1，得你说了算——否则下一个人会当成 bug 再改一遍。
 
@@ -348,12 +386,13 @@ npm run dev:client   # 5273，vite 代理 /api → 3311
 
 ## 9. 未解问题索引
 
-全文在 `notes/OPEN-QUESTIONS.md`，共 **25 条**。Q-21 与 Q-23 已在 M7 落实（各自条目下都补了结论）。
+全文在 `notes/OPEN-QUESTIONS.md`，共 **25 条**。Q-21 与 Q-23 已在 M7 落实，
+**Q-24 已由业务方定案**（各自条目下都补了结论）。
 
-M6/M7 复查新增的两条，都是**范围问题不是缺陷**，需要业务方划线：
+M6/M7 复查新增的两条，都是**范围问题不是缺陷**：
 
-- **Q-24** 服务端不 serve 前端产物，`@fastify/static` 是死依赖
-- **Q-25** 已完成槽位看不到技术详情（UX §13.5 只做了一半）
+- **Q-24** ✅ 已定案：前后端分离，`@fastify/static` 已卸载，见 §2.5
+- **Q-25** ⏳ 待划线：已完成槽位看不到技术详情（UX §13.5 只做了一半）
 
 M5 期间新增的四条：
 

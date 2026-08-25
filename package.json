@@ -13,6 +13,7 @@
     "dev:fake": "tsx watch src/server/dev-fake.ts",
     "dev:client": "vite",
     "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "test": "vitest run",
@@ -21,7 +22,6 @@
     "migrate": "tsx src/server/infrastructure/database/migrate.ts"
   },
   "dependencies": {
-    "@fastify/static": "^8.0.4",
     "@tanstack/react-query": "^5.62.7",
     "@tanstack/react-router": "^1.87.6",
     "better-sqlite3": "^11.7.0",

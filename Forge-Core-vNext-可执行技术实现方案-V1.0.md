@@ -921,7 +921,6 @@ forge-core-vnext/
   "dependencies": {
     "fastify": "^5",
     "fastify-type-provider-zod": "^4",
-    "@fastify/static": "^8",
     "zod": "^3",
     "better-sqlite3": "^11",
     "yaml": "^2",
@@ -943,6 +942,21 @@ forge-core-vnext/
   }
 }
 ```
+
+**`@fastify/static` 已移除（Q-24 定案，业务方裁决）**
+
+- **原文是什么**：上面这张依赖清单原本含 `"@fastify/static": "^8"`，隐含的部署形态是
+  「后端顺带把 `dist/client` 发出去」的单端口方案。
+- **为什么改**：业务方选择**前后端分离**——前端产物由静态托管（nginx / 任意静态服务）
+  发出，后端只负责 `/api/*`。理由是后续要加的功能（CLI 操作方式、审核打回机制）
+  会同时长在两侧，边界清晰比省一个进程更值钱。方向既定，这个依赖就是死的：
+  M6/M7 复查时它已经**声明了却从未被 import**，留着只会让下一个人假设
+  「静态托管已经有了」，直到上线那天才发现没有。
+- **不改的代价**：一个永远不会被 import 的依赖，是「看起来生效、实际什么都没做」
+  的典型（DEVLOG 经验 6）。判断方式只有一个：去掉它，看有没有区别——去掉之后
+  `tsc` / `eslint` / 691 条测试全绿，没有任何区别，所以它确实是死的。
+- **随之明确的边界**：见 §10.6。跨源部署所需的 CORS **P0 不做**，
+  因为 §10.6 选定的托管形态在浏览器看来是同源的，根本不产生跨源请求。
 
 Provider SDK **不作为依赖引入**。Anthropic 与 OpenAI-compatible 适配器都直接用 `fetch` 调 HTTP API。理由：我们只用到 messages + streaming + tools 三件事，SDK 带来的抽象（重试策略、自动分页、类型体操）与我们自己的超时/中止/重试语义会打架，而这些语义是 REQ 的硬要求（FR-AGT-003/004、FR-LIFE-001）。直接写 `fetch` + SSE 解析约 200 行/适配器，完全可控。
 
@@ -3316,6 +3330,106 @@ const html = DOMPurify.sanitize(md.render(content), {
 `html: false` 已禁用原始 HTML，DOMPurify 是第二道防线。外链统一加 `rel="noopener noreferrer nofollow"` 与 `target="_blank"`（在 `DOMPurify.addHook` 里注入）。
 
 **内容来自模型输出，必须视为不可信输入。** 这不是理论风险——模型可能在正文里生成 `<img src=x onerror=...>` 之类的内容（无论是被提示注入还是训练数据污染）。
+
+### 10.6 部署形态：前后端分离（Q-24 定案）
+
+原文没有写部署形态，只在 §2.2 的依赖清单里留了一个 `@fastify/static`，
+于是形成了 M6/M7 复查发现的那个缺口：`npm run build` 产出 `dist/client`，
+但**没有任何方式把它跑起来**（`buildServer` 只注册 `/api/*`，实测 `GET /` 是 404）。
+业务方裁决：**前后端分离**。
+
+#### 职责切分
+
+```
+静态托管（nginx / 任意静态服务）        Node 进程（Fastify）
+  └── dist/client/                       └── /api/*  :3311
+        index.html + js + css                  仅此一项职责
+```
+
+后端**永远只有 `/api/*`**。这条是分离方案的全部内容，也是它的全部约束：
+任何时候在 Fastify 上注册一条非 `/api` 前缀的路由，都意味着这个决定被悄悄推翻了。
+
+#### 同源，因此不需要 CORS
+
+分离的是**部署件**，不是**源**。静态托管同时反向代理 `/api` 到后端，
+浏览器看到的自始至终是一个源，不产生跨源请求，因此：
+
+- **不引入 `@fastify/cors`**，后端不加任何 CORS 头；
+- 前端 `src/client/api/http.ts` 继续用**相对路径** `/api/...`，
+  不引入 `VITE_API_BASE_URL` 之类的可配置基址。
+
+**为什么不顺手把基址做成可配置的**：那会是一个默认值等于当前行为、
+且没有任何部署在用的配置项——同样属于「看起来生效、实际什么都没做」。
+真要做跨源部署（前端上 CDN、后端另一个域名）时再加，
+届时**必须同时**加 CORS，两件事是一件事，分开做必然漏一半。
+
+#### nginx 参考配置
+
+```nginx
+server {
+  listen 80;
+  root /srv/forge-core/dist/client;
+
+  # SPA fallback：TanStack Router 用的是 history 路由，
+  # 直接访问或刷新 /tasks/<id> 时磁盘上并没有这个文件。
+  # 少了这一行，深链接与刷新一律 404。
+  location / {
+    try_files $uri /index.html;
+  }
+
+  location /api/ {
+    proxy_pass http://127.0.0.1:3311;
+    proxy_http_version 1.1;
+
+    # ↓ 这三行是给 SSE 的，不是可选优化 ↓
+    # nginx 默认会缓冲上游响应。对 /api/tasks/:id/stream 而言，
+    # 缓冲意味着 trace/delta 事件**攒着不发**，前端工作台看起来就是
+    # 「任务卡住了、什么都不动，最后突然全部涌出来」——
+    # 而后端日志一切正常，是最难查的那类现象。
+    proxy_buffering off;
+    proxy_cache off;
+    proxy_read_timeout 1h;   # SSE 长连接，默认 60s 会被周期性掐断
+  }
+}
+```
+
+`proxy_read_timeout` 给足是因为 SSE 连接本就该长期挂着；
+心跳是每 15 秒一次（§9.4），能防住多数中间设备的空闲超时，
+但防不住 nginx 自己那条 60 秒的读超时——心跳只在**有数据流动**时刷新它，
+而一个空闲任务的工作台连心跳都不会推。
+
+#### 本地验证构建产物
+
+`vite preview` 起的是**构建产物**（不是 dev server 的现场编译），
+`vite.config.ts` 的 `preview.proxy` 承担上面 nginx 那段代理的角色——
+但**只承担一部分**，边界见下：
+
+```bash
+npm run build          # → dist/client
+npm run dev:server     # 或 npm run dev:fake
+npm run preview        # 5274，serve dist/client 并代理 /api → 3311
+```
+
+这条路径存在的意义是：**让「构建产物能不能跑」这件事有人走一遍**。
+Q-24 之所以能一直藏着，就是因为前端验证全走 vite dev、后端测试全打 `/api/*`，
+两边都绿，中间那段从来没人走过。
+
+**它验得到什么、验不到什么**（定案时实测，全程经 5274、不碰 3311）：
+
+| | 结果 |
+|---|---|
+| 构建产物能加载并打通 API | ✅ 任务 3/3 槽位完成、产物已组装 |
+| SPA fallback（深链接硬加载 `/tasks/<id>`） | ✅ 200 + `text/html` |
+| 后端边界（`GET :3311/` 与 `:3311/tasks/<id>`） | ✅ 双双 404，后端确实只有 `/api/*` |
+| SSE 陆续到达 | ✅ 34 trace + 39 delta + 11 state，12.3 秒内分批到 |
+| **nginx 的 `proxy_buffering off`** | ❌ **验不到** |
+
+最后一行必须写明白：vite 的代理本来就是 pipe，不缓冲，
+所以**本地这一层绿了不代表生产不会缓冲**。曾经在 `preview.proxy` 里加过一段
+给 SSE 打 `x-accel-buffering: no` 的钩子想「一并验掉」，按「去掉它，看有没有区别」
+反证过——带与不带，事件条数与到达间隔完全一致，那段钩子一点作用没有
+（`x-accel-buffering` 是写给 nginx 的指令，vite 和浏览器都不认），已删除。
+**缓冲这条只能在真实 nginx 前面验。**
 
 ---
 
