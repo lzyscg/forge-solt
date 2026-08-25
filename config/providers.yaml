@@ -54,24 +54,34 @@ providers:
 # 模板引用别名，不引用具体 provider/model，所以下面这三处改完，
 # 全部模板立刻换用新 Provider，模板文件一个字都不用动。
 #
-# 【当前】三个别名全部指向 OpenCode Go（业务方 2026-08-25 指定）。
-# 【切回 DeepSeek 官方】把 provider 改回 deepseek、model 改回 deepseek-chat 即可，
-#   下面的 deepseek 条目一直保留着，就是为了这一步能随时做。
-#   触发条件：Go 套餐配额用尽（后台「每月用量」到 100%）。
+# 【当前】三个别名全部指向 DeepSeek 官方。
+#
+# 曾于 2026-08-25 切到 opencode-go，当天切回。原因是实测速度差距过大，
+# 严重影响开发测试节奏（同模板同输入同模型）：
+#
+#   DeepSeek 官方   单章 85.6s（M4 连跑 20 章的基线，最长 110s）
+#   OpenCode Go     单章 1370s ≈ 23 分钟         → 约 16 倍
+#
+# 慢的不是响应延迟（小请求首字 1.2–2.0s，很快），是**生成吞吐**
+# （实测约 14.5 字/秒）且方差极大——同一段内容两次耗时能差 2–3 倍。
+# 这是低价订阅套餐的定价逻辑，不是故障。
+#
+# opencode-go 条目**保留**：它适合「能等的批量后台跑」。要切回去改这三处即可。
+# 另一个可选形态（当时评估过没做）：结构走官方、正文走 Go——
+# 结构一失败整章重来，让它走快的那条，其余走便宜的那条。
 aliases:
   # 通用内容生产
   main:
-    provider: opencode-go
-    model: deepseek-v4-flash
+    provider: deepseek
+    model: deepseek-chat
   # 槽位类型可通过 template.yaml 的 modelAlias 覆盖到这里（D-06）
   configured:
-    provider: opencode-go
-    model: deepseek-v4-flash
+    provider: deepseek
+    model: deepseek-chat
   # 结构设计。若结构提案一次通过率不达标，这里是 D-17 L3 的调节点
-  # （切 deepseek-v4-pro，Go 套餐内同样有）
   structure:
-    provider: opencode-go
-    model: deepseek-v4-flash
+    provider: deepseek
+    model: deepseek-chat
 
 # 回退链的最后一级（D-06）：模板没写 limits 时用这里的值。
 # 注意没有 defaults.alias——modelAlias 的回退链是

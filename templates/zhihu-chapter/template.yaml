@@ -95,7 +95,12 @@ bindings:
   createStructure:
     agentId: structure_designer
     skillId: chapter-structure-design
-    timeoutMs: 90000 # D-06 覆盖：结构输出短但格式严格
+    # D-06 覆盖。M4 用这个值连跑 20 章，结构首次通过率 20/20。
+    #
+    # 曾于 2026-08-25 抬到 240000 以适配 OpenCode Go，当天随 Provider 一起改回。
+    # 超时是「任务永久 running」的最后一道网，给慢 Provider 让路会让真卡住时
+    # 晚 4 分钟才发现——那套预算只在跑 Go 时才成立，见 Q-27。
+    timeoutMs: 90000
     maxRetries: 2
 
   fillSlotByType:
@@ -110,6 +115,7 @@ bindings:
     scene:
       agentId: chapter_writer
       skillId: scene-writing
+      # 曾于 2026-08-25 抬到 420000 适配 OpenCode Go，当天改回（见 Q-27）。
       timeoutMs: 180000
       maxRetries: 1
 
@@ -117,6 +123,12 @@ limits:
   maxSlots: 32
   maxStructureDepth: 4
   maxExecutionRetries: 2
+  # 回退链的一级：outline 与 title 用它（两者都没写 timeoutMs）。
+  # 曾于 2026-08-25 抬到 240000 适配 OpenCode Go，当天改回（见 Q-27）。
+  #
+  # 留一条从那次实测得到、与 Provider 无关的观察：title 只产出 5 个字却花了 53s，
+  # 耗时由**工具调用往返次数**主导而非生成量。
+  # 所以「这个槽输出短」不是给它短预算的理由——这个推理方向本身是错的。
   executionTimeoutMs: 120000
   maxToolCallsPerAssignment: 24
 
