@@ -4,7 +4,7 @@
 > 读完这一份 + `notes/OPEN-QUESTIONS.md`，应该能直接开始 M6。
 >
 > 最后更新：M5（API 与 SSE）完成并通过一轮独立审查之后。
-> 状态：`npx tsc --noEmit` 干净 · `npx eslint .` 干净 · **711 测试全绿（44 个文件）**。
+> 状态：`npx tsc --noEmit` 干净 · `npx eslint .` 干净 · **716 测试全绿（44 个文件）**。
 
 ---
 
@@ -32,7 +32,7 @@ Zod 3 · Vitest 2 · SSE · pino。单机单用户，P0 并发固定 1。
 ```bash
 npm install
 cp .env.example .env        # 然后把 DEEPSEEK_API_KEY 填进去
-npm run typecheck && npm run lint && npm test     # 应当 711 全绿
+npm run typecheck && npm run lint && npm test     # 应当 716 全绿
 ```
 
 > ⚠️ **这里原本有一条「删掉 `data/forge-core.sqlite`」的指引，已删除。**
@@ -119,7 +119,7 @@ npm run preview    # 5274，serve 构建产物并代理 /api → 3311
 | M6 前端 | ✅ | 六个页面 + 工作台三栏 + `SafeMarkdown`，共 24 个文件 |
 | **M7 加固与验收** | ✅ | 脱敏审计（全表全列）、E2E 三流程、32 槽位规模、连续 10 章 |
 
-**当前基线：711 测试 / 44 文件，`tsc` 与 `eslint` 干净。**
+**当前基线：716 测试 / 44 文件，`tsc` 与 `eslint` 干净。**
 M6/M7 之后做过一轮独立复查，找到并修了两个 bug（工作台状态跨任务泄漏、
 时间线「有 N 条新事件」的 N 是编的），详见 `DEVLOG.md` 的 M6–M7 一节。
 
@@ -370,7 +370,7 @@ npm run dev:client   # 5273，vite 代理 /api → 3311
 | 模型说完话但没提交 | 这是正常路径，走 `no_submission` 重试。给模型的反馈必须说「你没有提交」，不能说成别的（给模型一句与事实相反的反馈是最坏的反馈） |
 | 换个任务，时间线还是上一个任务的 | `/tasks/$taskId` 的 `remountDeps` 被删了。sequence 每任务从 1 起，去重会吃掉新任务的事件 |
 | 前端测试报「找到多个元素」 | 没写 `afterEach(cleanup)`。本仓库没开 `globals: true`，自动清理不生效 |
-| 模型「只会发空参数的工具调用」、只有无参工具能成功 | 流式分片 schema 不接 `null`。tool call 分片的 id/name/arguments 必须 `.nullish()`（Q-26）。同一个坑换个 Provider 就会以别的字段再来一次 |
+| 模型「只会发空参数的工具调用」、只有无参工具能成功 | 流式分片 schema 不接 `null`。**先看日志有没有 `流式分片被丢弃`** —— Q-26 之后这类问题会直接打出出问题的字段路径，不用再靠反推 |
 | 任务卡在 running 无限重试，报错指向 Provider | 可能是回灌了非法 JSON 的 `arguments`——坏消息留在对话历史里，每次重试都带着它。已在序列化边界归一化（§7.3） |
 | 任务全都失败，但服务和 `/api/health` 都正常 | Provider 凭据缺失。看启动横幅的 `[provider]` 警告行，或 Provider 设置页。填 `.env` 的 `DEEPSEEK_API_KEY` |
 | 改了默认端口/目录却没生效 | 别在各处 `?? 默认值`，默认值只在 `src/server/config/env.ts` 一处（§2.6） |

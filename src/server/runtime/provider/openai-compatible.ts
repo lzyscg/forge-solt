@@ -30,6 +30,7 @@ import type {
   ProviderTurnResult,
 } from './provider-adapter.ts';
 import { parseRetryAfter, rateLimited } from './rate-limit.ts';
+import { reportInternal } from '@server/application/runtime-ports.ts';
 
 /**
  * 流式分片的契约。
@@ -94,6 +95,29 @@ export interface OpenAiCompatibleOptions {
   /** 注入点只为测试替换 fetch；生产恒用全局 fetch */
   fetchImpl?: typeof fetch;
   now?: () => number;
+  /**
+   * 分片被丢弃时的诊断出口（Q-26）。缺省走 `reportInternal`（Q-21 建好的通道）。
+   *
+   * 存在的理由是一次真实事故：`StreamToolCallDeltaSchema` 的 `name` 写成
+   * `.optional()`，接不住 OpenCode Go 的 `"name": null`，于是每个续传分片
+   * 连同 arguments 碎片被整片丢掉——**不报错、不计数、不留痕**。
+   * 上层表现为「模型只会发空参数的工具调用」，酷似模型能力问题，
+   * 最后是靠「只有无参工具能成功」这个分布反推出来的。
+   *
+   * schema 那一处已修，但**机制**必须补：下一个 Provider 的下一个字段差异
+   * 还会以同样的方式静默丢数据。有信号才有得查。
+   */
+  onDroppedChunk?: (info: DroppedChunkSummary) => void;
+}
+
+/** 一轮结束时的丢弃汇总（Q-26）。按形状归并，不含任何分片内容 */
+export interface DroppedChunkSummary {
+  readonly providerId: string;
+  readonly model: string;
+  /** 被丢弃的分片总数 */
+  readonly droppedFrames: number;
+  /** 按 `cause:path:code` 归并后的计数，形如 `schema:choices.0.delta.tool_calls.0.function.name:invalid_type` */
+  readonly reasons: ReadonlyMap<string, number>;
 }
 
 interface ToolCallAccumulator {
@@ -109,12 +133,14 @@ export class OpenAiCompatibleAdapter implements ProviderAdapter {
   readonly #providerId: string;
   readonly #fetch: typeof fetch;
   readonly #now: () => number;
+  readonly #onDroppedChunk: (info: DroppedChunkSummary) => void;
 
   constructor(options: OpenAiCompatibleOptions) {
     this.#baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.#providerId = options.providerId;
     this.#fetch = options.fetchImpl ?? globalThis.fetch;
     this.#now = options.now ?? Date.now;
+    this.#onDroppedChunk = options.onDroppedChunk ?? defaultDroppedChunkReporter;
   }
 
   async runTurn(input: ProviderRunTurnInput): Promise<ProviderTurnResult> {
@@ -187,6 +213,10 @@ export class OpenAiCompatibleAdapter implements ProviderAdapter {
     const reader = stream.getReader();
     const decoder = new TextDecoder();
     const toolCalls = new Map<number, ToolCallAccumulator>();
+    // Q-26：分片被丢弃必须留下信号。按形状归并而不是逐条上报——
+    // schema 一旦对不上，坏的往往是**每一个**分片，逐条报会刷屏到没人看
+    const droppedReasons = new Map<string, number>();
+    let droppedFrames = 0;
     let assistantText = '';
     let finishReason: string | null = null;
     let usage: ProviderTurnResult['usage'] = null;
@@ -213,8 +243,14 @@ export class OpenAiCompatibleAdapter implements ProviderAdapter {
             finishReason ??= 'stop';
             continue;
           }
-          const chunk = parseChunk(payload);
-          if (chunk === null) continue;
+          const chunk = parseChunk(payload, (reason) => {
+            const key = `${reason.cause}:${reason.path}:${reason.code}`;
+            droppedReasons.set(key, (droppedReasons.get(key) ?? 0) + 1);
+          });
+          if (chunk === null) {
+            droppedFrames += 1;
+            continue;
+          }
 
           if (chunk.usage != null) {
             usage = { inputTokens: chunk.usage.prompt_tokens, outputTokens: chunk.usage.completion_tokens };
@@ -248,6 +284,18 @@ export class OpenAiCompatibleAdapter implements ProviderAdapter {
     } finally {
       // 中止时必须真的取消读流，否则连接会挂到超时为止（§7.3）
       await reader.cancel().catch(() => undefined);
+    }
+
+    // Q-26：一轮结束统一上报一次。中止路径也要报——
+    // 中止不代表分片没被丢过，而「中止时不报」正是那种「平时看不见、
+    // 出问题时恰好也看不见」的盲区
+    if (droppedFrames > 0) {
+      this.#onDroppedChunk({
+        providerId: this.#providerId,
+        model: input.model,
+        droppedFrames,
+        reasons: droppedReasons,
+      });
     }
 
     if (aborted) return abortedTurn();
@@ -392,17 +440,61 @@ function extractData(frame: string): string | null {
   return lines.map((line) => line.slice('data:'.length).trimStart()).join('\n');
 }
 
-function parseChunk(payload: string): z.infer<typeof StreamChunkSchema> | null {
+/**
+ * 缺省的丢弃上报出口（Q-26）：走 Q-21 建好的那条内部错误通道，
+ * 生产环境由 main.ts 注入成带 redact 的 pino，测试不注入则是 stderr。
+ *
+ * **不抛异常**是有意的：一个无关紧要的字段变化不该打断正在跑的生产，
+ * 而「模型输出是不可信输入」这条前提意味着分片本来就可能有杂质。
+ * 目标只是让「悄悄少了一块数据」这件事**留下痕迹**，不是让它变成故障。
+ */
+function defaultDroppedChunkReporter(info: DroppedChunkSummary): void {
+  const detail = [...info.reasons.entries()].map(([key, count]) => `${key} ×${String(count)}`).join('; ');
+  reportInternal(
+    `[provider:${info.providerId}] 流式分片被丢弃 ${String(info.droppedFrames)} 个` +
+      `（model=${info.model}）：${detail}。` +
+      `这通常意味着响应形状与 StreamChunkSchema 对不上——` +
+      `后果是数据静默少一块，不是报错。见 Q-26。`,
+  );
+}
+
+/**
+ * 分片被丢弃的原因，**按形状归类**（Q-26）。
+ *
+ * ⚠️ 这里刻意只带**字段路径与类型**，不带任何值。
+ * 分片内容里可能有 `reasoning_content` 和正文——REQ §13 要求它们一个字节都不出网，
+ * 而诊断信息是要进日志的。把 payload 打出来是最容易犯、也最难发现的泄漏。
+ * 判断标准很简单：这条描述拿给外人看，不该能还原出模型写了什么。
+ */
+export interface DroppedChunkReason {
+  /** `json` = JSON 都没解析出来；`schema` = JSON 合法但不符合契约 */
+  readonly cause: 'json' | 'schema';
+  /** schema 不符时的字段路径，如 `choices.0.delta.tool_calls.0.function.name` */
+  readonly path: string;
+  /** Zod 的 issue code，如 `invalid_type`。不含 received 的**值** */
+  readonly code: string;
+}
+
+function parseChunk(payload: string, onDropped: (reason: DroppedChunkReason) => void): z.infer<
+  typeof StreamChunkSchema
+> | null {
   let raw: unknown;
   try {
     raw = JSON.parse(payload);
   } catch {
     // 单帧坏了不该整轮失败：后续帧仍可能带来 finish_reason 与完整的 tool call。
     // 真正的「什么都没解析出来」会在收敛时表现为 end_turn 且无提交，走 no_submission
+    onDropped({ cause: 'json', path: '', code: 'invalid_json' });
     return null;
   }
   const parsed = StreamChunkSchema.safeParse(raw);
-  return parsed.success ? parsed.data : null;
+  if (parsed.success) return parsed.data;
+  for (const issue of parsed.error.issues) {
+    // 只取 path 与 code。**不要**用 issue.message——某些 code（如 invalid_enum_value）
+    // 会把收到的值拼进 message 里，那就等于把分片内容打进了日志。
+    onDropped({ cause: 'schema', path: issue.path.join('.'), code: issue.code });
+  }
+  return null;
 }
 
 function accumulate(

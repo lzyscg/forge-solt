@@ -277,6 +277,20 @@ export function setInternalErrorSink(sink: InternalErrorSink): void {
   internalErrorSink = sink;
 }
 
+/**
+ * 把一件「不该发生但也不该中断生产」的事送进同一条通道（Q-26）。
+ *
+ * 与 `reasonOf` 的区别：`reasonOf` 处理的是**已经导致失败**的错误，要给用户一句话；
+ * 本函数处理的是**没有导致失败、但吞掉了信息**的情况——典型是流式分片被丢弃。
+ * 那类问题不抛异常，于是没有任何东西会把它送到 sink，
+ * 而它造成的现象（数据凭空少一块）会伪装成完全不相干的故障。
+ *
+ * 调用方有责任保证送进来的东西**不含凭据与模型正文**（REQ §13）。
+ */
+export function reportInternal(detail: unknown): void {
+  internalErrorSink(detail);
+}
+
 export function reasonOf(error: unknown, fallback: string): string {
   if (error instanceof ForgeError) return error.message;
   if (error !== undefined && error !== null) {

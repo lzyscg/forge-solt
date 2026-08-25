@@ -2548,10 +2548,32 @@ schema 不过 → 整个分片被丢弃 → 连同它携带的 `arguments` 碎�
 同一个文件里 `content` 与 `finish_reason` 本来就是 `.nullish()`——
 这条教训学过一次，只是没应用到 `tool_calls` 上。
 
-**更深的一条，尚未处置（Q-26）**：`parseChunk` 失败即 `continue` 意味着
+**更深的一条，已处置（Q-26）**：`parseChunk` 失败即 `continue` 曾意味着
 **schema 与真实响应不匹配时，唯一的表现是数据凭空少了一块，没有任何信号**。
 这次是靠「只有无参工具能成功」这个特征分布反推出来的，而不是靠任何报错。
-Provider 换一家就可能再来一次。见 `notes/OPEN-QUESTIONS.md` Q-26。
+
+现在适配器会累计被丢弃的分片，**一轮结束统一上报一次**，
+走 Q-21 建好的内部错误通道（生产是带 redact 的 pino，测试是 stderr）：
+
+```
+[provider:deepseek] 流式分片被丢弃 137 个（model=deepseek-chat）：
+schema:choices.0.delta.tool_calls.0.function.name:invalid_type ×137。
+这通常意味着响应形状与 StreamChunkSchema 对不上——后果是数据静默少一块，不是报错。
+```
+
+三条设计约束，每条都有测试：
+
+1. **只报形状，不报内容。** 上报里只有字段路径与 Zod 的 issue `code`，
+   没有任何分片内容——分片里可能有 `reasoning_content` 与正文，
+   而诊断是要进日志的（REQ §13）。特别地**不能用 `issue.message`**：
+   某些 code（如 `invalid_enum_value`）会把收到的**值**拼进 message。
+2. **按形状归并，不逐条刷屏。** schema 一旦对不上，坏的往往是每一个分片；
+   逐条报会刷出几百行，结果是没人看——等于没报。
+3. **不抛异常。** 一个无关紧要的字段变化不该打断正在跑的生产。
+   目标是让「悄悄少了一块数据」留下痕迹，不是让它变成故障。
+
+另有一条同样重要的负向判据：**一切正常时一个字都不报**。
+噪音会让这个信号被忽略，那它就白加了。已实测：真实链路跑完整章，日志零条。
 
 **回灌时 `arguments` 必须是合法 JSON 文本（接入 OpenCode Go 时实测发现的潜伏 bug）**
 

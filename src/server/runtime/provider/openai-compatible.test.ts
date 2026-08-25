@@ -8,6 +8,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { ForgeError } from '@shared/errors.ts';
 import { OpenAiCompatibleAdapter } from './openai-compatible.ts';
+import type { DroppedChunkSummary } from './openai-compatible.ts';
 import type { ProviderRunTurnInput, ProviderToolCall } from './provider-adapter.ts';
 
 const encoder = new TextEncoder();
@@ -130,6 +131,87 @@ describe('流式文本', () => {
     const result = await adapter.runTurn(turnInput({ onTextDelta: (d) => deltas.push(d) }));
     expect(deltas).toEqual(['仍然收到']);
     expect(result.stopReason).toBe('end_turn');
+  });
+});
+
+/**
+ * Q-26：分片被丢弃必须留下信号。
+ *
+ * 这一组守的不是「解析对不对」，而是「解析不对的时候你能不能知道」。
+ * 之前的行为是 `parseChunk` 失败即 continue——不报错、不计数、不留痕，
+ * 于是 schema 与真实响应对不上的唯一表现是**数据凭空少一块**。
+ * 接入 OpenCode Go 时就是这样：40 次工具调用参数全空，
+ * 靠「只有无参工具能成功」这个分布反推才找到根因。
+ */
+describe('分片丢弃的可见性（Q-26）', () => {
+  const collect = async (frames: string[]): Promise<DroppedChunkSummary[]> => {
+    const seen: DroppedChunkSummary[] = [];
+    const adapter = new OpenAiCompatibleAdapter({
+      baseUrl: 'https://example.test/v1',
+      providerId: 'fake',
+      onDroppedChunk: (info) => seen.push(info),
+      fetchImpl: (async () => new Response(sseStream(frames), { status: 200 })) as unknown as typeof fetch,
+    });
+    await adapter.runTurn(turnInput({}));
+    return seen;
+  };
+
+  it('schema 对不上时报出字段路径与 code', async () => {
+    // index 是必填的 number，这里给字符串——模拟「下一个 Provider 的字段差异」
+    const seen = await collect([
+      data({ choices: [{ delta: { tool_calls: [{ index: 'zero', function: { name: 'x' } }] } }] }),
+      data({ choices: [{ delta: {}, finish_reason: 'stop' }] }),
+    ]);
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.droppedFrames).toBe(1);
+    const keys = [...(seen[0]?.reasons.keys() ?? [])];
+    expect(keys.some((k) => k.includes('choices.0.delta.tool_calls.0.index'))).toBe(true);
+    expect(keys.some((k) => k.startsWith('schema:'))).toBe(true);
+  });
+
+  it('JSON 都解析不出来时也报，且与 schema 不符区分开', async () => {
+    const seen = await collect(['data: {not json at all\n', data({ choices: [{ delta: {}, finish_reason: 'stop' }] })]);
+
+    expect(seen[0]?.droppedFrames).toBe(1);
+    expect([...(seen[0]?.reasons.keys() ?? [])].some((k) => k.startsWith('json:'))).toBe(true);
+  });
+
+  it('按形状归并，不逐条刷屏', async () => {
+    // 同一种坏形状来 3 次，应当是「一个原因 ×3」而不是三条记录
+    const bad = data({ choices: [{ delta: { tool_calls: [{ index: 'zero' }] } }] });
+    const seen = await collect([bad, bad, bad, data({ choices: [{ delta: {}, finish_reason: 'stop' }] })]);
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]?.droppedFrames).toBe(3);
+    expect(seen[0]?.reasons.size).toBe(1);
+    expect([...(seen[0]?.reasons.values() ?? [])][0]).toBe(3);
+  });
+
+  it('一切正常时不报——否则这个信号会因为噪音被忽略', async () => {
+    const seen = await collect([
+      data({ choices: [{ delta: { content: '正文' } }] }),
+      data({ choices: [{ delta: {}, finish_reason: 'stop' }] }),
+    ]);
+    expect(seen).toEqual([]);
+  });
+
+  /**
+   * REQ §13：诊断信息要进日志，而分片里可能有 `reasoning_content` 与正文。
+   * 判断标准：这条描述拿给外人看，不该能还原出模型写了什么。
+   */
+  it('上报内容不含任何分片正文（只有字段路径与类型）', async () => {
+    const secret = '这是模型的隐藏推理不该出现在日志里';
+    const seen = await collect([
+      data({
+        choices: [{ delta: { content: secret, tool_calls: [{ index: 'zero' }] }, reasoning_content: secret }],
+      }),
+      data({ choices: [{ delta: {}, finish_reason: 'stop' }] }),
+    ]);
+
+    const serialized = JSON.stringify({ ...seen[0], reasons: [...(seen[0]?.reasons.entries() ?? [])] });
+    expect(serialized).not.toContain(secret);
+    expect(serialized).not.toContain('reasoning');
   });
 });
 
