@@ -52,6 +52,31 @@ export function buildServer(opts: BuildServerOptions): FastifyInstance {
     },
   });
 
+  /**
+   * §10.6（Q-24 定案）：**后端永远只有 `/api/*`**。
+   *
+   * 前后端分离方案的全部约束就是这一句。但一句话拦不住任何人——
+   * 在这里顺手注册一条 `/review/...`，`tsc`、`eslint`、691 条测试
+   * 不会有任何一个变红，而线上的现象是「刷新页面 404」：
+   * 静态托管把非 `/api` 的路径全部 fallback 到 `index.html` 了，
+   * 那条后端路由根本收不到请求，看起来就是「写了没生效」。
+   *
+   * 所以把它变成**构造期就会炸**的断言，与分层交给 ESLint、
+   * 事务回调交给 `NotPromise<T>`、`providers.yaml` 交给 `.strict()` 是同一条纪律：
+   * 靠自觉的约束等于没有约束。
+   *
+   * 必须注册在所有路由之前——`onRoute` 只对**其后**注册的路由生效。
+   */
+  app.addHook('onRoute', (route) => {
+    if (!route.url.startsWith('/api/') && route.url !== '/api') {
+      throw new Error(
+        `后端只允许注册 /api/* 路由，收到「${route.url}」。` +
+          `前后端分离下非 /api 路径由静态托管处理（方案 §10.6）；` +
+          `若确实要改变这个决定，先改文档再改代码。`,
+      );
+    }
+  });
+
   app.get('/api/health', () => ({
     status: 'ok',
     version: '0.1.0',
