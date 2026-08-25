@@ -44,8 +44,12 @@ function isMemorySentinel(raw: string): boolean {
 }
 
 /**
- * 解析数据库文件路径：`process.env.DATABASE_PATH`，缺省 `./data/forge-core.sqlite`。
- * 相对路径相对于进程工作目录解析。
+ * 解析数据库文件路径。缺省 `./data/forge-core.sqlite`，相对路径相对于进程工作目录解析。
+ *
+ * **本函数不读 `process.env`**（自统一配置起）。配置的唯一读取点是
+ * `@server/config/env.ts`，由入口解析后把 `config.databasePath` 显式传进来。
+ * infrastructure 自己去读环境变量会造出第二个默认值来源：
+ * 入口用新值、这里用旧值，两条路径连到不同的库，且没有任何报错。
  *
  * **内存哨兵原样返回**。这一条是 M5 发现的真 bug 的修复：原实现无条件
  * `resolve(cwd, ':memory:')`，把哨兵变成了 `<repo>/:memory:` 这个**真实文件**。
@@ -56,7 +60,7 @@ function isMemorySentinel(raw: string): boolean {
  * 而不是任何一条失败的测试：这类 bug 不会让测试变红，只会让测试**失去隔离**。
  */
 export function resolveDatabasePath(explicitPath?: string): string {
-  const raw = explicitPath ?? process.env.DATABASE_PATH ?? DEFAULT_DATABASE_PATH;
+  const raw = explicitPath ?? DEFAULT_DATABASE_PATH;
   if (isMemorySentinel(raw)) return raw;
   return isAbsolute(raw) ? raw : resolve(process.cwd(), raw);
 }

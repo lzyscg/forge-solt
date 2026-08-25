@@ -4,14 +4,20 @@ import { buildApp } from './application/composition.ts';
 import { loadProviderConfig } from './application/provider-config.ts';
 import { buildServer } from './api/server.ts';
 import { setInternalErrorSink } from './application/runtime-ports.ts';
+import { loadServerConfig, describeConfig } from './config/env.ts';
 
-const PORT = Number(process.env['PORT'] ?? 3311);
-const HOST = process.env['HOST'] ?? '127.0.0.1';
 /** Q-23：收尾时等待在跑任务收敛的上界，超时不阻塞 flush/关库 */
 const DRAIN_TIMEOUT_MS = 5000;
 
 async function main(): Promise<void> {
-  const db = openDatabase();
+  // 配置先于一切。解析不出来就不启动——与「迁移跑不完不启动」
+  // 「providers.yaml 读不出来不启动」同一条纪律：宁可启动失败，
+  // 也不要让一个配置不确定的进程开始接管任务生命周期。
+  const config = loadServerConfig();
+  console.log('[config] 本次启动的配置：');
+  for (const line of describeConfig(config)) console.log(`  ${line}`);
+
+  const db = openDatabase(config.databasePath);
 
   // 迁移在服务起来之前跑完。宁可启动失败，也不要让一个 schema 不确定的
   // 进程开始接管任务生命周期。
@@ -26,9 +32,30 @@ async function main(): Promise<void> {
   const forge = buildApp({
     db,
     providers,
-    templatesDir: process.env['TEMPLATES_DIR'] ?? './templates',
-    skillsDir: process.env['SKILLS_DIR'] ?? './skills',
+    templatesDir: config.templatesDir,
+    skillsDir: config.skillsDir,
   });
+
+  /**
+   * 凭据缺失**不阻止启动**（§7.2 明定），但必须在这里喊出来。
+   *
+   * 修的是一个真实发生过的现象：`npm run dev:server` 不加载 `.env`，
+   * 于是服务照常起来、`/api/health` 还是绿的，任务一跑才失败，
+   * 而唯一说明原因的地方是 Provider 设置页——你得先想到去看那一页。
+   * 启动时打出来，问题在发生的那一刻就可见。
+   *
+   * 只打变量**名**，不打值、不打「值为空」之类描述（REQ §13）。
+   */
+  const unusable = forge.registry.listProviders().filter((entry) => !entry.apiKeyPresent);
+  if (unusable.length > 0) {
+    for (const provider of unusable) {
+      console.warn(`[provider] ${provider.name} 不可用：环境变量 ${provider.apiKeyEnv} 未配置`);
+    }
+    console.warn(
+      '[provider] 服务仍会启动（可浏览历史任务），但生产会失败。' +
+        '若用 npm run dev:server 且 .env 已填好，检查启动命令是否带 --env-file-if-exists=.env',
+    );
+  }
 
   /**
    * §8.6：**必须在 HTTP 开始监听之前**。
@@ -49,7 +76,7 @@ async function main(): Promise<void> {
     );
   }
 
-  const app = buildServer({ forge, migrationCount: total });
+  const app = buildServer({ forge, migrationCount: total, logLevel: config.logLevel });
 
   // Q-21：内部错误（非 ForgeError）走 pino（带 redact/结构），不再裸 console.error。
   setInternalErrorSink((error) => {
@@ -78,7 +105,7 @@ async function main(): Promise<void> {
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 
-  await app.listen({ port: PORT, host: HOST });
+  await app.listen({ port: config.port, host: config.host });
 }
 
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {

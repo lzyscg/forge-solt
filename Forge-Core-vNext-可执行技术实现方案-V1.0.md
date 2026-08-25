@@ -784,6 +784,9 @@ forge-core-vnext/
 │   │   └── presentation.ts        # Tone / 状态词表（前后端共享）
 │   │
 │   ├── server/
+│   │   ├── config/                ← 新增（统一环境配置，见 §2.6）
+│   │   │   └── env.ts             # 全系统唯一读 process.env 做【配置】的地方
+│   │   │
 │   │   ├── domain/                # 纯函数，零 IO
 │   │   │   ├── template.ts
 │   │   │   ├── structure-validation.ts
@@ -1010,6 +1013,89 @@ REQ §29 规定 domain 不得依赖 Provider / HTTP / React / SQLite / 文件系
 ```
 
 CI 中 lint 失败即阻断。
+
+### 2.6 统一环境配置（后补，业务方要求）
+
+原文没有规定配置从哪读，实现里就长成了 **9 处各自 `process.env['X'] ?? 默认值`**，
+而且默认值是抄过去的：`'./templates'` 出现 4 次、`3311` 出现 2 次。
+
+**不改的代价**（这是提出改动的直接原因）：改一个默认值要改四处，
+漏一处的表现是「`main.ts` 用新值、CLI 还用旧值」——两条路径连到不同的库或目录，
+**没有任何报错**。这类错误不会让测试变红，只会让两条路径静默地不一致。
+
+#### 唯一读取点
+
+`src/server/config/env.ts` 是全系统唯一一处为**配置**读 `process.env` 的地方。
+它用 Zod 解析并校验，失败即抛，由入口打印后退出（退出码 1）。
+其余文件——包括 `db.ts`、`migrate.ts`、`api/server.ts`、`template-catalog.ts`、两个 CLI——
+一律从入口接收**已解析好的配置对象**，不再自带默认值。
+
+（`template-catalog.ts` 那处尤其值得记：它原本自己写了一份 `?? './templates'`，
+注释还叮嘱「默认值与 `.env.example` 逐字对齐」——**那句叮嘱本身就是问题**。
+靠人去对齐两份常量迟早对不齐，而且对不齐没有任何报错。）
+
+**「唯一」是有边界的说法，剩下三处读 `process.env` 的地方是有意保留的**：
+
+| 位置 | 读什么 | 为什么不收进来 |
+|---|---|---|
+| `provider-registry.ts` | `process.env[apiKeyEnv]` | **凭据**，见下一节。刻意不与配置合并 |
+| `dev-fake.ts` | `FAKE_SCENARIO` / `FAKE_TEMPLATE` | 仅 dev-fake 的脚本开关，不是服务配置；收进 `ServerConfig` 会让生产配置里多两个永远用不到的字段 |
+| `dev-fake.ts` / `run-task.ts` | `fakeEnv(providers, process.env)` | 是**透传**不是读取：给假 Provider 补一个假 Key，保证它绝不出网 |
+
+写清楚比含糊地说「唯一」好：下一个人 grep 到这三处时，
+能立刻判断它们是例外还是漏网，而不用重新推一遍。
+
+| 变量 | 默认 | 说明 |
+|---|---|---|
+| `PORT` / `HOST` | `3311` / `127.0.0.1` | |
+| `DATABASE_PATH` | `./data/forge-core.sqlite` | `dev-fake` 默认改为 `./data/dev-fake.sqlite` |
+| `TEMPLATES_DIR` / `SKILLS_DIR` | `./templates` / `./skills` | |
+| `LOG_LEVEL` | `info` | 枚举，拼错在启动时报错而非静默降级 |
+| `NODE_ENV` | `development` | |
+
+两条刻意的行为：
+
+1. **空串按「未设置」处理。** `.env` 从 `.env.example` 复制过来常常只填了一部分，
+   留下的是 `PORT=` 而不是没有这一行。若把空串当值，用户看到的是
+   「端口 0 非法」——报错指向了一个他没做过的动作。
+2. **配置错误拒绝启动，且一次报全部问题**，并指名是哪一项、去哪改（`.env`）。
+   与「迁移跑不完不启动」「`providers.yaml` 读不出来不启动」同一条纪律。
+
+#### 配置与凭据刻意不合并（REQ §13）
+
+`env.ts` 只管配置，**不读、不碰、不返回任何 API Key**。
+凭据仍然只由 `ProviderRegistry` 读（那里是全系统唯一读 `process.env[apiKeyEnv]` 的地方）。
+
+理由：配置对象会被打日志、会被 `JSON.stringify`、会随依赖图传遍全系统。
+一旦它开始携带 key，前面架的四道网就都绕过去了。
+`env.test.ts` 里有一条断言专门守这个——将来有人往 `ServerConfig` 里加 `apiKey` 会立刻变红。
+
+#### `.env` 与 `providers.yaml` 的分工
+
+| | 放什么 | 进 git |
+|---|---|---|
+| `.env` | **值**：端口、库路径、目录、API Key | ❌ |
+| `config/providers.yaml` | **结构**：provider 列表、baseUrl、模型、别名、超时 | ✅ |
+
+不把 provider 信息也塞进 `.env` 的两个理由：
+别名映射是嵌套结构，平铺成环境变量会变成 `PROVIDER_0_ALIAS_2_MODEL` 这种东西；
+而且 provider 拓扑的变更**应该经过 code review**，凭据不应该。
+实际维护成本已经很低：**换 Key = 改 `.env` 一行**；
+加一个 Provider = `providers.yaml` 加一块 + `.env` 加一行。
+
+#### 凭据缺失仍然不阻止启动，但必须喊出来
+
+§7.2 明定「环境变量缺失 → `down` + 明确 note，**但不阻止服务启动**」，这条保留不变
+（服务起不来就没法浏览历史任务，而浏览历史不需要凭据）。
+
+补的是**可见性**：此前的真实现象是「`npm run dev:server` 不加载 `.env` →
+服务照常起来 → `/api/health` 还是绿的 → 任务一跑才失败」，
+而唯一说明原因的地方是 Provider 设置页，你得先想到去看那一页。
+现在启动时直接打出配置横幅与缺失的变量名（只打**名**，不打值）。
+
+同时 `dev:server` / `dev:fake` / `migrate` 三个脚本都加了 `--env-file-if-exists=.env`。
+用 `-if-exists` 变体是因为新克隆还没有 `.env`——用 `--env-file` 会让 Node 抛一句
+与本项目无关的报错，而 `-if-exists` 会让它落到我们自己的默认值与校验上。
 
 ---
 

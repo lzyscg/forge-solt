@@ -24,6 +24,7 @@ import { FakeProvider } from '@server/runtime/provider/fake.ts';
 import { buildApp } from '@server/application/composition.ts';
 import { loadProviderConfig } from '@server/application/provider-config.ts';
 import type { CompiledSlotType, CompiledTemplate } from '@server/application/template-loader.ts';
+import { loadServerConfig } from '@server/config/env.ts';
 
 interface CliArgs {
   template: string;
@@ -70,6 +71,8 @@ function parseArgs(argv: readonly string[]): CliArgs {
     throw new Error(`--provider 只能是 fake 或 real，收到「${provider}」`);
   }
 
+  const envConfig = loadServerConfig();
+
   return {
     template,
     inputFile,
@@ -77,8 +80,10 @@ function parseArgs(argv: readonly string[]): CliArgs {
     name: flags.get('name') ?? `${template} CLI 任务`,
     // 默认落到内存库：CLI 的默认行为不该往用户的工作副本里塞数据
     dbPath: flags.get('db') ?? ':memory:',
-    templatesDir: flags.get('templates-dir') ?? process.env['TEMPLATES_DIR'] ?? './templates',
-    skillsDir: flags.get('skills-dir') ?? process.env['SKILLS_DIR'] ?? './skills',
+    // 命令行标志 > 环境配置（统一解析，含默认值）。
+    // CLI 自己再写一遍 `?? './templates'` 就会有第二份默认值。
+    templatesDir: flags.get('templates-dir') ?? envConfig.templatesDir,
+    skillsDir: flags.get('skills-dir') ?? envConfig.skillsDir,
     providerConfig: flags.get('provider-config') ?? './config/providers.yaml',
   };
 }

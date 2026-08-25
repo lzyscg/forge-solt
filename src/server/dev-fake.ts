@@ -18,15 +18,24 @@ import { runMigrations } from '@server/infrastructure/database/migrate.ts';
 import { FakeProvider } from '@server/runtime/provider/fake.ts';
 import { buildApp } from '@server/application/composition.ts';
 import { loadProviderConfig } from '@server/application/provider-config.ts';
+import { loadServerConfig } from '@server/config/env.ts';
 import { buildServer } from '@server/api/server.ts';
 import type { CompiledSlotType, CompiledTemplate } from '@server/application/template-loader.ts';
 
-const PORT = Number(process.env['PORT'] ?? 3311);
 const SCENARIO = process.env['FAKE_SCENARIO'] ?? 'happy';
 const TEMPLATE_ID = process.env['FAKE_TEMPLATE'] ?? 'zhihu-chapter';
 
 async function main(): Promise<void> {
-  const db = openDatabase(process.env['DATABASE_PATH'] ?? './data/dev-fake.sqlite');
+  /**
+   * 与 main.ts 共用同一份配置解析，只把**库的默认值**换掉。
+   *
+   * 换默认库不是洁癖：FakeProvider 造的是占位正文，混进真实生产库之后
+   * 从任务列表上看不出区别（状态、槽位数、产物都长得一样），
+   * 只有点开正文才发现是「〔占位〕」。
+   * 用户显式设了 DATABASE_PATH 时仍以用户的为准。
+   */
+  const config = loadServerConfig({ defaultDatabasePath: './data/dev-fake.sqlite' });
+  const db = openDatabase(config.databasePath);
   const { total } = runMigrations(db);
 
   const providers = await loadProviderConfig();
@@ -35,8 +44,8 @@ async function main(): Promise<void> {
   const forge = buildApp({
     db,
     providers,
-    templatesDir: process.env['TEMPLATES_DIR'] ?? './templates',
-    skillsDir: process.env['SKILLS_DIR'] ?? './skills',
+    templatesDir: config.templatesDir,
+    skillsDir: config.skillsDir,
     adapterFactory: () => fake,
     env: fakeEnv(providers, process.env),
   });
@@ -50,8 +59,8 @@ async function main(): Promise<void> {
   if (recovery.recovered.length > 0) console.log(`[recover] ${String(recovery.recovered.length)} 个任务置为 stopped`);
 
   const app = buildServer({ forge, migrationCount: total });
-  await app.listen({ port: PORT, host: '127.0.0.1' });
-  console.log(`[dev-fake] listening on http://127.0.0.1:${String(PORT)}`);
+  await app.listen({ port: config.port, host: config.host });
+  console.log(`[dev-fake] listening on http://${config.host}:${String(config.port)} · 库 ${config.databasePath}`);
 }
 
 function scriptScenario(fake: FakeProvider, compiled: CompiledTemplate, scenario: string): void {

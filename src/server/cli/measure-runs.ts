@@ -35,6 +35,7 @@ import { openDatabase, type ForgeDb } from '@server/infrastructure/database/db.t
 import { runMigrations } from '@server/infrastructure/database/migrate.ts';
 import { buildApp } from '@server/application/composition.ts';
 import { loadProviderConfig } from '@server/application/provider-config.ts';
+import { loadServerConfig } from '@server/config/env.ts';
 
 interface MeasureArgs {
   dbPath: string;
@@ -79,14 +80,18 @@ function parseArgs(argv: readonly string[]): MeasureArgs {
   const runs = Number.parseInt(rawRuns, 10);
   if (!Number.isInteger(runs) || runs <= 0) throw new Error(`--runs 需要正整数，收到「${rawRuns}」`);
 
+  const envConfig = loadServerConfig();
+
   return {
     dbPath,
     template,
     inputFile,
     runs,
     reportOnly,
-    templatesDir: flags.get('templates-dir') ?? process.env['TEMPLATES_DIR'] ?? './templates',
-    skillsDir: flags.get('skills-dir') ?? process.env['SKILLS_DIR'] ?? './skills',
+    // 命令行标志 > 环境配置（统一解析，含默认值）。
+    // CLI 自己再写一遍 `?? './templates'` 就会有第二份默认值。
+    templatesDir: flags.get('templates-dir') ?? envConfig.templatesDir,
+    skillsDir: flags.get('skills-dir') ?? envConfig.skillsDir,
     providerConfig: flags.get('provider-config') ?? './config/providers.yaml',
   };
 }

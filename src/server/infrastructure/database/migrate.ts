@@ -18,6 +18,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ForgeDb } from './db.ts';
 import { openDatabase, resolveDatabasePath } from './db.ts';
+import { loadServerConfig } from '@server/config/env.ts';
 
 /** 迁移目录默认位于仓库根的 `migrations/`（相对进程工作目录）。 */
 export const DEFAULT_MIGRATIONS_DIR = './migrations';
@@ -106,7 +107,9 @@ export function runMigrations(db: ForgeDb, migrationsDir?: string): MigrationRes
 
 /** CLI 入口：打开（必要时创建）数据库并执行迁移。 */
 function main(): void {
-  const dbPath = resolveDatabasePath();
+  // 走统一配置，而不是自己读 DATABASE_PATH——否则 `npm run migrate`
+  // 迁移的可能不是服务实际连的那个库，而两边都不会报错。
+  const dbPath = resolveDatabasePath(loadServerConfig().databasePath);
   const db = openDatabase(dbPath);
   try {
     const result = runMigrations(db);

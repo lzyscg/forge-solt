@@ -30,6 +30,7 @@ import { compareCodePoints } from '@server/domain/canonical.ts';
 import type { LoadedTemplate, TemplateLoaderOptions } from './template-loader.ts';
 import { loadTemplate, TEMPLATE_FILE_NAME } from './template-loader.ts';
 import { loadProviderConfig, DEFAULT_PROVIDER_CONFIG_PATH } from './provider-config.ts';
+import { loadServerConfig } from '@server/config/env.ts';
 
 export interface TemplateCatalogOptions extends TemplateLoaderOptions {
   /** .env 的 `TEMPLATES_DIR`。其下每个含 template.yaml 的子目录算一个模板 */
@@ -198,20 +199,22 @@ export function createTemplateCatalog(options: TemplateCatalogOptions): Template
 }
 
 /**
- * 按 .env 装配（`TEMPLATES_DIR` / `SKILLS_DIR`），并从 providers.yaml 取
+ * 按环境配置装配（`TEMPLATES_DIR` / `SKILLS_DIR`），并从 providers.yaml 取
  * D-06 回退链的最后一级。
  *
- * 默认值与 `.env.example` 逐字对齐——两处漂移会让「照着 .env.example 配」
- * 得到一个行为不同的系统。
+ * 默认值**不在本文件**：走 `@server/config/env.ts` 的统一解析（§2.6）。
+ * 这里原本自己写了一份 `?? './templates'`，注释还叮嘱「与 .env.example 逐字对齐」——
+ * 那正是问题本身：靠人去对齐两份常量，迟早对不齐，而且对不齐没有任何报错。
  */
 export async function createTemplateCatalogFromEnv(
   env: NodeJS.ProcessEnv = process.env,
   providerConfigPath: string = DEFAULT_PROVIDER_CONFIG_PATH,
 ): Promise<TemplateCatalog> {
   const providers = await loadProviderConfig(providerConfigPath);
+  const config = loadServerConfig({ env });
   return createTemplateCatalog({
-    templatesDir: env['TEMPLATES_DIR'] ?? './templates',
-    skillsDir: env['SKILLS_DIR'] ?? './skills',
+    templatesDir: config.templatesDir,
+    skillsDir: config.skillsDir,
     defaults: { timeoutMs: providers.defaults.timeoutMs, maxRetries: providers.defaults.maxRetries },
     // D-19：既然 providers.yaml 已经读进来了，别名打错字就该在这里炸，
     // 而不是等任务跑起来烧掉一次 Assignment 才炸。

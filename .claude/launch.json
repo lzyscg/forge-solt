@@ -2,9 +2,22 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "server",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "tsx",
+        "--env-file=.env",
+        "src/server/main.ts"
+      ],
+      "port": 3311
+    },
+    {
       "name": "fake-server",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["tsx", "src/server/dev-fake.ts"],
+      "runtimeArgs": [
+        "tsx",
+        "src/server/dev-fake.ts"
+      ],
       "port": 3311,
       "env": {
         "DATABASE_PATH": "./data/preview-check.sqlite",
@@ -14,13 +27,18 @@
     {
       "name": "client",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite"],
+      "runtimeArgs": [
+        "vite"
+      ],
       "port": 5273
     },
     {
       "name": "preview",
       "runtimeExecutable": "npx",
-      "runtimeArgs": ["vite", "preview"],
+      "runtimeArgs": [
+        "vite",
+        "preview"
+      ],
       "port": 5274
     }
   ]

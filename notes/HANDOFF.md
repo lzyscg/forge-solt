@@ -4,7 +4,7 @@
 > 读完这一份 + `notes/OPEN-QUESTIONS.md`，应该能直接开始 M6。
 >
 > 最后更新：M5（API 与 SSE）完成并通过一轮独立审查之后。
-> 状态：`npx tsc --noEmit` 干净 · `npx eslint .` 干净 · **669 测试全绿（35 个文件）**。
+> 状态：`npx tsc --noEmit` 干净 · `npx eslint .` 干净 · **706 测试全绿（44 个文件）**。
 
 ---
 
@@ -32,21 +32,19 @@ Zod 3 · Vitest 2 · SSE · pino。单机单用户，P0 并发固定 1。
 ```bash
 npm install
 cp .env.example .env        # 然后把 DEEPSEEK_API_KEY 填进去
-npm run typecheck && npm run lint && npm test     # 应当 669 全绿
+npm run typecheck && npm run lint && npm test     # 应当 706 全绿
 ```
 
-**先处理一个地雷**，否则 `npm run dev:server` 起不来：
+> ⚠️ **这里原本有一条「删掉 `data/forge-core.sqlite`」的指引，已删除。**
+> 当时那个库是 8-20 留下的空库，迁移哈希对不上、起不来，删掉是对的。
+> 但那个库后来已重建，**现在装着真实生产数据**（实测启动正常、`migrations: 2`）。
+> 照着旧指引执行 = 删掉真实任务，而 `data/` 全部 gitignore，**没有备份**。
+> 若将来真的再遇到「已应用的迁移不可编辑」，先 `npx tsx src/server/cli/dump-trace.ts --latest`
+> 确认库里有没有数据，再决定删不删。
 
-```bash
-# ./data/forge-core.sqlite 是 8-20 留下的空库（0 个任务），
-# 它记录的 001_initial.sql 哈希（84bcae7b3603）与当前文件（31c8287aa41b）不符，
-# 迁移守卫会拒绝启动并报「已应用的迁移不可编辑」。
-# 那个守卫是对的——迁移确实在应用之后被改过。库里没有数据，删掉即可：
-rm -f data/forge-core.sqlite data/forge-core.sqlite-wal data/forge-core.sqlite-shm
-```
-
-`data/m4-measure.sqlite` 与 `data/m4-dense.sqlite` 是 M4 的实测数据，**别删**——
-`notes/M4-TUNING-REPORT.md` 的全部数字都出自它们。
+`data/` 下的库**没有任何备份**（全部 gitignore）。其中：
+`m4-measure.sqlite` / `m4-dense.sqlite` 是 M4 实测数据（`notes/M4-TUNING-REPORT.md`
+的全部数字出自它们），`m7-accept*.sqlite` 是 M7 验收数据——**都别删**。
 
 然后：
 
@@ -58,10 +56,18 @@ npx tsx src/server/cli/dump-trace.ts --latest  # 打印最近一个任务的轨�
 npx tsx src/server/cli/measure-runs.ts --help  # M4 的量化闸门
 ```
 
-**环境变量的坑**：`.env` 里已经有 `DATABASE_PATH`。若你在 shell 里 `export DATABASE_PATH=...`
-之后再 `set -a; . ./.env`，`.env` 会把你的覆盖掉。顺序要反过来。
+**环境变量**：`cp .env.example .env` 填好即可，**不需要手工 source**。
+`dev:server` / `dev:fake` / `migrate` 三个脚本都带 `--env-file-if-exists=.env`，
+Node 22 自己加载。解析与校验在 `src/server/config/env.ts`（§2.6），
+是全系统唯一读 `process.env` 做配置的地方——加新配置项改这一个文件，别再各处 `?? 默认值`。
 
-### 2.5 部署形态：前后端分离（Q-24 已定案）
+启动第一屏会打出本次实际用的端口/库/目录，以及缺失的 Provider 变量名。
+**看一眼横幅**比事后查「为什么任务跑不动」便宜得多。
+
+（历史坑，已消失：以前 `npm run dev:server` 不加载 `.env`，服务照常起来、
+`/api/health` 还是绿的，任务一跑才失败，而原因只在 Provider 设置页看得到。）
+
+### 1.4 部署形态：前后端分离（Q-24 已定案）
 
 权威描述在方案 §10.6，这里只记你每天要用到的部分。
 
@@ -113,7 +119,7 @@ npm run preview    # 5274，serve 构建产物并代理 /api → 3311
 | M6 前端 | ✅ | 六个页面 + 工作台三栏 + `SafeMarkdown`，共 24 个文件 |
 | **M7 加固与验收** | ✅ | 脱敏审计（全表全列）、E2E 三流程、32 槽位规模、连续 10 章 |
 
-**当前基线：691 测试 / 42 文件，`tsc` 与 `eslint` 干净。**
+**当前基线：706 测试 / 44 文件，`tsc` 与 `eslint` 干净。**
 M6/M7 之后做过一轮独立复查，找到并修了两个 bug（工作台状态跨任务泄漏、
 时间线「有 N 条新事件」的 N 是编的），详见 `DEVLOG.md` 的 M6–M7 一节。
 
@@ -132,7 +138,7 @@ M6/M7 之后做过一轮独立复查，找到并修了两个 bug（工作台状�
   未拆分里程碑历史（拆一个已完成的快照只会编造出七个当时并不可运行的状态）。
 - ~~**没有任何方式跑构建产物。**~~ **Q-24 已定案：前后端分离**（§10.6）。
   `@fastify/static` 已卸载，后端**永远只有 `/api/*`**；`dist/client` 由静态托管发出，
-  本地用 `npm run preview`（5274）验证构建产物。详见下面「§2.5 部署形态」。
+  本地用 `npm run preview`（5274）验证构建产物。详见 §1.4 部署形态。
 - `provider_health` 表没有写入方（刻意，见 Q-20）；`executions.*_tokens` 恒为 NULL（Q-18）。
 - UX §13.5 只做了一半：技术详情块有，但「复制 Trace / 导出 JSON / 导出 Markdown」
   没有，且已完成的槽位看不到技术详情——见 Q-25，同样需要你划范围。
@@ -364,8 +370,11 @@ npm run dev:client   # 5273，vite 代理 /api → 3311
 | 模型说完话但没提交 | 这是正常路径，走 `no_submission` 重试。给模型的反馈必须说「你没有提交」，不能说成别的（给模型一句与事实相反的反馈是最坏的反馈） |
 | 换个任务，时间线还是上一个任务的 | `/tasks/$taskId` 的 `remountDeps` 被删了。sequence 每任务从 1 起，去重会吃掉新任务的事件 |
 | 前端测试报「找到多个元素」 | 没写 `afterEach(cleanup)`。本仓库没开 `globals: true`，自动清理不生效 |
-| `npm run build` 成功但打不开页面 | 忘了 serve `dist/client`。后端只有 `/api/*`（这是定案，见 §2.5）。本地用 `npm run preview` |
-| 工作台卡住不动，最后事件突然全部涌出 | 反代开着缓冲。nginx 的 `/api/` 要 `proxy_buffering off`（§2.5 第 3 条） |
+| 任务全都失败，但服务和 `/api/health` 都正常 | Provider 凭据缺失。看启动横幅的 `[provider]` 警告行，或 Provider 设置页。填 `.env` 的 `DEEPSEEK_API_KEY` |
+| 改了默认端口/目录却没生效 | 别在各处 `?? 默认值`，默认值只在 `src/server/config/env.ts` 一处（§2.6） |
+| 之前跑的任务「不见了」 | `DATABASE_PATH` 指向了另一个库。历史记录按库文件走，`dev:fake` 默认落在 `dev-fake.sqlite` |
+| `npm run build` 成功但打不开页面 | 忘了 serve `dist/client`。后端只有 `/api/*`（这是定案，见 §1.4）。本地用 `npm run preview` |
+| 工作台卡住不动，最后事件突然全部涌出 | 反代开着缓冲。nginx 的 `/api/` 要 `proxy_buffering off`（§1.4 第 3 条） |
 | 刷新 `/tasks/<id>` 变 404 | 静态托管缺 SPA fallback（`try_files $uri /index.html`） |
 
 ---
@@ -381,7 +390,7 @@ npm run dev:client   # 5273，vite 代理 /api → 3311
    目前 L1 就够了（首次通过率 100%），L2/L3/L4 一次都没用上。
 5. ~~**决定部署形态**（Q-24）~~ ✅ 已定案：**前后端分离**。理由是后续要加的功能
    （CLI 操作方式、审核打回机制）会同时长在两侧，边界清晰比省一个进程更值钱。
-   落地见 §2.5 与方案 §10.6。
+   落地见 §1.4 与方案 §10.6。
 6. **决定 UX §13.5 在 P0 做到哪**（Q-25）：导出三件套没做，已完成槽位也看不到技术详情。
    是补齐还是把 §13.5 标成 P1，得你说了算——否则下一个人会当成 bug 再改一遍。
 
@@ -394,7 +403,7 @@ npm run dev:client   # 5273，vite 代理 /api → 3311
 
 M6/M7 复查新增的两条，都是**范围问题不是缺陷**：
 
-- **Q-24** ✅ 已定案：前后端分离，`@fastify/static` 已卸载，见 §2.5
+- **Q-24** ✅ 已定案：前后端分离，`@fastify/static` 已卸载，见 §1.4
 - **Q-25** ⏳ 待划线：已完成槽位看不到技术详情（UX §13.5 只做了一半）
 
 M5 期间新增的四条：

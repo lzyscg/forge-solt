@@ -43,7 +43,9 @@ export function buildServer(opts: BuildServerOptions): FastifyInstance {
   const app = Fastify({
     ...(opts.forceCloseConnections === true ? { forceCloseConnections: true } : {}),
     logger: {
-      level: opts.logLevel ?? process.env['LOG_LEVEL'] ?? 'info',
+      // 不在这里读 LOG_LEVEL：配置的唯一读取点是 @server/config/env.ts，
+      // 由入口解析后显式传进来。api 层自己兜底会造出第二个默认值来源。
+      level: opts.logLevel ?? 'info',
       // 安全约束（REQ §13）：日志不得回显凭据
       redact: {
         paths: ['req.headers.authorization', 'req.headers.cookie', '*.apiKey', '*.api_key'],
