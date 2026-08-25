@@ -37,15 +37,33 @@ import { parseRetryAfter, rateLimited } from './rate-limit.ts';
  * 模型输出是不可信输入（本轮硬要求 8）：所有从网络回来的 JSON 都过这里。
  * 注意这里**刻意不写** `reasoning_content` / `reasoning`——见文件头第 3 条。
  */
+/**
+ * ⚠️ 这里必须是 `.nullish()` 而不是 `.optional()`（§7.3）。
+ *
+ * 「`id` 与 `name` 只在第一个分片出现」有**两种**表达方式，而 `.optional()`
+ * 只接受其中一种：
+ *
+ *   DeepSeek 官方   → 续传分片里字段**缺省**        `.optional()` 通过
+ *   OpenCode Go     → 续传分片里显式 `"name": null` `.optional()` 拒绝
+ *
+ * 而 `parseChunk` 失败即 `continue`，于是「schema 不过」被放大成
+ * **整个分片连同它携带的 arguments 碎片一起被静默丢弃**，
+ * 拼出来的参数是空串——上层表现为「模型只会发空参数的工具调用」，
+ * 唯一能成功的是不需要参数的 `read_task_input`。
+ *
+ * 接入 OpenCode Go 时真实踩到，靠「只有无参工具能成功」这个分布反推出来的，
+ * 没有任何报错指向这里。同文件的 `content` / `finish_reason` 早就是 `.nullish()`，
+ * 这条教训学过一次，只是没应用到 tool_calls 上。
+ */
 const StreamToolCallDeltaSchema = z.object({
   index: z.number().int(),
-  id: z.string().optional(),
+  id: z.string().nullish(),
   function: z
     .object({
-      name: z.string().optional(),
-      arguments: z.string().optional(),
+      name: z.string().nullish(),
+      arguments: z.string().nullish(),
     })
-    .optional(),
+    .nullish(),
 });
 
 const StreamChunkSchema = z.object({
@@ -311,6 +329,35 @@ function abortedTurn(): ProviderTurnResult {
   return { stopReason: 'aborted', usage: null, appendMessages: [] };
 }
 
+/**
+ * 回灌 assistant tool call 时，`arguments` 必须是**合法 JSON 文本**（文档 §7.3）。
+ *
+ * 模型可以发一个参数为空的 tool call，此时累积出来的是 `''`——而空字符串不是合法 JSON。
+ * DeepSeek 官方容忍它、照常返回 200；OpenCode Go 的网关严格校验，回 400
+ * `Assistant tool call function.arguments must be valid JSON`。
+ *
+ * 真正致命的不是这一次 400，而是**那条消息会留在对话历史里**：
+ * 一旦进去，之后每一次请求都带着它，每次重试都以完全相同的方式失败，
+ * 任务卡在 running 无限重试，而错误信息指向 Provider——看起来像是对方的问题。
+ * （接入 OpenCode Go 首跑时真实发生，trace seq 6→8。）
+ *
+ * **归一化只发生在这一层，不在累积器里。** 累积器必须原样保留模型的产出，
+ * 否则分发器看不到「模型没给参数」，`sectionId: Required` 这条正确的反馈就没了。
+ * 模型已经通过 tool result 收到准确反馈，这里回 `{}` 与 `''` 表达的都是
+ * 「没给参数」，区别只是后者不合法、会让整段对话永久失效。
+ */
+function wireArguments(raw: string): string {
+  if (raw.trim() === '') return '{}';
+  try {
+    JSON.parse(raw);
+    return raw;
+  } catch {
+    // 截断/畸形的 JSON 同样不能回灌。宁可丢掉这段不可解析的内容，
+    // 也不要让整条对话从此无法继续——模型已经从 tool result 知道这次调用失败了。
+    return '{}';
+  }
+}
+
 function toWireMessage(message: ProviderMessage): Record<string, unknown> {
   switch (message.role) {
     case 'user':
@@ -324,7 +371,7 @@ function toWireMessage(message: ProviderMessage): Record<string, unknown> {
             tool_calls: message.toolCalls.map((call) => ({
               id: call.id,
               type: 'function',
-              function: { name: call.name, arguments: call.argumentsJson },
+              function: { name: call.name, arguments: wireArguments(call.argumentsJson) },
             })),
           };
     case 'tool':

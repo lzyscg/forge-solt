@@ -517,3 +517,52 @@ S2 的「场景数由素材密度决定」到底是有效指导还是一句正�
   免得下一个人以为这是 bug 又改一遍。
 
 ---
+## Q-26 分片 schema 不匹配时静默丢数据，没有任何信号（接入 OpenCode Go 时暴露）
+
+- **现状**：`openai-compatible.ts` 的读流循环里是
+  `const chunk = parseChunk(payload); if (chunk === null) continue;`。
+  Zod 校验不过 → 整个分片被丢弃 → **不记日志、不计数、不进 trace**。
+- **它造成过什么**：`StreamToolCallDeltaSchema` 的 `name` 写的是 `.optional()`，
+  只接住「字段缺省」（DeepSeek 官方的形状），接不住「显式 `null`」（OpenCode Go 的形状）。
+  于是每个续传分片连同它携带的 `arguments` 碎片被整片丢掉，拼出来是空串。
+  **上层看到的完全是另一回事**：「模型烧掉 24 次工具调用也不提交」，
+  很像 D-17 早就写明的「结构生成 tool call 可靠性」风险——差一点就被归因成模型能力问题。
+  真正的诊断线索是那个分布：40 次 `read_skill_section` 全部
+  「参数不合法」，而唯一成功的是 `read_task_input`——**唯一不需要参数的工具**。
+- **schema 那一处已修**（改成 `.nullish()`，带反证测试）。**但机制没修**：
+  下一个 Provider 的下一个形状差异，还会以同样的方式静默丢数据。
+- **要定的**：给「分片被丢弃」一个信号。几个方向，代价递增：
+  1. 累计一个计数，turn 结束时若 > 0 就写一条 trace（`kind` 需新增，会动契约）；
+  2. 走 `setInternalErrorSink`（Q-21 已建好的通道），打到 stderr 即可，不动契约；
+  3. 直接抛 `PROVIDER_ERROR`——最响，但一个无关紧要的字段变化就会打断生产，
+     考虑到「模型输出是不可信输入」这条前提，多半过激。
+- **倾向 2**，但没做，因为它需要把 sink 注入到 adapter（目前 adapter 不持有 logger），
+  而那会改 `ProviderAdapter` 的构造契约——值得单独一次改动，不该混在 bug 修复里。
+
+---
+## Q-27 OpenCode Go 上「首次尝试几乎必超时、重试才成功」
+
+- **实测**（首次真实生产跑通，11 条 execution：`succeeded 6 / failed 5`）：
+
+  | 步骤 | 第 1 次 | 第 2 次 |
+  |---|---|---|
+  | create_structure | 90s 超时 ❌ | 72s ✅ |
+  | chapter_outline | 120s 超时 ❌ | 40s ✅ |
+  | scene_1 | 180s 超时 ❌ | 63s ✅ |
+  | scene_2 | 180s 超时 ❌ | 41s ✅ |
+  | scene_3 | 91s 未提交 ❌ | 92s ✅ |
+  | title | 53s ✅ | — |
+
+- **后果**：任务能跑完（重试兜住了），但**配额与时间都花了约两倍**。
+  对一个按用量计费的订阅套餐来说，这是实打实的浪费。
+- **不要急着归因**：「第二次总是更快」看起来像网关冷启动或路由预热，
+  但**没有证据**——只跑了一轮，样本 n=1，也没有对照。
+  真要下结论得像 M4 那样用 `measure-runs.ts` 连跑一批，两个 Provider 分开报。
+- **可选处置**：
+  1. 调高 `template.yaml` 的 `limits.timeoutMs`（现在这套是对着 DeepSeek 官方调的，
+     那边探针 200ms，OpenCode Go 探针 4.3s）；
+  2. 让 `timeoutMs` 能按 provider 覆盖（D-06 的回退链目前到不了 provider 这一层）；
+  3. 什么都不做，接受两倍开销。
+- **需要业务方定**：这直接花的是套餐额度。在跑量之前先定，比跑完再心疼便宜。
+
+---

@@ -2516,6 +2516,77 @@ type ProviderMessage =
 
 两者都要求：**一个 turn 内可能有多个 tool call**。收到 `stopReason === 'tool_use'` 后，把所有 tool call 的结果作为一条 `role: 'user'`（Anthropic 用 `tool_result` content block；OpenAI 用 `role: 'tool'` 多条消息）回灌，进入下一轮。
 
+**分片 schema 必须容忍 `null`，不只是容忍缺省（接入 OpenCode Go 时的根因）**
+
+原文说「`id` 和 `function.name` 通常只在第一个片段出现」，实现照此写成
+`z.string().optional()`。**但「只在第一片出现」有两种表达方式**，
+而 `.optional()` 只接受其中一种：
+
+| Provider | 续传分片里的 `name` | `.optional()` |
+|---|---|---|
+| DeepSeek 官方 | 字段**缺省** | ✅ 通过 |
+| OpenCode Go | 显式 `"name": null` | ❌ **拒绝** |
+
+后果被 `parseChunk` 失败即 `continue` 的写法**放大成静默数据丢失**：
+schema 不过 → 整个分片被丢弃 → 连同它携带的 `arguments` 碎片一起丢 →
+拼出来的参数是空串。
+
+现场表现（接入 OpenCode Go 第二跑，107 条 trace）：
+
+```
+40x  read_skill_section   参数不合法：sectionId: Required
+ 5x  report_work          参数不合法：type: Required；summary: Required
+ 1x  read_structure_outline 失败
+ 2x  read_task_input      ✅ 成功  ← 唯一一个不需要参数的工具
+```
+
+**只有不需要参数的工具能成功**——这个分布本身就是诊断书。
+而现象在上层看起来完全是另一回事：「模型烧掉 24 次工具调用也不提交」，
+像是模型能力问题（D-17 早就写了这个风险，因此更容易被误判成它）。
+
+**处置**：tool call 分片的 `id` / `name` / `arguments` 一律用 `.nullish()`。
+同一个文件里 `content` 与 `finish_reason` 本来就是 `.nullish()`——
+这条教训学过一次，只是没应用到 `tool_calls` 上。
+
+**更深的一条，尚未处置（Q-26）**：`parseChunk` 失败即 `continue` 意味着
+**schema 与真实响应不匹配时，唯一的表现是数据凭空少了一块，没有任何信号**。
+这次是靠「只有无参工具能成功」这个特征分布反推出来的，而不是靠任何报错。
+Provider 换一家就可能再来一次。见 `notes/OPEN-QUESTIONS.md` Q-26。
+
+**回灌时 `arguments` 必须是合法 JSON 文本（接入 OpenCode Go 时实测发现的潜伏 bug）**
+
+原文只说了「怎么把碎片拼起来交给分发器」，没说**拼出来的东西回灌时长什么样**。
+实现里是原样回传（`function: { arguments: call.argumentsJson }`），
+于是模型发一个**参数为空**的 tool call 时，我们回灌的是 `arguments: ""`——
+而空字符串不是合法 JSON。
+
+真实事故（接入 OpenCode Go 首跑）：
+
+```
+seq 6  tool_call_started    read_skill_section   argumentsLength: 0   ← 模型发了空参数
+seq 7  tool_call_completed  被拒绝：sectionId: Required               ← 分发器正确拒绝
+seq 8  assignment_failed    HTTP 400: Assistant tool call
+                            function.arguments must be valid JSON     ← 回灌时被网关拒
+```
+
+**为什么它一直没被发现**：DeepSeek 官方端点**容忍** `arguments: ""`，
+照常返回 200。M4/M5/M7 全程只对着 DeepSeek 官方跑，这条路径从来没被拒过。
+换一个严格校验的网关（OpenCode Go）立刻暴露。
+
+**为什么它比看上去严重**：那条坏消息会**留在对话历史里**。
+一旦进去，后面每一次请求都带着它，于是每次重试都以完全相同的方式失败——
+现象是任务卡在 `running` 无限重试，而错误信息指向 Provider，看起来像是对方的问题。
+
+**处置**：在**序列化边界**归一化，不在累积器里归一化。
+
+- 累积器保持原样（拿到什么记什么）——分发器必须看到模型**真实**产出的东西才能正确拒绝，
+  在累积阶段就补成 `{}` 会让「模型没给参数」这件事对分发器不可见，
+  于是 `sectionId: Required` 这条正确的反馈也就没了。
+- 只在拼 wire 消息那一步：`arguments` 为空或 parse 不过 → 回灌 `"{}"`。
+
+语义上不算篡改：模型已经通过 tool result 收到了「参数不合法」的准确反馈，
+`{}` 与 `""` 表达的都是「没给参数」，区别只是后者不合法、会让整段对话永久失效。
+
 **中止语义**：`signal.aborted` 后立即 `reader.cancel()` 并 return `{ stopReason: 'aborted' }`，不抛异常。抛异常会与超时/取消的错误处理路径混淆。
 
 **429 处理**：适配器内部**不做重试**，直接抛 `ForgeError('PROVIDER_RATE_LIMITED')` 并附带 `Retry-After`（如有）。退避重试由 `AssignmentRunner` 统一处理（见 §8.5），保证退避期间也能被 stop 中止。

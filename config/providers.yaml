@@ -23,43 +23,55 @@ providers:
       - deepseek-v4-flash
       - deepseek-v4-pro # D-17 L3 的目标型号：结构通过率不达标时切这个
 
-  # OpenCode Zen —— 聚合网关（D-17 补正，业务方要求接入）
+  # OpenCode Go —— 订阅制套餐（D-17 补正，业务方要求接入并设为默认）
   #
-  # ⚠️ 接入当日实测：该 Key **余额不足**，暂不可用。
-  #    GET  /v1/models           → 200（认证有效，64 个模型）
-  #    POST /v1/chat/completions → 401 CreditsError: Insufficient balance
-  #    因此下面的 aliases **没有**切过来，仍指向 deepseek 官方。
-  #    充值后把 aliases 里三处 provider 改成 opencode-zen 即可，模板无需改动。
+  # ⚠️ baseUrl 必须是 /zen/go/v1，**不是** /zen/v1。这两个是不同的产品：
+  #    - /zen/v1     按量付费，扣「可用余额」
+  #    - /zen/go/v1  Go 订阅套餐，走套餐配额
+  #    打错的现象极具误导性：/zen/v1 会回 401 CreditsError「余额不足」，
+  #    让人以为是套餐没生效或没充值，而实际上 Go 订阅是好的、配额也没用完。
+  #    （接入当日就踩了这一脚：先按 /zen/v1 接，401，差点得出「Key 不可用」的结论。）
   #
-  # ⚠️ models 列表刻意只列 chat/completions 那一族。Zen 按模型家族分路：
+  # ⚠️ models 列表刻意只列走 /chat/completions 的那一族。上游按模型家族分路：
   #    GPT/Grok → /v1/responses、Claude/Qwen → /v1/messages、
   #    Gemini → /v1/models/gemini-*，只有 DeepSeek/Kimi/GLM/MiniMax 走
-  #    /v1/chat/completions，而我们的 openai-compatible 适配器写死打后者。
+  #    /chat/completions，而我们的 openai-compatible 适配器写死打后者。
   #    在这里列一个 claude-* 或 gpt-* 会通过加载期校验，然后在**运行期**才失败——
   #    那时烧掉的是一次真实的 Assignment。别加。
-  - id: opencode-zen
-    name: OpenCode Zen
+  #
+  # 实测（接入当日，经 /zen/go/v1）：chat/completions 200 ·
+  # 流式 12 分片 · tool_calls 正确分片下发且 arguments 增量可拼装。
+  - id: opencode-go
+    name: OpenCode Go
     kind: openai-compatible
-    baseUrl: https://opencode.ai/zen/v1
+    baseUrl: https://opencode.ai/zen/go/v1
     apiKeyEnv: OPENCODE_API_KEY # 只写变量名，值在 .env（REQ §13）
     models:
-      - deepseek-v4-flash # 同族 + 支持 tools，Zen 上的正确选择
-      - deepseek-v4-pro
-      # deepseek-v4-flash-free 实测上游回 "Model is unavailable"，不列
+      - deepseek-v4-flash # 业务方指定：Go 套餐内额度充裕
+      - deepseek-v4-pro # D-17 L3 的目标型号，同样在 Go 套餐内
 
+# 别名是快照冻结的单位，也是切换 Provider 的唯一开关：
+# 模板引用别名，不引用具体 provider/model，所以下面这三处改完，
+# 全部模板立刻换用新 Provider，模板文件一个字都不用动。
+#
+# 【当前】三个别名全部指向 OpenCode Go（业务方 2026-08-25 指定）。
+# 【切回 DeepSeek 官方】把 provider 改回 deepseek、model 改回 deepseek-chat 即可，
+#   下面的 deepseek 条目一直保留着，就是为了这一步能随时做。
+#   触发条件：Go 套餐配额用尽（后台「每月用量」到 100%）。
 aliases:
   # 通用内容生产
   main:
-    provider: deepseek
-    model: deepseek-chat
+    provider: opencode-go
+    model: deepseek-v4-flash
   # 槽位类型可通过 template.yaml 的 modelAlias 覆盖到这里（D-06）
   configured:
-    provider: deepseek
-    model: deepseek-chat
+    provider: opencode-go
+    model: deepseek-v4-flash
   # 结构设计。若结构提案一次通过率不达标，这里是 D-17 L3 的调节点
+  # （切 deepseek-v4-pro，Go 套餐内同样有）
   structure:
-    provider: deepseek
-    model: deepseek-chat
+    provider: opencode-go
+    model: deepseek-v4-flash
 
 # 回退链的最后一级（D-06）：模板没写 limits 时用这里的值。
 # 注意没有 defaults.alias——modelAlias 的回退链是
