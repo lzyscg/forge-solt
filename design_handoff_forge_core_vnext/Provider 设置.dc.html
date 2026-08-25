@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/classical-77148255-5e00-4a2c-957b-cef734727482/styles.css">
+<script src="_ds/classical-77148255-5e00-4a2c-957b-cef734727482/_ds_bundle.js"></script>
+<style>
+@keyframes fc-pulse { 0%,100% { opacity: .35 } 50% { opacity: 1 } }
+body { margin: 0; overflow: hidden; }
+a { color: var(--color-accent); }
+a:hover { color: var(--color-accent-700); }
+.btn { white-space: nowrap; }
+nav [title] { cursor: pointer; }
+nav [title]:hover { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+.fc-scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--color-neutral-400) transparent; }
+.fc-row:hover { background: color-mix(in srgb, var(--color-accent) 5%, transparent); }
+</style>
+</helmet>
+
+<div style="height: 100vh; display: flex; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); font-size: 14px; overflow: hidden;">
+
+  <nav style="width: 68px; flex: none; border-right: 1px solid var(--color-divider); display: flex; flex-direction: column; align-items: center; padding: 18px 0; gap: 6px; background: color-mix(in srgb, var(--color-surface) 55%, transparent);">
+    <div style="font-family: var(--font-heading); font-size: 19px; line-height: 1; color: var(--color-accent); margin-bottom: 20px;">F</div>
+    <div onClick="{{ nav.tasks }}" title="生产任务" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-neutral-600);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"></path><path d="m6.08 11-3.5 1.6a1 1 0 0 0 0 1.81l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9a1 1 0 0 0 0-1.83L17.9 11"></path></svg>
+    </div>
+    <div onClick="{{ nav.templates }}" title="模板" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-neutral-600);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
+    </div>
+    <div onClick="{{ nav.settings }}" title="设置" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10"></path><path d="M18 6h2"></path><path d="M4 12h4"></path><path d="M12 12h8"></path><path d="M4 18h10"></path><path d="M18 18h2"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="16" cy="18" r="2"></circle></svg>
+    </div>
+  </nav>
+
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+
+    <header style="flex: none; padding: 22px 32px 18px; border-bottom: 1px solid var(--color-divider); display: flex; align-items: flex-end; gap: 24px;">
+      <div>
+        <div style="font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500); margin-bottom: 6px;">设置 · <a href="组件状态变体.dc.html">组件状态变体</a></div>
+        <h3 style="margin: 0; font-size: 25px;">模型 Provider</h3>
+        <div style="margin-top: 7px; font-size: 12.5px; color: var(--color-neutral-600); max-width: 620px; text-wrap: pretty;">这里只管模型基础设施：接入哪些 Provider、模型别名指向谁。Agent 与 Skill 的编排在模板里定义，不在此页。</div>
+      </div>
+      <div style="margin-left: auto; flex: none; display: flex; align-items: center; gap: 10px;">
+        <button class="btn btn-secondary" onClick="{{ onTest }}">{{ testLabel }}</button>
+        <button class="btn btn-primary">添加 Provider</button>
+      </div>
+    </header>
+
+    <div class="fc-scroll" style="flex: 1; min-height: 0; padding: 26px 32px 44px;">
+      <div style="max-width: 940px; display: flex; flex-direction: column; gap: 34px;">
+
+        <section>
+          <div style="display: flex; align-items: baseline; gap: 11px; margin-bottom: 13px;">
+            <h4 style="margin: 0; font-size: 18px;">已接入 Provider</h4>
+            <span style="font-size: 12px; color: var(--color-neutral-600);">{{ providerCount }}</span>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 11px;">
+            <sc-for list="{{ providers }}" as="p" hint-placeholder-count="3">
+              <div style="border: 1px solid var(--color-divider); border-radius: var(--radius-md); padding: 17px 19px;">
+                <div style="display: flex; align-items: flex-start; gap: 16px;">
+                  <div style="min-width: 0; flex: 1;">
+                    <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
+                      <span style="font-family: var(--font-heading); font-weight: 600; font-size: 17px;">{{ p.name }}</span>
+                      <span style="font-size: 11.5px; color: var(--color-neutral-500); font-feature-settings: 'tnum';">{{ p.endpoint }}</span>
+                    </div>
+                    <div style="margin-top: 7px; display: flex; align-items: center; gap: 9px; font-size: 12.5px;">
+                      <span style="{{ p.dotStyle }}"></span>
+                      <span style="{{ p.stateStyle }}">{{ p.state }}</span>
+                      <span style="color: var(--color-neutral-400);">·</span>
+                      <span style="color: var(--color-neutral-600); font-feature-settings: 'tnum';">{{ p.latency }}</span>
+                      <span style="color: var(--color-neutral-400);">·</span>
+                      <span style="color: var(--color-neutral-600);">{{ p.checked }}</span>
+                    </div>
+                    <sc-if value="{{ p.hasNote }}" hint-placeholder-val="{{ false }}">
+                      <div style="margin-top: 8px; padding: 9px 12px; border-left: 2px solid var(--color-accent); font-size: 12.5px; color: var(--color-neutral-700); text-wrap: pretty; line-height: 1.65;">{{ p.note }}</div>
+                    </sc-if>
+                  </div>
+                  <div style="flex: none; display: flex; align-items: center; gap: 8px;">
+                    <button class="btn btn-ghost" style="font-size: 12.5px; padding: 5px 11px;">编辑</button>
+                    <button class="btn btn-ghost" style="font-size: 12.5px; padding: 5px 11px;">测试连通</button>
+                  </div>
+                </div>
+                <div style="margin-top: 14px; padding-top: 13px; border-top: 1px solid var(--color-divider); display: flex; flex-wrap: wrap; gap: 7px;">
+                  <sc-for list="{{ p.models }}" as="m" hint-placeholder-count="3">
+                    <span class="tag tag-outline" style="font-size: 11px; font-feature-settings: 'tnum';">{{ m }}</span>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+        <section>
+          <div style="display: flex; align-items: baseline; gap: 11px; margin-bottom: 6px;">
+            <h4 style="margin: 0; font-size: 18px;">模型映射</h4>
+          </div>
+          <p style="margin: 0 0 14px; font-size: 12.5px; color: var(--color-neutral-600); max-width: 620px; text-wrap: pretty;">模板里的 Assignment 写的是别名。换 Provider 或换模型时改这张表，不用改模板。</p>
+          <div style="border: 1px solid var(--color-divider); border-radius: var(--radius-md); overflow: hidden;">
+            <div style="display: flex; align-items: center; gap: 16px; padding: 10px 18px; border-bottom: 1px solid var(--color-divider); background: color-mix(in srgb, var(--color-surface) 50%, transparent); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-600);">
+              <span style="width: 168px; flex: none;">别名</span>
+              <span style="width: 136px; flex: none;">Provider</span>
+              <span style="flex: 1;">实际模型</span>
+              <span style="width: 120px; flex: none; text-align: right;">在用槽位</span>
+            </div>
+            <sc-for list="{{ mappings }}" as="m" hint-placeholder-count="4">
+              <div class="fc-row" style="{{ m.rowStyle }}">
+                <span style="width: 168px; flex: none; font-family: var(--font-heading); font-weight: 600; font-size: 14px; font-feature-settings: 'tnum';">{{ m.alias }}</span>
+                <span style="width: 136px; flex: none; font-size: 12.5px; color: var(--color-neutral-700);">{{ m.provider }}</span>
+                <span style="flex: 1; min-width: 0; font-size: 12.5px; color: var(--color-neutral-700); font-feature-settings: 'tnum';">{{ m.model }}</span>
+                <span style="width: 120px; flex: none; text-align: right; font-size: 12.5px; color: var(--color-neutral-600); font-feature-settings: 'tnum';">{{ m.usage }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+        <section>
+          <h4 style="margin: 0 0 6px; font-size: 18px;">执行默认值</h4>
+          <p style="margin: 0 0 14px; font-size: 12.5px; color: var(--color-neutral-600); max-width: 620px; text-wrap: pretty;">槽位的 Assignment 未显式指定时，用这里的值。已在跑的任务不受改动影响。</p>
+          <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px;">
+            <sc-for list="{{ defaults }}" as="d" hint-placeholder-count="4">
+              <div style="border: 1px solid var(--color-divider); border-radius: var(--radius-md); padding: 14px 16px;">
+                <div style="font-size: 11.5px; color: var(--color-neutral-500);">{{ d.label }}</div>
+                <div style="margin-top: 5px; font-family: var(--font-heading); font-size: 21px; font-feature-settings: 'tnum';">{{ d.value }}</div>
+                <div style="margin-top: 4px; font-size: 11.5px; color: var(--color-neutral-600); text-wrap: pretty; line-height: 1.6;">{{ d.note }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+const PROVIDERS = [
+  { name: "Anthropic", endpoint: "api.anthropic.com", tone: "ok", state: "连通正常", latency: "412 ms", checked: "1 分钟前检测",
+    models: ["claude-sonnet-4-5", "claude-haiku-4-5", "claude-opus-4-1"] },
+  { name: "Azure OpenAI · 东亚", endpoint: "forge-east.openai.azure.com", tone: "warn", state: "限流中", latency: "1.9 s", checked: "3 分钟前检测",
+    note: "过去 10 分钟有 14 次 429。落在此 Provider 的槽位会自动排队重试，不计入失败次数。",
+    models: ["gpt-4o", "gpt-4o-mini"] },
+  { name: "本地推理 · vLLM", endpoint: "10.4.0.21:8000", tone: "off", state: "未连通", latency: "—", checked: "12 分钟前检测",
+    note: "连接被拒。映射到本 Provider 的别名当前无可用模型，相关槽位启动时会直接失败。",
+    models: ["qwen2.5-72b"] },
+];
+
+const TONE = {
+  ok: { c: "var(--color-accent-700)", pulse: true },
+  warn: { c: "var(--color-accent-600)", pulse: true },
+  off: { c: "var(--color-neutral-500)" },
+};
+
+const MAPPINGS = [
+  { alias: "claude-sonnet", provider: "Anthropic", model: "claude-sonnet-4-5", usage: "9 个槽位" },
+  { alias: "claude-haiku", provider: "Anthropic", model: "claude-haiku-4-5", usage: "4 个槽位" },
+  { alias: "gpt-fallback", provider: "Azure OpenAI", model: "gpt-4o", usage: "2 个槽位" },
+  { alias: "local-draft", provider: "本地推理", model: "qwen2.5-72b", usage: "未使用" },
+];
+
+const DEFAULTS = [
+  { label: "单槽位超时", value: "180 秒", note: "超时后按重试次数重跑" },
+  { label: "重试次数", value: "1 次", note: "校验失败与超时共用该配额" },
+  { label: "并发槽位", value: "3", note: "同一任务内可并行执行的槽位数" },
+  { label: "限流退避", value: "指数 · 上限 60 秒", note: "遇 429 时的重试间隔策略" },
+];
+
+const GO = p => () => { window.location.href = p; };
+const NAV = {
+  tasks: GO("任务列表.dc.html"),
+  templates: GO("模板列表.dc.html"),
+  settings: GO("Provider%20设置.dc.html"),
+};
+
+class Component extends DCLogic {
+  state = { testing: false };
+
+  renderVals() {
+    return {
+      nav: NAV,
+      providerCount: `${PROVIDERS.length} 个 · 1 个异常`,
+      testLabel: this.state.testing ? "正在检测…" : "全部测试连通",
+      onTest: () => {
+        this.setState({ testing: true });
+        setTimeout(() => this.setState({ testing: false }), 1400);
+      },
+      providers: PROVIDERS.map(p => {
+        const t = TONE[p.tone];
+        return {
+          ...p,
+          hasNote: !!p.note,
+          note: p.note || "",
+          dotStyle: `width: 7px; height: 7px; border-radius: 50%; flex: none; background: ${t.c};${t.pulse ? " animation: fc-pulse 1.4s ease-in-out infinite;" : ""}`,
+          stateStyle: `font-family: var(--font-heading); font-weight: 600; color: ${t.c};`,
+        };
+      }),
+      mappings: MAPPINGS.map((m, i) => ({
+        ...m,
+        rowStyle: `display: flex; align-items: center; gap: 16px; padding: 13px 18px;${i < MAPPINGS.length - 1 ? " border-bottom: 1px solid var(--color-divider);" : ""}`,
+      })),
+      defaults: DEFAULTS,
+    };
+  }
+}
+
+</script>
+</body>
+</html>

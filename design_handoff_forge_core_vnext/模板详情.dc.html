@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/classical-77148255-5e00-4a2c-957b-cef734727482/styles.css">
+<script src="_ds/classical-77148255-5e00-4a2c-957b-cef734727482/_ds_bundle.js"></script>
+<style>
+body { margin: 0; overflow: hidden; }
+a { color: var(--color-accent); }
+a:hover { color: var(--color-accent-700); }
+.btn { white-space: nowrap; }
+nav [title] { cursor: pointer; }
+nav [title]:hover { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+.fc-scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--color-neutral-400) transparent; }
+.fc-node:hover { background: color-mix(in srgb, var(--color-accent) 5%, transparent); }
+</style>
+</helmet>
+
+<div style="height: 100vh; display: flex; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); font-size: 14px; overflow: hidden;">
+
+  <nav style="width: 68px; flex: none; border-right: 1px solid var(--color-divider); display: flex; flex-direction: column; align-items: center; padding: 18px 0; gap: 6px; background: color-mix(in srgb, var(--color-surface) 55%, transparent);">
+    <div style="font-family: var(--font-heading); font-size: 19px; line-height: 1; color: var(--color-accent); margin-bottom: 20px;">F</div>
+    <div onClick="{{ nav.tasks }}" title="生产任务" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-neutral-600);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"></path><path d="m6.08 11-3.5 1.6a1 1 0 0 0 0 1.81l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9a1 1 0 0 0 0-1.83L17.9 11"></path></svg>
+    </div>
+    <div onClick="{{ nav.templates }}" title="模板" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
+    </div>
+    <div onClick="{{ nav.settings }}" title="设置" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-neutral-600);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10"></path><path d="M18 6h2"></path><path d="M4 12h4"></path><path d="M12 12h8"></path><path d="M4 18h10"></path><path d="M18 18h2"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="16" cy="18" r="2"></circle></svg>
+    </div>
+  </nav>
+
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+
+    <header style="flex: none; padding: 20px 32px 17px; border-bottom: 1px solid var(--color-divider); display: flex; align-items: flex-end; gap: 24px;">
+      <div style="min-width: 0;">
+        <div style="font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500); margin-bottom: 6px;"><a href="模板列表.dc.html">结构模板</a> / 知乎盐选单章</div>
+        <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;">
+          <h3 style="margin: 0; font-size: 25px;">知乎盐选单章 v4</h3>
+          <span class="tag tag-accent" style="font-size: 11px;">已发布</span>
+          <span style="font-size: 12.5px; color: var(--color-neutral-600);">6 个槽位 · 4 个内容槽位 · 41 个任务在用</span>
+        </div>
+      </div>
+      <div style="margin-left: auto; flex: none; display: flex; align-items: center; gap: 10px;">
+        <button class="btn btn-ghost">导出 JSON</button>
+        <button class="btn btn-secondary">另存为新版本</button>
+        <button class="btn btn-primary" onClick="{{ nav.newTask }}">用此模板新建任务</button>
+      </div>
+    </header>
+
+    <div style="flex: none; display: flex; align-items: stretch; padding: 0 32px; border-bottom: 1px solid var(--color-divider); background: color-mix(in srgb, var(--color-surface) 40%, transparent);">
+      <sc-for list="{{ tabs }}" as="t" hint-placeholder-count="3">
+        <div onClick="{{ t.onClick }}" style="{{ t.style }}">{{ t.label }}</div>
+      </sc-for>
+    </div>
+
+    <div style="flex: 1; min-height: 0; display: flex;">
+
+      <div class="fc-scroll" style="flex: 1; min-width: 0; border-right: 1px solid var(--color-divider);">
+        <div style="padding: 20px 26px 12px;">
+          <div style="font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500);">槽位结构</div>
+          <div style="margin-top: 5px; font-size: 12.5px; color: var(--color-neutral-600); text-wrap: pretty;">树内顺序即组装顺序。容器槽位本身不生产内容，只收拢下级产物。</div>
+        </div>
+        <div>
+          <sc-for list="{{ nodes }}" as="n" hint-placeholder-count="6">
+            <div class="fc-node" onClick="{{ n.onClick }}" style="{{ n.rowStyle }}">
+              <span style="{{ n.markStyle }}">{{ n.markText }}</span>
+              <div style="min-width: 0; flex: 1;">
+                <div style="display: flex; align-items: baseline; gap: 9px; flex-wrap: wrap;">
+                  <span style="font-family: var(--font-heading); font-weight: 600; font-size: 15.5px;">{{ n.name }}</span>
+                  <span style="font-size: 11px; color: var(--color-neutral-500);">{{ n.kindLabel }}</span>
+                  <sc-if value="{{ n.hasDep }}" hint-placeholder-val="{{ true }}">
+                    <span style="font-size: 11px; color: var(--color-accent-700);">{{ n.depLabel }}</span>
+                  </sc-if>
+                </div>
+                <sc-if value="{{ n.hasAssignment }}" hint-placeholder-val="{{ true }}">
+                  <div style="margin-top: 4px; display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--color-neutral-700);">
+                    <span>{{ n.agent }}</span>
+                    <span style="color: var(--color-neutral-400);">→</span>
+                    <span>{{ n.skill }}</span>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ n.isContainer }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-top: 4px; font-size: 12px; color: var(--color-neutral-600);">{{ n.containerNote }}</div>
+                </sc-if>
+              </div>
+              <span style="{{ n.chevStyle }}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"></path></svg>
+              </span>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="padding: 24px 26px 40px;">
+          <div style="font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500); margin-bottom: 11px;">模板级冻结输入</div>
+          <div style="border: 1px solid var(--color-divider); border-radius: var(--radius-md);">
+            <sc-for list="{{ templateInputs }}" as="f" hint-placeholder-count="4">
+              <div style="{{ f.rowStyle }}">
+                <span style="font-family: var(--font-heading); font-weight: 600; font-size: 13.5px; min-width: 132px; font-feature-settings: 'tnum';">{{ f.key }}</span>
+                <span style="font-size: 12.5px; color: var(--color-neutral-700); flex: 1;">{{ f.label }}</span>
+                <span style="{{ f.reqStyle }}">{{ f.req }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div class="fc-scroll" style="width: 430px; flex: none; background: color-mix(in srgb, var(--color-surface) 40%, transparent);">
+        <div style="padding: 22px 26px 40px;">
+
+          <div style="font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500);">{{ panelKicker }}</div>
+          <h4 style="margin: 6px 0 4px; font-size: 21px;">{{ sel.name }}</h4>
+          <div style="font-size: 12.5px; color: var(--color-neutral-600); text-wrap: pretty; line-height: 1.7;">{{ sel.purpose }}</div>
+
+          <sc-if value="{{ sel.isContainer }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top: 22px;">
+              <div style="padding: 15px 16px; border: 1px solid var(--color-divider); border-radius: var(--radius-md); font-size: 12.5px; color: var(--color-neutral-700); line-height: 1.75; text-wrap: pretty;">容器槽位没有 Assignment。它不调用 Agent，只在下级槽位全部通过后按顺序拼接产物。</div>
+              <div style="margin-top: 20px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500); margin-bottom: 9px;">下级槽位 · 组装顺序</div>
+              <sc-for list="{{ sel.children }}" as="c" hint-placeholder-count="4">
+                <div style="display: flex; align-items: baseline; gap: 11px; padding: 9px 0; border-bottom: 1px solid var(--color-divider);">
+                  <span style="font-family: var(--font-heading); font-size: 12px; color: var(--color-accent); font-feature-settings: 'tnum';">{{ c.no }}</span>
+                  <span style="font-family: var(--font-heading); font-weight: 600; font-size: 14px;">{{ c.name }}</span>
+                  <span style="margin-left: auto; font-size: 11.5px; color: var(--color-neutral-600);">{{ c.note }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ sel.hasAssignment }}" hint-placeholder-val="{{ true }}">
+            <div style="margin-top: 22px; display: flex; flex-direction: column; gap: 22px;">
+
+              <section>
+                <div style="font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500); margin-bottom: 10px;">Assignment</div>
+                <div style="border: 1px solid var(--color-divider); border-radius: var(--radius-md); padding: 15px 16px; display: flex; flex-direction: column; gap: 13px;">
+                  <div>
+                    <div style="font-size: 11.5px; color: var(--color-neutral-500); margin-bottom: 3px;">Agent</div>
+                    <div style="font-family: var(--font-heading); font-weight: 600; font-size: 15px;">{{ sel.agent }}</div>
+                    <div style="margin-top: 3px; font-size: 12px; color: var(--color-neutral-700); text-wrap: pretty;">{{ sel.agentNote }}</div>
+                  </div>
+                  <div style="height: 1px; background: var(--color-divider);"></div>
+                  <div>
+                    <div style="font-size: 11.5px; color: var(--color-neutral-500); margin-bottom: 3px;">Skill</div>
+                    <div style="font-family: var(--font-heading); font-weight: 600; font-size: 15px;">{{ sel.skill }}</div>
+                    <div style="margin-top: 3px; font-size: 12px; color: var(--color-neutral-700); text-wrap: pretty;">{{ sel.skillNote }}</div>
+                  </div>
+                  <div style="height: 1px; background: var(--color-divider);"></div>
+                  <div style="display: flex; gap: 28px;">
+                    <div>
+                      <div style="font-size: 11.5px; color: var(--color-neutral-500); margin-bottom: 2px;">模型</div>
+                      <div style="font-size: 13px; font-feature-settings: 'tnum';">{{ sel.model }}</div>
+                    </div>
+                    <div>
+                      <div style="font-size: 11.5px; color: var(--color-neutral-500); margin-bottom: 2px;">超时</div>
+                      <div style="font-size: 13px; font-feature-settings: 'tnum';">{{ sel.timeout }}</div>
+                    </div>
+                    <div>
+                      <div style="font-size: 11.5px; color: var(--color-neutral-500); margin-bottom: 2px;">重试</div>
+                      <div style="font-size: 13px; font-feature-settings: 'tnum';">{{ sel.retry }}</div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <div style="font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500); margin-bottom: 10px;">输入依赖</div>
+                <sc-if value="{{ sel.hasDeps }}" hint-placeholder-val="{{ true }}">
+                  <div style="display: flex; flex-direction: column;">
+                    <sc-for list="{{ sel.deps }}" as="d" hint-placeholder-count="2">
+                      <div style="display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--color-divider);">
+                        <span style="{{ d.badgeStyle }}">{{ d.kind }}</span>
+                        <div style="min-width: 0; flex: 1;">
+                          <div style="font-family: var(--font-heading); font-weight: 600; font-size: 13.5px;">{{ d.name }}</div>
+                          <div style="margin-top: 2px; font-size: 11.5px; color: var(--color-neutral-600); text-wrap: pretty;">{{ d.note }}</div>
+                        </div>
+                      </div>
+                    </sc-for>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ sel.noDeps }}" hint-placeholder-val="{{ false }}">
+                  <div style="font-size: 12.5px; color: var(--color-neutral-600);">无前置依赖，任务启动后即可执行。</div>
+                </sc-if>
+              </section>
+
+              <section>
+                <div style="font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500); margin-bottom: 10px;">产物校验</div>
+                <div style="display: flex; flex-direction: column;">
+                  <sc-for list="{{ sel.checks }}" as="c" hint-placeholder-count="3">
+                    <div style="display: flex; align-items: flex-start; gap: 9px; padding: 9px 0; border-bottom: 1px solid var(--color-divider);">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" style="flex: none; margin-top: 2px;"><path d="M20 6 9 17l-5-5"></path></svg>
+                      <span style="font-size: 12.5px; color: var(--color-neutral-800); text-wrap: pretty; line-height: 1.6;">{{ c }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="margin-top: 11px; font-size: 11.5px; color: var(--color-neutral-600); text-wrap: pretty; line-height: 1.65;">校验不通过时槽位进入「结构校验失败」，按上方重试次数重跑；重试用尽后停在失败态等人工介入。</div>
+              </section>
+
+            </div>
+          </sc-if>
+
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+const NODES = [
+  {
+    id: "chapter", name: "chapter", depth: 0, kind: "container",
+    purpose: "整章的容器槽位。下级四个内容槽位全部通过后，按树内顺序拼接为一章正文。",
+    containerNote: "收拢 4 个下级槽位 · 组装为单章产物",
+    children: [
+      { no: "01", name: "chapter_outline", note: "不进正文，仅作上下文" },
+      { no: "02", name: "scene_1", note: "正文第一段落组" },
+      { no: "03", name: "scene_2", note: "正文第二段落组" },
+      { no: "04", name: "scene_3", note: "正文第三段落组" },
+      { no: "05", name: "chapter_hook", note: "章末钩子" },
+    ],
+  },
+  {
+    id: "chapter_outline", name: "chapter_outline", depth: 1, kind: "content",
+    purpose: "本章骨架：三个场景各自的目标、冲突与出场人物。后续场景槽位都读它，不进最终正文。",
+    agent: "结构 Agent", agentNote: "只负责结构化产出，不写正文散文。",
+    skill: "章节骨架 Skill", skillNote: "输出固定三场景的 JSON，每场含目标、冲突、出场人物。",
+    model: "claude-sonnet", timeout: "90 秒", retry: "2 次",
+    deps: [{ kind: "输入", name: "book_title · chapter_no · prev_summary", note: "任务创建时冻结的输入快照" }],
+    checks: ["必须恰好 3 个场景对象", "每个场景的 goal 与 conflict 非空", "出场人物需在人物表内或显式标注为新角色"],
+  },
+  {
+    id: "scene_1", name: "scene_1", depth: 1, kind: "content",
+    purpose: "第一场景正文。承接上一章结尾状态，落在骨架给定的目标与冲突上。",
+    agent: "写作 Agent", agentNote: "承担全部散文写作，口吻由模板与任务输入共同约束。",
+    skill: "场景正文 Skill", skillNote: "单场景连续散文，1200–1800 字，不写小标题。",
+    model: "claude-sonnet", timeout: "180 秒", retry: "1 次",
+    deps: [
+      { kind: "槽位", name: "chapter_outline", note: "读取 scenes[0] 的目标与冲突" },
+      { kind: "输入", name: "prev_summary · tone_note", note: "冻结输入快照" },
+    ],
+    checks: ["字数落在 1200–1800 区间", "不含小标题或列表结构", "结尾状态可被 scene_2 承接"],
+  },
+  {
+    id: "scene_2", name: "scene_2", depth: 1, kind: "content", dep: "依赖 scene_1",
+    purpose: "第二场景正文。冲突升级段，需承接 scene_1 的结尾状态。",
+    agent: "写作 Agent", agentNote: "承担全部散文写作，口吻由模板与任务输入共同约束。",
+    skill: "场景正文 Skill", skillNote: "单场景连续散文，1200–1800 字，不写小标题。",
+    model: "claude-sonnet", timeout: "180 秒", retry: "1 次",
+    deps: [
+      { kind: "槽位", name: "chapter_outline", note: "读取 scenes[1] 的目标与冲突" },
+      { kind: "槽位", name: "scene_1", note: "读取其结尾状态摘要，保证衔接" },
+    ],
+    checks: ["字数落在 1200–1800 区间", "首段需衔接 scene_1 结尾状态", "不含小标题或列表结构"],
+  },
+  {
+    id: "scene_3", name: "scene_3", depth: 1, kind: "content", dep: "依赖 scene_2",
+    purpose: "第三场景正文。本章冲突的当期落点，为章末钩子留出未解悬念。",
+    agent: "写作 Agent", agentNote: "承担全部散文写作，口吻由模板与任务输入共同约束。",
+    skill: "场景正文 Skill", skillNote: "单场景连续散文，1200–1800 字，不写小标题。",
+    model: "claude-sonnet", timeout: "180 秒", retry: "1 次",
+    deps: [
+      { kind: "槽位", name: "chapter_outline", note: "读取 scenes[2] 的目标与冲突" },
+      { kind: "槽位", name: "scene_2", note: "读取其结尾状态摘要，保证衔接" },
+    ],
+    checks: ["字数落在 1200–1800 区间", "需留下至少一个未解悬念", "不含小标题或列表结构"],
+  },
+  {
+    id: "chapter_hook", name: "chapter_hook", depth: 1, kind: "content", dep: "依赖 scene_3",
+    purpose: "章末钩子。两三句收尾，把未解悬念推到下一章。",
+    agent: "写作 Agent", agentNote: "承担全部散文写作，口吻由模板与任务输入共同约束。",
+    skill: "章末钩子 Skill", skillNote: "80–160 字，须以未完成的动作或未答的问题收尾。",
+    model: "claude-haiku", timeout: "60 秒", retry: "2 次",
+    deps: [{ kind: "槽位", name: "scene_3", note: "读取其未解悬念，作为钩子指向" }],
+    checks: ["字数落在 80–160 区间", "不得解答本章任何悬念", "末句为疑问或未完成动作"],
+  },
+];
+
+const T_INPUTS = [
+  { key: "book_title", label: "作品名，写入每个槽位的上下文", req: true },
+  { key: "chapter_no", label: "章节序号，决定组装编号与前情范围", req: true },
+  { key: "prev_summary", label: "上一章结尾状态", req: true },
+  { key: "tone_note", label: "口吻备注，留空则沿用模板默认", req: false },
+];
+
+const TABS = ["槽位结构", "版本历史", "引用任务"];
+
+const GO = p => () => { window.location.href = p; };
+const NAV = {
+  tasks: GO("任务列表.dc.html"),
+  templates: GO("模板列表.dc.html"),
+  settings: GO("Provider%20设置.dc.html"),
+  newTask: GO("新建任务.dc.html"),
+};
+
+class Component extends DCLogic {
+  state = { selId: "scene_2", tab: "槽位结构" };
+
+  renderVals() {
+    const sel = NODES.find(n => n.id === this.state.selId) || NODES[0];
+    const isC = sel.kind === "container";
+    return {
+      nav: NAV,
+      tabs: TABS.map(label => ({
+        label,
+        onClick: () => this.setState({ tab: label }),
+        style: this.state.tab === label
+          ? "padding: 12px 18px; font-family: var(--font-heading); font-weight: 600; font-size: 14.5px; cursor: pointer; box-shadow: inset 0 -2px 0 var(--color-accent); color: var(--color-accent-700);"
+          : "padding: 12px 18px; font-family: var(--font-heading); font-weight: 600; font-size: 14.5px; cursor: pointer; color: var(--color-neutral-600);",
+      })),
+      nodes: NODES.map(n => {
+        const active = n.id === sel.id;
+        const c = n.kind === "container";
+        return {
+          name: n.name,
+          kindLabel: c ? "容器槽位" : "内容槽位",
+          hasDep: !!n.dep,
+          depLabel: n.dep || "",
+          hasAssignment: !c,
+          isContainer: c,
+          containerNote: n.containerNote || "",
+          agent: n.agent || "",
+          skill: n.skill || "",
+          onClick: () => this.setState({ selId: n.id }),
+          rowStyle: `display: flex; align-items: flex-start; gap: 11px; cursor: pointer; padding: 13px 26px 13px ${26 + n.depth * 22}px; border-bottom: 1px solid var(--color-divider);${active ? " background: color-mix(in srgb, var(--color-accent) 8%, transparent); box-shadow: inset 2px 0 0 var(--color-accent);" : ""}`,
+          markStyle: c
+            ? "width: 15px; height: 15px; flex: none; margin-top: 3px; border: 1px solid var(--color-neutral-500); border-radius: 2px;"
+            : "width: 15px; height: 15px; flex: none; margin-top: 3px; border: 1px solid color-mix(in srgb, var(--color-accent) 55%, transparent); border-radius: 50%;",
+          markText: "",
+          chevStyle: `flex: none; margin-top: 3px; color: ${active ? "var(--color-accent)" : "var(--color-neutral-400)"};`,
+        };
+      }),
+      templateInputs: T_INPUTS.map((f, i) => ({
+        key: f.key,
+        label: f.label,
+        req: f.req ? "必填" : "可选",
+        rowStyle: `display: flex; align-items: baseline; gap: 14px; padding: 12px 16px;${i < T_INPUTS.length - 1 ? " border-bottom: 1px solid var(--color-divider);" : ""}`,
+        reqStyle: f.req
+          ? "font-size: 10.5px; color: var(--color-accent-700); border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent); padding: 0 5px; border-radius: 2px; flex: none;"
+          : "font-size: 10.5px; color: var(--color-neutral-500); border: 1px solid var(--color-divider); padding: 0 5px; border-radius: 2px; flex: none;",
+      })),
+      panelKicker: isC ? "容器槽位" : "内容槽位 · Assignment",
+      sel: {
+        name: sel.name,
+        purpose: sel.purpose,
+        isContainer: isC,
+        hasAssignment: !isC,
+        children: sel.children || [],
+        agent: sel.agent, agentNote: sel.agentNote,
+        skill: sel.skill, skillNote: sel.skillNote,
+        model: sel.model, timeout: sel.timeout, retry: sel.retry,
+        hasDeps: !isC && !!(sel.deps && sel.deps.length),
+        noDeps: !isC && !(sel.deps && sel.deps.length),
+        deps: (sel.deps || []).map(d => ({
+          ...d,
+          badgeStyle: d.kind === "槽位"
+            ? "font-size: 10.5px; color: var(--color-accent-700); border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent); padding: 1px 6px; border-radius: 2px; flex: none; margin-top: 2px;"
+            : "font-size: 10.5px; color: var(--color-neutral-600); border: 1px solid var(--color-divider); padding: 1px 6px; border-radius: 2px; flex: none; margin-top: 2px;",
+        })),
+        checks: sel.checks || [],
+      },
+    };
+  }
+}
+
+</script>
+</body>
+</html>

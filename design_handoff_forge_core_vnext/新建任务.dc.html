@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/classical-77148255-5e00-4a2c-957b-cef734727482/styles.css">
+<script src="_ds/classical-77148255-5e00-4a2c-957b-cef734727482/_ds_bundle.js"></script>
+<style>
+body { margin: 0; overflow: hidden; }
+a { color: var(--color-accent); }
+a:hover { color: var(--color-accent-700); }
+.btn { white-space: nowrap; }
+nav [title] { cursor: pointer; }
+nav [title]:hover { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+.fc-scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--color-neutral-400) transparent; }
+.fc-tpl:hover { border-color: var(--color-accent) !important; }
+</style>
+</helmet>
+
+<div style="height: 100vh; display: flex; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); font-size: 14px; overflow: hidden;">
+
+  <nav style="width: 68px; flex: none; border-right: 1px solid var(--color-divider); display: flex; flex-direction: column; align-items: center; padding: 18px 0; gap: 6px; background: color-mix(in srgb, var(--color-surface) 55%, transparent);">
+    <div style="font-family: var(--font-heading); font-size: 19px; line-height: 1; color: var(--color-accent); margin-bottom: 20px;">F</div>
+    <div onClick="{{ nav.tasks }}" title="生产任务" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"></path><path d="m6.08 11-3.5 1.6a1 1 0 0 0 0 1.81l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9a1 1 0 0 0 0-1.83L17.9 11"></path></svg>
+    </div>
+    <div onClick="{{ nav.templates }}" title="模板" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-neutral-600);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
+    </div>
+    <div onClick="{{ nav.settings }}" title="设置" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-neutral-600);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10"></path><path d="M18 6h2"></path><path d="M4 12h4"></path><path d="M12 12h8"></path><path d="M4 18h10"></path><path d="M18 18h2"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="16" cy="18" r="2"></circle></svg>
+    </div>
+  </nav>
+
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+
+    <header style="flex: none; padding: 20px 32px 17px; border-bottom: 1px solid var(--color-divider); display: flex; align-items: flex-end; gap: 24px;">
+      <div>
+        <div style="font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500); margin-bottom: 6px;"><a href="任务列表.dc.html">生产任务</a> / 新建</div>
+        <h3 style="margin: 0; font-size: 25px;">从模板创建生产任务</h3>
+      </div>
+      <div style="margin-left: auto; flex: none; display: flex; align-items: center; gap: 10px;">
+        <button class="btn btn-ghost" onClick="{{ nav.tasks }}">取消</button>
+        <button class="btn btn-secondary" onClick="{{ onCreate }}" style="{{ createStyle }}">仅创建</button>
+        <button class="btn btn-primary" onClick="{{ onCreateStart }}" style="{{ createStyle }}">创建并启动</button>
+      </div>
+    </header>
+
+    <sc-if value="{{ created }}" hint-placeholder-val="{{ false }}">
+      <div style="flex: none; display: flex; align-items: center; gap: 13px; padding: 13px 32px; border-bottom: 1px solid var(--color-divider); background: color-mix(in srgb, var(--color-accent) 7%, transparent);">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="var(--color-accent-700)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"></path></svg>
+        <span style="font-family: var(--font-heading); font-weight: 600; font-size: 15px; color: var(--color-accent-700);">{{ createdTitle }}</span>
+        <span style="font-size: 12.5px; color: var(--color-neutral-700);">{{ createdHint }}</span>
+        <a href="任务工作台.dc.html" style="margin-left: auto; font-size: 13px;">前往工作台 →</a>
+      </div>
+    </sc-if>
+
+    <div style="flex: 1; min-height: 0; display: flex;">
+
+      <div class="fc-scroll" style="flex: 1; min-width: 0; padding: 26px 32px 40px; border-right: 1px solid var(--color-divider);">
+        <div style="max-width: 620px; display: flex; flex-direction: column; gap: 30px;">
+
+          <section>
+            <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 13px;">
+              <span style="font-family: var(--font-heading); font-size: 13px; color: var(--color-accent); font-feature-settings: 'tnum';">01</span>
+              <h4 style="margin: 0; font-size: 18px;">选择模板</h4>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 9px;">
+              <sc-for list="{{ templates }}" as="t" hint-placeholder-count="3">
+                <div class="fc-tpl" onClick="{{ t.onClick }}" style="{{ t.style }}">
+                  <div style="display: flex; align-items: baseline; gap: 10px;">
+                    <span style="{{ t.radioStyle }}"></span>
+                    <div style="min-width: 0; flex: 1;">
+                      <div style="font-family: var(--font-heading); font-size: 16px; font-weight: 600;">{{ t.name }}</div>
+                      <div style="margin-top: 4px; font-size: 12.5px; color: var(--color-neutral-600); text-wrap: pretty;">{{ t.desc }}</div>
+                    </div>
+                    <span class="tag tag-outline" style="flex: none; font-size: 11px;">{{ t.slotLabel }}</span>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+
+          <div class="hr" style="height: 1px; background: var(--color-divider);"></div>
+
+          <section>
+            <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 6px;">
+              <span style="font-family: var(--font-heading); font-size: 13px; color: var(--color-accent); font-feature-settings: 'tnum';">02</span>
+              <h4 style="margin: 0; font-size: 18px;">填写冻结输入</h4>
+            </div>
+            <p style="margin: 0 0 17px; font-size: 12.5px; color: var(--color-neutral-600); text-wrap: pretty;">这些值在任务创建时冻结，整轮生产中所有槽位读到的都是同一份快照。启动后不可修改。</p>
+            <div style="display: flex; flex-direction: column; gap: 17px;">
+              <div class="field">
+                <label style="display: block; font-size: 12.5px; color: var(--color-neutral-700); margin-bottom: 6px;">任务名称</label>
+                <input class="input" value="{{ taskName }}" onChange="{{ onName }}" style="width: 100%; box-sizing: border-box;">
+              </div>
+              <sc-for list="{{ inputs }}" as="f" hint-placeholder-count="4">
+                <div class="field">
+                  <label style="display: flex; align-items: baseline; gap: 7px; font-size: 12.5px; color: var(--color-neutral-700); margin-bottom: 6px;">
+                    <span>{{ f.label }}</span>
+                    <span style="{{ f.reqStyle }}">{{ f.req }}</span>
+                    <span style="margin-left: auto; font-size: 11px; color: var(--color-neutral-500); font-feature-settings: 'tnum';">{{ f.key }}</span>
+                  </label>
+                  <sc-if value="{{ f.multiline }}" hint-placeholder-val="{{ false }}">
+                    <textarea class="input" rows="3" style="width: 100%; box-sizing: border-box; resize: vertical; font-family: var(--font-body); font-size: 13.5px; line-height: 1.6;">{{ f.value }}</textarea>
+                  </sc-if>
+                  <sc-if value="{{ f.single }}" hint-placeholder-val="{{ true }}">
+                    <input class="input" value="{{ f.value }}" style="width: 100%; box-sizing: border-box;">
+                  </sc-if>
+                  <div style="margin-top: 5px; font-size: 11.5px; color: var(--color-neutral-500);">{{ f.hint }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </section>
+
+        </div>
+      </div>
+
+      <div class="fc-scroll" style="width: 400px; flex: none; padding: 26px 28px 40px; background: color-mix(in srgb, var(--color-surface) 40%, transparent);">
+        <div style="font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500); margin-bottom: 4px;">结构预览</div>
+        <h4 style="margin: 0 0 5px; font-size: 18px;">{{ previewName }}</h4>
+        <div style="font-size: 12.5px; color: var(--color-neutral-600); margin-bottom: 20px;">{{ previewMeta }}</div>
+
+        <div style="display: flex; flex-direction: column;">
+          <sc-for list="{{ tree }}" as="n" hint-placeholder-count="7">
+            <div style="{{ n.rowStyle }}">
+              <span style="{{ n.markStyle }}">{{ n.mark }}</span>
+              <div style="min-width: 0; flex: 1;">
+                <div style="display: flex; align-items: baseline; gap: 8px;">
+                  <span style="{{ n.nameStyle }}">{{ n.name }}</span>
+                  <span style="font-size: 11px; color: var(--color-neutral-500); font-feature-settings: 'tnum';">{{ n.kind }}</span>
+                </div>
+                <sc-if value="{{ n.hasAssignment }}" hint-placeholder-val="{{ true }}">
+                  <div style="margin-top: 3px; font-size: 11.5px; color: var(--color-neutral-600);">{{ n.assignment }}</div>
+                </sc-if>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="margin-top: 24px; padding: 15px 16px; border: 1px solid var(--color-divider); border-radius: var(--radius-md);">
+          <div style="font-family: var(--font-heading); font-weight: 600; font-size: 14px; margin-bottom: 8px;">创建后会发生什么</div>
+          <div style="font-size: 12.5px; color: var(--color-neutral-700); line-height: 1.75; text-wrap: pretty;">任务落在 Ready 态，槽位树按模板铺开但全部为空。「创建并启动」会立即执行第一个可运行槽位；「仅创建」保留在 Ready，稍后在工作台手动启动。</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{}">
+const TEMPLATES = [
+  {
+    id: "zhihu",
+    name: "知乎盐选单章 v4",
+    desc: "单章 6 槽位：章节骨架 → 场景正文 ×3 → 章末钩子 → 组装",
+    slots: 6,
+    inputs: [
+      { key: "book_title", label: "作品名", value: "深夜来电", hint: "写入每个槽位的上下文，用于口吻一致性", req: true },
+      { key: "chapter_no", label: "章节序号", value: "3", hint: "决定组装时的章节编号与前情摘要范围", req: true },
+      { key: "prev_summary", label: "前情摘要", value: "林岸在旧楼里接到第二通电话，对方说出了他母亲的名字。", hint: "上一章结尾状态，Agent 据此续写", multiline: true, req: true },
+      { key: "tone_note", label: "口吻备注", value: "冷调、克制，避免直白解释悬念", hint: "可留空，留空时沿用模板默认口吻", multiline: true, req: false },
+    ],
+    tree: [
+      { name: "chapter", kind: "container", depth: 0 },
+      { name: "chapter_outline", kind: "content", depth: 1, assignment: "结构 Agent · 章节骨架 Skill" },
+      { name: "scene_1", kind: "content", depth: 1, assignment: "写作 Agent · 场景正文 Skill" },
+      { name: "scene_2", kind: "content", depth: 1, assignment: "写作 Agent · 场景正文 Skill" },
+      { name: "scene_3", kind: "content", depth: 1, assignment: "写作 Agent · 场景正文 Skill" },
+      { name: "chapter_hook", kind: "content", depth: 1, assignment: "写作 Agent · 章末钩子 Skill" },
+    ],
+  },
+  {
+    id: "book",
+    name: "长篇书籍骨架 v2",
+    desc: "全书级：世界观 → 人物设定 → 分卷大纲 → 章节清单",
+    slots: 9,
+    inputs: [
+      { key: "book_title", label: "作品名", value: "雾港旧事", hint: "全书标题", req: true },
+      { key: "genre", label: "题材", value: "民国悬疑", hint: "决定世界观 Agent 的取材方向", req: true },
+      { key: "target_length", label: "目标篇幅", value: "24 万字", hint: "用于推算分卷与章节数", req: true },
+    ],
+    tree: [
+      { name: "book", kind: "container", depth: 0 },
+      { name: "worldview", kind: "content", depth: 1, assignment: "设定 Agent · 世界观 Skill" },
+      { name: "characters", kind: "container", depth: 1 },
+      { name: "protagonist", kind: "content", depth: 2, assignment: "设定 Agent · 人物卡 Skill" },
+      { name: "supporting", kind: "content", depth: 2, assignment: "设定 Agent · 人物卡 Skill" },
+      { name: "volume_outline", kind: "content", depth: 1, assignment: "结构 Agent · 分卷大纲 Skill" },
+      { name: "chapter_list", kind: "content", depth: 1, assignment: "结构 Agent · 章节清单 Skill" },
+    ],
+  },
+  {
+    id: "essay",
+    name: "商业长文 v1",
+    desc: "5 小节论述文：立论 → 三段论证 → 收束",
+    slots: 5,
+    inputs: [
+      { key: "topic", label: "选题", value: "内容生产的结构化转向", hint: "全文论述对象", req: true },
+      { key: "audience", label: "读者", value: "内容平台运营与产品", hint: "决定举例的行业与深浅", req: true },
+      { key: "key_points", label: "必须覆盖的要点", value: "", hint: "每行一条，可留空由 Agent 自定", multiline: true, req: false },
+    ],
+    tree: [
+      { name: "article", kind: "container", depth: 0 },
+      { name: "thesis", kind: "content", depth: 1, assignment: "论述 Agent · 立论 Skill" },
+      { name: "argument_1", kind: "content", depth: 1, assignment: "论述 Agent · 论证段 Skill" },
+      { name: "argument_2", kind: "content", depth: 1, assignment: "论述 Agent · 论证段 Skill" },
+      { name: "argument_3", kind: "content", depth: 1, assignment: "论述 Agent · 论证段 Skill" },
+      { name: "closing", kind: "content", depth: 1, assignment: "论述 Agent · 收束 Skill" },
+    ],
+  },
+];
+
+const GO = p => () => { window.location.href = p; };
+const NAV = {
+  tasks: GO("任务列表.dc.html"),
+  templates: GO("模板列表.dc.html"),
+  settings: GO("Provider%20设置.dc.html"),
+  workbench: GO("任务工作台.dc.html"),
+};
+
+class Component extends DCLogic {
+  state = { tplId: "zhihu", taskName: "《深夜来电》第三章", created: null };
+
+  get tpl() { return TEMPLATES.find(t => t.id === this.state.tplId); }
+
+  renderVals() {
+    const tpl = this.tpl;
+    const containerCount = tpl.tree.filter(n => n.kind === "container").length;
+    return {
+      nav: NAV,
+      taskName: this.state.taskName,
+      onName: e => this.setState({ taskName: e.target.value }),
+      created: !!this.state.created,
+      createdTitle: this.state.created === "start" ? "任务已创建并启动" : "任务已创建，停在 Ready",
+      createdHint: this.state.created === "start"
+        ? "chapter_outline 已进入执行，输入快照已冻结。"
+        : "输入快照已冻结，需在工作台手动启动第一个槽位。",
+      createStyle: "min-width: 96px;",
+      onCreate: () => this.setState({ created: "only" }),
+      onCreateStart: () => this.setState({ created: "start" }),
+      templates: TEMPLATES.map(t => ({
+        name: t.name,
+        desc: t.desc,
+        slotLabel: `${t.slots} 槽位`,
+        onClick: () => this.setState({ tplId: t.id, created: null }),
+        style: t.id === this.state.tplId
+          ? "padding: 14px 16px; border: 1px solid var(--color-accent); border-radius: var(--radius-md); background: color-mix(in srgb, var(--color-accent) 6%, transparent); cursor: pointer; transition: border-color .15s;"
+          : "padding: 14px 16px; border: 1px solid var(--color-divider); border-radius: var(--radius-md); cursor: pointer; transition: border-color .15s;",
+        radioStyle: t.id === this.state.tplId
+          ? "width: 11px; height: 11px; flex: none; border-radius: 50%; border: 1px solid var(--color-accent); background: var(--color-accent); box-shadow: inset 0 0 0 2px var(--color-bg); margin-top: 5px;"
+          : "width: 11px; height: 11px; flex: none; border-radius: 50%; border: 1px solid var(--color-neutral-400); margin-top: 5px;",
+      })),
+      inputs: tpl.inputs.map(f => ({
+        ...f,
+        req: f.req ? "必填" : "可选",
+        reqStyle: f.req
+          ? "font-size: 10.5px; color: var(--color-accent-700); border: 1px solid color-mix(in srgb, var(--color-accent) 40%, transparent); padding: 0 5px; border-radius: 2px;"
+          : "font-size: 10.5px; color: var(--color-neutral-500); border: 1px solid var(--color-divider); padding: 0 5px; border-radius: 2px;",
+        multiline: !!f.multiline,
+        single: !f.multiline,
+      })),
+      previewName: tpl.name,
+      previewMeta: `${tpl.slots} 个槽位 · ${containerCount} 个容器槽位 · 组装顺序按树内序`,
+      tree: tpl.tree.map(n => {
+        const isC = n.kind === "container";
+        return {
+          name: n.name,
+          kind: isC ? "容器槽位" : "内容槽位",
+          hasAssignment: !isC,
+          assignment: n.assignment || "",
+          rowStyle: `display: flex; align-items: flex-start; gap: 9px; padding: 9px 0 9px ${n.depth * 20}px; border-bottom: 1px solid var(--color-divider);`,
+          markStyle: isC
+            ? "width: 13px; height: 13px; flex: none; margin-top: 3px; border: 1px solid var(--color-neutral-500); border-radius: 2px;"
+            : "width: 13px; height: 13px; flex: none; margin-top: 3px; border: 1px solid color-mix(in srgb, var(--color-accent) 55%, transparent); border-radius: 50%;",
+          nameStyle: isC
+            ? "font-family: var(--font-heading); font-weight: 600; font-size: 14.5px; color: var(--color-neutral-800);"
+            : "font-family: var(--font-heading); font-weight: 600; font-size: 14.5px;",
+        };
+      }),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

@@ -1,0 +1,58 @@
+# 非法：fillSlotByType.scene 绑了一个 operation=create_structure 的 Skill。
+# 不拦的话，写作 Agent 会拿到一份教它怎么设计结构的 Skill，然后按它去填正文。
+id: skill-operation-mismatch
+version: 1.0.0
+name: Skill operation 不匹配
+description: 用于验证 operation 不匹配被拒。
+status: published
+
+presentation:
+  outputKind: 单章正文
+
+inputFields:
+  - id: chapter_packet
+    label: 章节执行包
+    type: textarea
+    required: true
+
+slotTypes:
+  - id: scene
+    name: 场景段
+    description: 推进正文的场景
+    contentBearing: true
+
+agents:
+  - id: structure_designer
+    name: 结构设计 Agent
+    role: 设计章节结构
+    model: structure
+    systemInstruction: 你负责设计结构。
+  - id: chapter_writer
+    name: 写作 Agent
+    role: 生产正文
+    model: main
+    systemInstruction: 你负责撰写正文。
+
+skills:
+  - id: chapter-structure-design
+    version: 1.0.0
+    source: skills/chapter-structure-design/SKILL.md
+
+bindings:
+  createStructure:
+    agentId: structure_designer
+    skillId: chapter-structure-design
+  fillSlotByType:
+    scene:
+      agentId: chapter_writer
+      skillId: chapter-structure-design # ← operation 是 create_structure
+
+limits:
+  maxSlots: 16
+  maxStructureDepth: 3
+  maxToolCallsPerAssignment: 24
+
+output:
+  fileName: chapter.md
+  mediaType: text/markdown
+  assembler: markdown_concat_v1

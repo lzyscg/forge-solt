@@ -1,0 +1,54 @@
+# 故意写坏：`status` 取了一个不存在的值。
+# 它与合法模板同处 TEMPLATES_DIR，用于验证「一个坏模板不让整个列表页空白」，
+# 同时坏模板必须以 failures 的形式显式可见，不许静默消失。
+id: broken-chapter
+version: 1.0.0
+name: 坏掉的模板
+description: 用于验证目录层的容错。
+status: 半发布
+
+presentation:
+  outputKind: 单章正文
+
+inputFields:
+  - id: chapter_packet
+    label: 章节执行包
+    type: textarea
+    required: true
+
+slotTypes:
+  - id: scene
+    name: 场景段
+    description: 推进正文的场景
+    contentBearing: true
+
+agents:
+  - id: chapter_writer
+    name: 写作 Agent
+    role: 生产正文
+    model: main
+    systemInstruction: 你负责撰写正文。
+
+skills:
+  - id: scene-writing
+    version: 1.0.0
+    source: skills/scene-writing/SKILL.md
+
+bindings:
+  createStructure:
+    agentId: chapter_writer
+    skillId: scene-writing
+  fillSlotByType:
+    scene:
+      agentId: chapter_writer
+      skillId: scene-writing
+
+limits:
+  maxSlots: 16
+  maxStructureDepth: 3
+  maxToolCallsPerAssignment: 24
+
+output:
+  fileName: chapter.md
+  mediaType: text/markdown
+  assembler: markdown_concat_v1

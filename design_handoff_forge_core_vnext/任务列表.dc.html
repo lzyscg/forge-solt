@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/classical-77148255-5e00-4a2c-957b-cef734727482/styles.css">
+<script src="_ds/classical-77148255-5e00-4a2c-957b-cef734727482/_ds_bundle.js"></script>
+<style>
+@keyframes fc-pulse { 0%,100% { opacity: .35 } 50% { opacity: 1 } }
+body { margin: 0; overflow: hidden; }
+a { color: var(--color-accent); }
+a:hover { color: var(--color-accent-700); }
+.btn { white-space: nowrap; }
+nav [title] { cursor: pointer; }
+nav [title]:hover { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+.fc-scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--color-neutral-400) transparent; }
+.fc-row:hover { background: color-mix(in srgb, var(--color-accent) 5%, transparent); }
+</style>
+</helmet>
+
+<div style="height: 100vh; display: flex; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); font-size: 14px; overflow: hidden;">
+
+  <nav style="width: 68px; flex: none; border-right: 1px solid var(--color-divider); display: flex; flex-direction: column; align-items: center; padding: 18px 0; gap: 6px; background: color-mix(in srgb, var(--color-surface) 55%, transparent);">
+    <div style="font-family: var(--font-heading); font-size: 19px; line-height: 1; color: var(--color-accent); margin-bottom: 20px;">F</div>
+    <div onClick="{{ nav.tasks }}" title="生产任务" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"></path><path d="m6.08 11-3.5 1.6a1 1 0 0 0 0 1.81l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9a1 1 0 0 0 0-1.83L17.9 11"></path></svg>
+    </div>
+    <div onClick="{{ nav.templates }}" title="模板" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-neutral-600);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
+    </div>
+    <div onClick="{{ nav.settings }}" title="设置" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-neutral-600);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10"></path><path d="M18 6h2"></path><path d="M4 12h4"></path><path d="M12 12h8"></path><path d="M4 18h10"></path><path d="M18 18h2"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="16" cy="18" r="2"></circle></svg>
+    </div>
+  </nav>
+
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+
+    <header style="flex: none; padding: 22px 32px 18px; border-bottom: 1px solid var(--color-divider); display: flex; align-items: flex-end; gap: 24px;">
+      <div>
+        <h3 style="margin: 0; font-size: 26px;">生产任务</h3>
+        <div style="margin-top: 7px; font-size: 12.5px; color: var(--color-neutral-600);">{{ countLabel }}</div>
+      </div>
+      <div style="margin-left: auto; flex: none; display: flex; align-items: center; gap: 10px;">
+        <button class="btn btn-secondary">导入模板</button>
+        <button class="btn btn-primary" onClick="{{ nav.newTask }}">新建任务</button>
+      </div>
+    </header>
+
+    <div style="flex: none; display: flex; align-items: center; gap: 22px; padding: 13px 32px; border-bottom: 1px solid var(--color-divider); background: color-mix(in srgb, var(--color-surface) 40%, transparent); flex-wrap: wrap;">
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500);">状态</span>
+        <div style="display: flex; gap: 6px;">
+          <sc-for list="{{ statusFilters }}" as="f" hint-placeholder-count="5">
+            <button onClick="{{ f.onClick }}" style="{{ f.style }}">{{ f.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <span style="font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500);">模板</span>
+        <div style="display: flex; gap: 6px;">
+          <sc-for list="{{ templateFilters }}" as="f" hint-placeholder-count="3">
+            <button onClick="{{ f.onClick }}" style="{{ f.style }}">{{ f.label }}</button>
+          </sc-for>
+        </div>
+      </div>
+      <div style="margin-left: auto; display: flex; align-items: center; gap: 7px; color: var(--color-neutral-500); font-size: 12.5px;">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><circle cx="11" cy="11" r="8"></circle><path d="m21 21-4.3-4.3"></path></svg>
+        <input class="input" placeholder="搜索任务名称" style="border: none; background: transparent; padding: 2px 0; width: 148px; font-size: 12.5px;">
+      </div>
+    </div>
+
+    <div class="fc-scroll" style="flex: 1; min-height: 0;">
+      <table class="table" style="width: 100%; border-collapse: collapse; font-size: 13.5px;">
+        <thead>
+          <tr>
+            <th style="text-align: left; padding: 11px 32px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-600); font-weight: 500; border-bottom: 1px solid var(--color-divider);">任务</th>
+            <th style="text-align: left; padding: 11px 16px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-600); font-weight: 500; border-bottom: 1px solid var(--color-divider);">当前进展</th>
+            <th style="text-align: left; padding: 11px 16px; width: 168px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-600); font-weight: 500; border-bottom: 1px solid var(--color-divider);">槽位</th>
+            <th style="text-align: right; padding: 11px 32px; width: 132px; font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-600); font-weight: 500; border-bottom: 1px solid var(--color-divider);">更新</th>
+          </tr>
+        </thead>
+        <tbody>
+          <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+            <tr class="fc-row" onClick="{{ nav.workbench }}" style="cursor: pointer; border-bottom: 1px solid var(--color-divider);">
+              <td style="padding: 15px 32px; vertical-align: top;">
+                <div style="font-family: var(--font-heading); font-size: 16.5px; font-weight: 600;">{{ r.name }}</div>
+                <div style="margin-top: 4px; font-size: 12px; color: var(--color-neutral-600);">{{ r.template }}</div>
+              </td>
+              <td style="padding: 15px 16px; vertical-align: top;">
+                <div style="display: flex; align-items: center; gap: 9px;">
+                  <span style="{{ r.dotStyle }}"></span>
+                  <span style="{{ r.stateStyle }}">{{ r.state }}</span>
+                </div>
+                <div style="margin-top: 5px; font-size: 12.5px; color: var(--color-neutral-700); text-wrap: pretty;">{{ r.detail }}</div>
+              </td>
+              <td style="padding: 15px 16px; vertical-align: top;">
+                <div style="display: flex; align-items: baseline; gap: 6px; font-feature-settings: 'tnum';">
+                  <span style="font-family: var(--font-heading); font-size: 17px;">{{ r.done }}</span>
+                  <span style="font-size: 12px; color: var(--color-neutral-500);">/ {{ r.total }}</span>
+                </div>
+                <div style="margin-top: 7px; height: 3px; background: var(--color-neutral-200);">
+                  <div style="{{ r.barStyle }}"></div>
+                </div>
+              </td>
+              <td style="padding: 15px 32px; text-align: right; vertical-align: top; font-size: 12.5px; color: var(--color-neutral-600); font-feature-settings: 'tnum'; white-space: nowrap;">{{ r.updated }}</td>
+            </tr>
+          </sc-for>
+        </tbody>
+      </table>
+      <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+        <div style="padding: 68px 32px; text-align: center; color: var(--color-neutral-500);">
+          <div style="font-family: var(--font-heading); font-size: 19px; color: var(--color-neutral-700);">没有符合条件的任务</div>
+          <div style="margin-top: 8px; font-size: 13px;">换个筛选条件，或从模板新建一个生产任务。</div>
+        </div>
+      </sc-if>
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const TASKS = [
+  { name: "《深夜来电》第三章", template: "知乎盐选单章 v4", tone: "run", state: "正在填充 Slot", detail: "第 3 章 · scene_2 场景正文生成中", done: 4, total: 6, updated: "12 秒前" },
+  { name: "《深夜来电》第二章", template: "知乎盐选单章 v4", tone: "ok", state: "已完成", detail: "6 个槽位全部通过，产物已组装", done: 6, total: 6, updated: "今天 14:02" },
+  { name: "《雾港旧事》全书大纲", template: "长篇书籍骨架 v2", tone: "wait", state: "等待依赖", detail: "outline 槽位等待「人物设定」定稿", done: 2, total: 9, updated: "今天 11:47" },
+  { name: "品牌年度回顾长文", template: "商业长文 v1", tone: "fail", state: "结构校验失败", detail: "模板要求 5 个小节，Agent 只产出 3 个", done: 0, total: 5, updated: "昨天 19:20" },
+  { name: "《深夜来电》第四章", template: "知乎盐选单章 v4", tone: "idle", state: "待启动", detail: "冻结输入已就绪，尚未开始生产", done: 0, total: 6, updated: "昨天 18:05" },
+  { name: "播客脚本 · 第 12 期", template: "音频脚本 v1", tone: "stop", state: "已停止", detail: "运营手动停止，可从 script_body 续跑", done: 3, total: 7, updated: "8 月 17 日" },
+];
+
+const TONE = {
+  run:  { c: "var(--color-accent-700)", pulse: true },
+  ok:   { c: "var(--color-neutral-700)" },
+  wait: { c: "var(--color-accent-600)" },
+  fail: { c: "var(--color-neutral-900)" },
+  idle: { c: "var(--color-neutral-500)" },
+  stop: { c: "var(--color-neutral-500)" },
+};
+
+const STATUS_F = ["全部", "进行中", "等待中", "已完成", "异常"];
+const TPL_F = ["全部模板", "知乎盐选单章 v4", "长篇书籍骨架 v2", "商业长文 v1"];
+
+const GO = p => () => { window.location.href = p; };
+const NAV = {
+  tasks: GO("任务列表.dc.html"),
+  templates: GO("模板列表.dc.html"),
+  settings: GO("Provider%20设置.dc.html"),
+  workbench: GO("任务工作台.dc.html"),
+  newTask: GO("新建任务.dc.html"),
+  tplDetail: GO("模板详情.dc.html"),
+};
+
+class Component extends DCLogic {
+  state = { status: "全部", tpl: "全部模板" };
+
+  chipStyle(active) {
+    return active
+      ? "padding: 4px 11px; border: 1px solid var(--color-accent); border-radius: var(--radius-sm); background: color-mix(in srgb, var(--color-accent) 9%, transparent); color: var(--color-accent-700); font-family: var(--font-body); font-size: 12.5px; cursor: pointer;"
+      : "padding: 4px 11px; border: 1px solid var(--color-divider); border-radius: var(--radius-sm); background: transparent; color: var(--color-neutral-600); font-family: var(--font-body); font-size: 12.5px; cursor: pointer;";
+  }
+
+  match(t) {
+    const s = this.state.status;
+    const okStatus = s === "全部"
+      || (s === "进行中" && t.tone === "run")
+      || (s === "等待中" && (t.tone === "wait" || t.tone === "idle"))
+      || (s === "已完成" && t.tone === "ok")
+      || (s === "异常" && (t.tone === "fail" || t.tone === "stop"));
+    return okStatus && (this.state.tpl === "全部模板" || t.template === this.state.tpl);
+  }
+
+  renderVals() {
+    const rows = TASKS.filter(t => this.match(t)).map(t => {
+      const tone = TONE[t.tone];
+      const pct = t.total ? Math.round((t.done / t.total) * 100) : 0;
+      return {
+        ...t,
+        dotStyle: `width: 7px; height: 7px; border-radius: 50%; flex: none; background: ${tone.c};${tone.pulse ? " animation: fc-pulse 1.4s ease-in-out infinite;" : ""}`,
+        stateStyle: `font-family: var(--font-heading); font-weight: 600; font-size: 14px; color: ${tone.c};`,
+        barStyle: `height: 100%; width: ${pct}%; background: ${tone.c};`,
+      };
+    });
+    return {
+      nav: NAV,
+      rows,
+      isEmpty: rows.length === 0,
+      countLabel: `${rows.length} 个任务 · 共 ${TASKS.length}`,
+      statusFilters: STATUS_F.map(label => ({
+        label,
+        style: this.chipStyle(this.state.status === label),
+        onClick: () => this.setState({ status: label }),
+      })),
+      templateFilters: TPL_F.map(label => ({
+        label,
+        style: this.chipStyle(this.state.tpl === label),
+        onClick: () => this.setState({ tpl: label }),
+      })),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

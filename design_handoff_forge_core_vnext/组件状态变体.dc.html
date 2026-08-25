@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/classical-77148255-5e00-4a2c-957b-cef734727482/styles.css">
+<script src="_ds/classical-77148255-5e00-4a2c-957b-cef734727482/_ds_bundle.js"></script>
+<style>
+@keyframes fc-blink { 0%,49% { opacity: 1 } 50%,100% { opacity: 0 } }
+@keyframes fc-pulse { 0%,100% { opacity: .35 } 50% { opacity: 1 } }
+body { margin: 0; overflow: hidden; }
+a { color: var(--color-accent); }
+a:hover { color: var(--color-accent-700); }
+.btn { white-space: nowrap; }
+.fc-scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--color-neutral-400) transparent; }
+nav [title] { cursor: pointer; }
+nav [title]:hover { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+</style>
+</helmet>
+
+<div style="height: 100vh; display: flex; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); font-size: 14px; overflow: hidden;">
+
+  <nav style="width: 68px; flex: none; border-right: 1px solid var(--color-divider); display: flex; flex-direction: column; align-items: center; padding: 18px 0; gap: 6px; background: color-mix(in srgb, var(--color-surface) 55%, transparent);">
+    <div style="font-family: var(--font-heading); font-size: 19px; line-height: 1; color: var(--color-accent); margin-bottom: 20px;">F</div>
+    <div onClick="{{ nav.tasks }}" title="生产任务" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-neutral-600);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"></path><path d="m6.08 11-3.5 1.6a1 1 0 0 0 0 1.81l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9a1 1 0 0 0 0-1.83L17.9 11"></path></svg>
+    </div>
+    <div onClick="{{ nav.templates }}" title="模板" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-neutral-600);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
+    </div>
+    <div onClick="{{ nav.settings }}" title="设置" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-neutral-600);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10"></path><path d="M18 6h2"></path><path d="M4 12h4"></path><path d="M12 12h8"></path><path d="M4 18h10"></path><path d="M18 18h2"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="16" cy="18" r="2"></circle></svg>
+    </div>
+  </nav>
+
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+
+    <header style="flex: none; padding: 22px 32px 18px; border-bottom: 1px solid var(--color-divider);">
+      <div style="font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500); margin-bottom: 6px;">交付附录</div>
+      <h3 style="margin: 0; font-size: 25px;">组件状态变体</h3>
+      <div style="margin-top: 7px; font-size: 12.5px; color: var(--color-neutral-600); max-width: 660px; text-wrap: pretty;">每个组件的全部状态并排铺开，作为开发实现的对照表。取值与工作台里跑的是同一套，改一处两边都要改。</div>
+    </header>
+
+    <div class="fc-scroll" style="flex: 1; min-height: 0; padding: 28px 32px 56px;">
+      <div style="max-width: 1080px; display: flex; flex-direction: column; gap: 42px;">
+
+        <section>
+          <div style="display: flex; align-items: baseline; gap: 12px; padding-bottom: 9px; border-bottom: 1px solid var(--color-divider);">
+            <h4 style="margin: 0; font-size: 19px;">Slot 节点</h4>
+            <span style="font-size: 12px; color: var(--color-neutral-600);">左栏槽位树的单行。共 8 态。</span>
+          </div>
+          <div style="margin-top: 16px; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px;">
+            <sc-for list="{{ slotStates }}" as="s" hint-placeholder-count="8">
+              <div>
+                <div style="display: flex; align-items: baseline; gap: 9px; margin-bottom: 7px;">
+                  <span style="font-family: var(--font-heading); font-weight: 600; font-size: 13px;">{{ s.title }}</span>
+                  <span style="{{ s.keyStyle }}">{{ s.key }}</span>
+                </div>
+                <div style="{{ s.rowStyle }}">
+                  <span style="{{ s.markStyle }}">{{ s.mark }}</span>
+                  <div style="min-width: 0; flex: 1;">
+                    <div style="display: flex; align-items: baseline; gap: 8px;">
+                      <span style="{{ s.nameStyle }}">{{ s.name }}</span>
+                      <span style="font-size: 11px; color: var(--color-neutral-500);">{{ s.typeName }}</span>
+                    </div>
+                    <div style="{{ s.subStyle }}">{{ s.sub }}</div>
+                  </div>
+                </div>
+                <div style="margin-top: 7px; font-size: 11.5px; color: var(--color-neutral-600); text-wrap: pretty; line-height: 1.6;">{{ s.note }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+        <section>
+          <div style="display: flex; align-items: baseline; gap: 12px; padding-bottom: 9px; border-bottom: 1px solid var(--color-divider);">
+            <h4 style="margin: 0; font-size: 19px;">Trace 事件</h4>
+            <span style="font-size: 12px; color: var(--color-neutral-600);">按 actor 分色，四类。</span>
+          </div>
+          <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 11px;">
+            <sc-for list="{{ traceEvents }}" as="e" hint-placeholder-count="5">
+              <div style="display: flex; align-items: flex-start; gap: 13px; padding: 12px 14px; border: 1px solid var(--color-divider); border-radius: var(--radius-md);">
+                <span style="{{ e.actorStyle }}">{{ e.actor }}</span>
+                <div style="min-width: 0; flex: 1;">
+                  <div style="display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;">
+                    <span style="font-family: var(--font-heading); font-weight: 600; font-size: 14px;">{{ e.title }}</span>
+                    <span style="{{ e.timeStyle }}">{{ e.time }}</span>
+                  </div>
+                  <div style="margin-top: 4px; font-size: 12.5px; color: var(--color-neutral-700); line-height: 1.65; text-wrap: pretty;">{{ e.body }}</div>
+                  <sc-if value="{{ e.hasDetail }}" hint-placeholder-val="{{ false }}">
+                    <div style="{{ e.detailStyle }}">{{ e.detail }}</div>
+                  </sc-if>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="margin-top: 11px; font-size: 11.5px; color: var(--color-neutral-600); text-wrap: pretty; line-height: 1.65;">时间戳按事件入列时刻生成，不重排。System 走中性灰，Agent 走强调色，Tool 走浅灰，异常事件单独走红。</div>
+        </section>
+
+        <section>
+          <div style="display: flex; align-items: baseline; gap: 12px; padding-bottom: 9px; border-bottom: 1px solid var(--color-divider);">
+            <h4 style="margin: 0; font-size: 19px;">Stepper</h4>
+            <span style="font-size: 12px; color: var(--color-neutral-600);">五段固定，段内状态三态。</span>
+          </div>
+          <div style="margin-top: 16px; display: flex; flex-direction: column; gap: 18px;">
+            <sc-for list="{{ stepperRows }}" as="r" hint-placeholder-count="3">
+              <div>
+                <div style="font-size: 11.5px; color: var(--color-neutral-600); margin-bottom: 8px;">{{ r.caption }}</div>
+                <div style="display: flex; align-items: stretch; border: 1px solid var(--color-divider); border-radius: var(--radius-md); overflow: hidden;">
+                  <sc-for list="{{ r.steps }}" as="s" hint-placeholder-count="5">
+                    <div style="{{ s.style }}">
+                      <span style="{{ s.markStyle }}">{{ s.mark }}</span>
+                      <span style="font-family: var(--font-heading); font-weight: 600; font-size: 13.5px; white-space: nowrap;">{{ s.label }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+        <section>
+          <div style="display: flex; align-items: baseline; gap: 12px; padding-bottom: 9px; border-bottom: 1px solid var(--color-divider);">
+            <h4 style="margin: 0; font-size: 19px;">状态标签</h4>
+            <span style="font-size: 12px; color: var(--color-neutral-600);">任务状态与槽位状态共用一套字号，语气分色。</span>
+          </div>
+          <div style="margin-top: 16px; display: flex; flex-wrap: wrap; gap: 9px;">
+            <sc-for list="{{ chips }}" as="c" hint-placeholder-count="9">
+              <span style="{{ c.style }}">{{ c.label }}</span>
+            </sc-for>
+          </div>
+          <div style="margin-top: 14px; display: flex; flex-wrap: wrap; gap: 9px;">
+            <span class="tag tag-outline">容器槽位</span>
+            <span class="tag tag-accent">内容槽位</span>
+            <span class="tag tag-accent">已发布</span>
+            <span class="tag tag-neutral">草稿</span>
+          </div>
+        </section>
+
+        <section>
+          <div style="display: flex; align-items: baseline; gap: 12px; padding-bottom: 9px; border-bottom: 1px solid var(--color-divider);">
+            <h4 style="margin: 0; font-size: 19px;">按钮</h4>
+            <span style="font-size: 12px; color: var(--color-neutral-600);">主操作、次操作、幽灵、禁用。</span>
+          </div>
+          <div style="margin-top: 16px; display: flex; flex-wrap: wrap; gap: 11px; align-items: center;">
+            <button class="btn btn-primary">启动生产</button>
+            <button class="btn btn-secondary">停止</button>
+            <button class="btn btn-ghost">查看输入快照</button>
+            <button class="btn btn-primary" disabled="true" style="opacity: .45; cursor: not-allowed;">启动生产</button>
+            <button class="btn btn-secondary" style="{{ dangerBtnStyle }}">放弃本次生产</button>
+          </div>
+          <div style="margin-top: 11px; font-size: 11.5px; color: var(--color-neutral-600);">破坏性操作只在文字与描边上转红，不做填充。</div>
+        </section>
+
+        <section>
+          <div style="display: flex; align-items: baseline; gap: 12px; padding-bottom: 9px; border-bottom: 1px solid var(--color-divider);">
+            <h4 style="margin: 0; font-size: 19px;">确认弹窗</h4>
+            <span style="font-size: 12px; color: var(--color-neutral-600);">两类：一般确认与破坏性确认。</span>
+          </div>
+          <div style="margin-top: 16px; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 18px;">
+            <sc-for list="{{ dialogs }}" as="d" hint-placeholder-count="2">
+              <div class="dialog">
+                <div class="dialog-title">{{ d.title }}</div>
+                <div class="dialog-body" style="line-height: 1.7; text-wrap: pretty;">{{ d.body }}</div>
+                <sc-if value="{{ d.hasList }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding: 10px 13px; border: 1px solid var(--color-divider); border-radius: var(--radius-sm); font-size: 12px; color: var(--color-neutral-700); line-height: 1.7;">{{ d.list }}</div>
+                </sc-if>
+                <div class="dialog-actions">
+                  <button class="btn btn-ghost">取消</button>
+                  <button class="btn btn-secondary" style="{{ d.confirmStyle }}">{{ d.confirm }}</button>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </section>
+
+      </div>
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900}}">
+const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
+const DANGER = 'oklch(0.46 0.13 32)';
+const DANGER_BG = 'oklch(0.96 0.02 32)';
+
+const GO = p => () => { window.location.href = p; };
+const NAV = {
+  tasks: GO("任务列表.dc.html"),
+  templates: GO("模板列表.dc.html"),
+  settings: GO("Provider%20设置.dc.html"),
+};
+
+const SLOT_STATES = [
+  { key: "empty", title: "未填充", name: "scene_02", typeName: "场景", sub: "等待执行",
+    note: "槽位已由结构创建铺开，尚无产物。描边圆点，文字降至中性灰。" },
+  { key: "running", title: "正在填充", name: "scene_02", typeName: "场景", sub: "写作 Agent 生成中 · 已 42 秒",
+    tone: "run", active: true, note: "唯一可同时存在一个。圆点脉冲，行底衬强调色浅底，左侧 2px 强调条。" },
+  { key: "done", title: "已完成", name: "scene_01", typeName: "场景", sub: "1,486 字 · 校验通过",
+    tone: "done", note: "实心圆点。子行给出可核对的产物事实，不写「成功」这类空话。" },
+  { key: "blocked", title: "等待依赖", name: "emotional_closure", typeName: "情绪收束", sub: "等待 scene_03 定稿",
+    tone: "wait", note: "子行必须点名在等谁，否则用户无从判断要不要干预。" },
+  { key: "retry", title: "超时重试", name: "scene_03", typeName: "场景", sub: "第 2 次尝试 · 上次 180 秒超时",
+    tone: "warn", note: "重试计数与上次失败原因同时给出。仍属正常流程，不用红。" },
+  { key: "structFail", title: "结构校验失败", name: "chapter", typeName: "章节容器", sub: "要求 3 个场景，实收 2 个",
+    tone: "danger", note: "校验判据与实收值并列，人工介入时不用再翻轨迹。" },
+  { key: "stopped", title: "已停止", name: "chapter_end", typeName: "章末", sub: "运营手动停止 · 可从此处续跑",
+    tone: "idle", note: "与失败区分：停止是人的决定，措辞不带错误感。" },
+  { key: "container", title: "容器槽位", name: "chapter", typeName: "章节容器", sub: "收拢 5 个下级槽位",
+    tone: "container", container: true, note: "方形标记而非圆点。无 Assignment，不显示 Producer 与耗时。" },
+];
+
+const TONE = {
+  run: { dot: "var(--color-accent)", text: "var(--color-accent-700)", pulse: true },
+  done: { dot: "var(--color-accent-700)", text: "var(--color-neutral-700)", fill: true },
+  wait: { dot: "var(--color-accent-600)", text: "var(--color-accent-700)" },
+  warn: { dot: "var(--color-accent-600)", text: "var(--color-accent-700)" },
+  danger: { dot: DANGER, text: DANGER },
+  idle: { dot: "var(--color-neutral-400)", text: "var(--color-neutral-600)" },
+  container: { dot: "var(--color-neutral-500)", text: "var(--color-neutral-700)" },
+};
+
+const TRACE = [
+  { actor: "System", title: "槽位进入执行", body: "scene_02 依赖已满足，分配至写作 Agent。", time: "14:22:03" },
+  { actor: "Agent", title: "理解任务", body: "本场需要把林昭的怀疑推到当面质问的边缘，但不能让对方承认。", time: "14:22:05" },
+  { actor: "Tool", title: "读取上游产物", body: "chapter_outline.scenes[1] · scene_01 结尾状态摘要", time: "14:22:05",
+    detail: "{ goal: \"制造第一次正面冲突\", conflict: \"林昭发现门禁记录被改\" }" },
+  { actor: "Agent", title: "产出正文", body: "1,486 字，已流式写入右侧产物区。", time: "14:23:41", output: true },
+  { actor: "Error", title: "结构校验未通过", body: "模板要求恰好 3 个场景对象，本次实收 2 个。将按重试配额重跑。", time: "14:24:02" },
+];
+
+const ACTOR_COLOR = {
+  System: ["var(--color-neutral-200)", "var(--color-neutral-800)", "var(--color-neutral-400)"],
+  Agent: ["var(--color-accent-100)", "var(--color-accent-800)", "var(--color-accent)"],
+  Tool: ["var(--color-neutral-100)", "var(--color-neutral-700)", "var(--color-neutral-300)"],
+  Error: [DANGER_BG, DANGER, DANGER],
+};
+
+const STEP_LABELS = ["Ready", "创建结构", "填充 Slot", "组装", "完成"];
+
+const STEPPER_ROWS = [
+  { caption: "生产中 —— 第三段为当前段，前两段完成，后两段未达", states: ["done", "done", "current", "todo", "todo"] },
+  { caption: "结构校验失败 —— 当前段转为异常，后续段不可达", states: ["done", "error", "todo", "todo", "todo"] },
+  { caption: "已完成 —— 全段通过，末段为终态", states: ["done", "done", "done", "done", "final"] },
+];
+
+const CHIPS = [
+  { label: "Ready", tone: "idle" },
+  { label: "创建结构", tone: "run" },
+  { label: "填充 Slot", tone: "run" },
+  { label: "等待依赖", tone: "wait" },
+  { label: "超时重试", tone: "warn" },
+  { label: "组装中", tone: "run" },
+  { label: "Completed", tone: "done" },
+  { label: "Stopped", tone: "idle" },
+  { label: "Failed", tone: "danger" },
+];
+
+const DIALOGS = [
+  { title: "停止本次生产？", kind: "normal", confirm: "停止生产",
+    body: "已完成的槽位产物会保留，正在执行的 scene_02 会丢弃当前输出。停止后可从该槽位续跑。" },
+  { title: "放弃本次生产？", kind: "danger", confirm: "放弃并清空",
+    body: "这会清空本任务所有槽位的产物，包括已通过校验的 4 个。输入快照保留，可重新启动。",
+    list: "将被清空：chapter_outline · scene_01 · scene_02 · scene_03" },
+];
+
+class Component extends DCLogic {
+  slotRow(s) {
+    const t = TONE[s.tone] || TONE.idle;
+    const isC = !!s.container;
+    return {
+      key: s.key,
+      title: s.title,
+      name: s.name,
+      typeName: s.typeName,
+      sub: s.sub,
+      note: s.note,
+      keyStyle: `font-family: ${MONO}; font-size: 10.5px; color: var(--color-neutral-500);`,
+      rowStyle: `display: flex; align-items: flex-start; gap: 11px; padding: 12px 14px; border: 1px solid var(--color-divider); border-radius: var(--radius-md);${s.active ? " background: color-mix(in srgb, var(--color-accent) 8%, transparent); box-shadow: inset 2px 0 0 var(--color-accent);" : ""}`,
+      markStyle: isC
+        ? `width: 13px; height: 13px; flex: none; margin-top: 3px; border: 1px solid ${t.dot}; border-radius: 2px;`
+        : `width: 13px; height: 13px; flex: none; margin-top: 3px; border: 1px solid ${t.dot}; border-radius: 50%; background: ${t.fill ? t.dot : "transparent"};${t.pulse ? " animation: fc-pulse 1.4s ease-in-out infinite;" : ""}`,
+      mark: "",
+      nameStyle: `font-family: ${MONO}; font-size: 13px; font-weight: 600; color: ${s.tone === "danger" ? DANGER : "var(--color-text)"};`,
+      subStyle: `margin-top: 4px; font-size: 12px; color: ${t.text};`,
+    };
+  }
+
+  chipStyle(tone) {
+    const map = {
+      idle: ["var(--color-neutral-400)", "var(--color-neutral-600)"],
+      run: ["var(--color-accent)", "var(--color-accent-700)"],
+      wait: ["var(--color-neutral-400)", "var(--color-accent-700)"],
+      warn: ["var(--color-accent-600)", "var(--color-accent-800)"],
+      done: ["var(--color-accent-700)", "var(--color-accent-800)"],
+      danger: [DANGER, DANGER],
+    };
+    const [b, c] = map[tone];
+    return `font-family: var(--font-heading); font-weight: 600; font-size: 12.5px; padding: 3px 11px; border: 1px solid ${b}; border-radius: var(--radius-sm); color: ${c};`;
+  }
+
+  step(label, state, i) {
+    const base = "flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 10px;";
+    const border = i > 0 ? " border-left: 1px solid var(--color-divider);" : "";
+    const map = {
+      done: ["var(--color-neutral-700)", "transparent", `1px solid var(--color-accent-700)`, "var(--color-accent-700)", true],
+      current: ["var(--color-accent-700)", "color-mix(in srgb, var(--color-accent) 9%, transparent)", "1px solid var(--color-accent)", "var(--color-accent)", false],
+      todo: ["var(--color-neutral-500)", "transparent", "1px solid var(--color-neutral-400)", "transparent", false],
+      error: [DANGER, DANGER_BG, `1px solid ${DANGER}`, "transparent", false],
+      final: ["var(--color-accent-800)", "color-mix(in srgb, var(--color-accent) 12%, transparent)", "1px solid var(--color-accent-700)", "var(--color-accent-700)", true],
+    };
+    const [color, bg, mb, mfill, filled] = map[state];
+    return {
+      label,
+      style: `${base}${border} background: ${bg}; color: ${color};`,
+      markStyle: `width: 11px; height: 11px; flex: none; border: ${mb}; border-radius: 50%; background: ${filled ? mfill : (state === "current" ? mfill : "transparent")};${state === "current" ? " animation: fc-pulse 1.4s ease-in-out infinite;" : ""}`,
+      mark: "",
+    };
+  }
+
+  renderVals() {
+    return {
+      nav: NAV,
+      slotStates: SLOT_STATES.map(s => this.slotRow(s)),
+      traceEvents: TRACE.map(e => {
+        const [bg, fg, bd] = ACTOR_COLOR[e.actor];
+        return {
+          actor: e.actor,
+          title: e.title,
+          body: e.body,
+          time: e.time,
+          hasDetail: !!e.detail,
+          detail: e.detail || "",
+          actorStyle: `flex: none; font-family: ${MONO}; font-size: 10.5px; letter-spacing: .04em; padding: 3px 8px; border: 1px solid ${bd}; border-radius: var(--radius-sm); background: ${bg}; color: ${fg}; margin-top: 1px;`,
+          timeStyle: `font-family: ${MONO}; font-size: 11px; color: var(--color-neutral-500);`,
+          detailStyle: `margin-top: 7px; padding: 9px 11px; border: 1px solid var(--color-divider); border-radius: var(--radius-sm); font-family: ${MONO}; font-size: 11.5px; color: var(--color-neutral-700); line-height: 1.6; overflow-x: auto;`,
+        };
+      }),
+      stepperRows: STEPPER_ROWS.map(r => ({
+        caption: r.caption,
+        steps: r.states.map((st, i) => this.step(STEP_LABELS[i], st, i)),
+      })),
+      chips: CHIPS.map(c => ({ label: c.label, style: this.chipStyle(c.tone) })),
+      dangerBtnStyle: `border-color: ${DANGER}; color: ${DANGER};`,
+      dialogs: DIALOGS.map(d => ({
+        title: d.title,
+        body: d.body,
+        hasList: !!d.list,
+        list: d.list || "",
+        confirm: d.confirm,
+        confirmStyle: d.kind === "danger" ? `border-color: ${DANGER}; color: ${DANGER};` : "",
+      })),
+    };
+  }
+}
+
+</script>
+</body>
+</html>

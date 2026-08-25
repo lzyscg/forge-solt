@@ -1,0 +1,21 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "fake-server",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["tsx", "src/server/dev-fake.ts"],
+      "port": 3311,
+      "env": {
+        "DATABASE_PATH": "./data/preview-check.sqlite",
+        "FAKE_SCENARIO": "happy"
+      }
+    },
+    {
+      "name": "client",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": ["vite"],
+      "port": 5273
+    }
+  ]
+}

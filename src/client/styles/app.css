@@ -1,0 +1,125 @@
+/* Forge Core vNext — 应用级布局与动效。
+ * 令牌（颜色/字号/间距/圆角）的权威来源是 tokens.css，这里只写结构与动画，
+ * 色值一律引用 var(--…)，不硬编码（HANDOFF §6「令牌值精确还原」）。
+ */
+
+/* —— 动效（仅两处，均为状态指示，取自设计稿）—— */
+@keyframes fc-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+@keyframes fc-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+/* —— 全局 —— */
+html, body, #root { height: 100%; }
+body { margin: 0; overflow: hidden; font-size: 14px; }
+
+.fc-scroll {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-neutral-400) transparent;
+}
+
+.tnum { font-variant-numeric: tabular-nums; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+
+/* —— 应用外壳：68px 侧栏 + 主列 —— */
+.app-shell { height: 100vh; display: flex; background: var(--color-bg); color: var(--color-text); overflow: hidden; }
+.app-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.app-nav {
+  width: 68px; flex: none;
+  border-right: 1px solid var(--color-divider);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 18px 0; gap: 6px;
+  background: color-mix(in srgb, var(--color-surface) 55%, transparent);
+}
+.app-nav-logo {
+  font-family: var(--font-heading); font-size: 19px; line-height: 1;
+  color: var(--color-accent); margin-bottom: 20px;
+}
+.app-nav-btn {
+  width: 44px; height: 44px; display: grid; place-items: center;
+  border-radius: var(--radius-md); border: 0; background: transparent;
+  color: var(--color-neutral-600); cursor: pointer;
+}
+.app-nav-btn:hover { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+.app-nav-btn[data-active='true'] {
+  color: var(--color-accent);
+  box-shadow: inset 0 0 0 1px var(--color-accent);
+}
+.app-nav-provider {
+  margin-top: auto; font-size: 10px; letter-spacing: 0.08em;
+  color: var(--color-neutral-500); writing-mode: vertical-rl;
+}
+
+/* —— 状态点 —— */
+.fc-dot { width: 7px; height: 7px; border-radius: 50%; flex: none; display: inline-block; }
+.fc-dot-pulse { animation: fc-pulse 1.4s ease-in-out infinite; }
+
+/* —— 状态徽章（任务/槽位共用，语气分色）—— */
+.fc-chip {
+  font-family: var(--font-heading); font-weight: 600; font-size: 12.5px;
+  padding: 3px 11px; border: 1px solid var(--color-neutral-400);
+  border-radius: var(--radius-sm); color: var(--color-neutral-600);
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+
+/* —— 进度条 —— */
+.fc-progress { height: 3px; background: var(--color-neutral-200); border-radius: 2px; overflow: hidden; }
+.fc-progress-fill { height: 100%; transition: width 0.4s ease; }
+
+/* —— 筛选 chip —— */
+.fc-filter {
+  cursor: pointer; font: inherit; font-size: 12.5px;
+  padding: 4px 11px; border-radius: var(--radius-sm);
+  border: 1px solid var(--color-divider); background: transparent;
+  color: var(--color-neutral-600); white-space: nowrap;
+}
+.fc-filter[data-active='true'] {
+  border-color: var(--color-accent);
+  background: color-mix(in srgb, var(--color-accent) 9%, transparent);
+  color: var(--color-accent-700);
+}
+
+/* —— 空态 —— */
+.fc-empty { padding: 68px 32px; text-align: center; color: var(--color-neutral-500); }
+.fc-empty-title { font-family: var(--font-heading); font-size: 19px; margin-bottom: 8px; color: var(--color-neutral-600); }
+.fc-empty-sub { font-size: 13px; }
+
+/* —— 连接断开提示条（§18.11）—— */
+.fc-connbar {
+  flex: none; display: flex; align-items: center; gap: 8px;
+  padding: 8px 20px; border-bottom: 1px solid var(--color-divider);
+  background: var(--color-accent-100); color: var(--color-accent-800); font-size: 12px;
+}
+
+/* —— 安全 Markdown 内容（产物 / 槽位正文）—— */
+.fc-markdown { font-size: 15px; line-height: 2.0; text-align: justify; }
+.fc-markdown > :first-child { margin-top: 0; }
+.fc-markdown > :last-child { margin-bottom: 0; }
+.fc-markdown h1, .fc-markdown h2, .fc-markdown h3, .fc-markdown h4 {
+  margin: var(--space-4) 0 var(--space-2); line-height: 1.3;
+}
+.fc-markdown p { margin: 0 0 var(--space-3); }
+.fc-markdown code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.9em; background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  padding: 1px 5px; border-radius: var(--radius-sm);
+}
+.fc-markdown pre {
+  padding: var(--space-3); border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--color-text) 6%, transparent);
+  overflow-x: auto;
+}
+.fc-markdown pre code { background: transparent; padding: 0; }
+.fc-markdown blockquote {
+  margin: 0 0 var(--space-3); padding-left: var(--space-3);
+  border-left: 2px solid var(--color-accent-300); color: var(--color-neutral-700);
+}
+.fc-markdown a { color: var(--color-accent); }
+.fc-markdown ul, .fc-markdown ol { margin: 0 0 var(--space-3); padding-left: var(--space-5, 22px); }
+

@@ -1,0 +1,67 @@
+# 非法：contentBearing 的 title 类型没有 fillSlotByType 绑定。
+# 漏一个类型的后果是「结构创建成功、跑到那个槽位才失败」，
+# 此时结构步骤的 token 已经烧掉，且没有自动恢复路径。
+id: uncovered-slot-type
+version: 1.0.0
+name: 未覆盖全部内容类型
+description: 用于验证 fillSlotByType 覆盖完备性。
+status: published
+
+presentation:
+  outputKind: 单章正文
+
+inputFields:
+  - id: chapter_packet
+    label: 章节执行包
+    type: textarea
+    required: true
+
+slotTypes:
+  - id: scene
+    name: 场景段
+    description: 推进正文的场景
+    contentBearing: true
+  - id: title
+    name: 章节标题
+    description: 单章标题
+    contentBearing: true
+
+agents:
+  - id: structure_designer
+    name: 结构设计 Agent
+    role: 设计章节结构
+    model: structure
+    systemInstruction: 你负责设计结构。
+  - id: chapter_writer
+    name: 写作 Agent
+    role: 生产正文
+    model: main
+    systemInstruction: 你负责撰写正文。
+
+skills:
+  - id: chapter-structure-design
+    version: 1.0.0
+    source: skills/chapter-structure-design/SKILL.md
+  - id: scene-writing
+    version: 1.0.0
+    source: skills/scene-writing/SKILL.md
+
+bindings:
+  createStructure:
+    agentId: structure_designer
+    skillId: chapter-structure-design
+  fillSlotByType:
+    scene:
+      agentId: chapter_writer
+      skillId: scene-writing
+    # title 没有绑定
+
+limits:
+  maxSlots: 16
+  maxStructureDepth: 3
+  maxToolCallsPerAssignment: 24
+
+output:
+  fileName: chapter.md
+  mediaType: text/markdown
+  assembler: markdown_concat_v1

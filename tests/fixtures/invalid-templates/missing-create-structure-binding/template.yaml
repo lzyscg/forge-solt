@@ -1,0 +1,50 @@
+# 非法：缺 bindings.createStructure。
+# D-01 下结构由 Structure Agent 运行时创建，没有这条绑定任务连第一步都开始不了。
+id: missing-create-structure-binding
+version: 1.0.0
+name: 缺结构绑定
+description: 用于验证缺 binding 被拒。
+status: published
+
+presentation:
+  outputKind: 单章正文
+
+inputFields:
+  - id: chapter_packet
+    label: 章节执行包
+    type: textarea
+    required: true
+
+slotTypes:
+  - id: scene
+    name: 场景段
+    description: 推进正文的场景
+    contentBearing: true
+
+agents:
+  - id: chapter_writer
+    name: 写作 Agent
+    role: 生产正文
+    model: main
+    systemInstruction: 你负责撰写正文。
+
+skills:
+  - id: scene-writing
+    version: 1.0.0
+    source: skills/scene-writing/SKILL.md
+
+bindings:
+  fillSlotByType:
+    scene:
+      agentId: chapter_writer
+      skillId: scene-writing
+
+limits:
+  maxSlots: 16
+  maxStructureDepth: 3
+  maxToolCallsPerAssignment: 24
+
+output:
+  fileName: chapter.md
+  mediaType: text/markdown
+  assembler: markdown_concat_v1

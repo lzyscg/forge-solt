@@ -1,0 +1,55 @@
+# 非法：bindings.createStructure.agentId 指向一个 agents 里不存在的 Agent。
+id: unknown-agent
+version: 1.0.0
+name: 绑定引用了不存在的 Agent
+description: 用于验证悬空 agentId 被拒。
+status: published
+
+presentation:
+  outputKind: 单章正文
+
+inputFields:
+  - id: chapter_packet
+    label: 章节执行包
+    type: textarea
+    required: true
+
+slotTypes:
+  - id: scene
+    name: 场景段
+    description: 推进正文的场景
+    contentBearing: true
+
+agents:
+  - id: chapter_writer
+    name: 写作 Agent
+    role: 生产正文
+    model: main
+    systemInstruction: 你负责撰写正文。
+
+skills:
+  - id: chapter-structure-design
+    version: 1.0.0
+    source: skills/chapter-structure-design/SKILL.md
+  - id: scene-writing
+    version: 1.0.0
+    source: skills/scene-writing/SKILL.md
+
+bindings:
+  createStructure:
+    agentId: structure_designer # ← agents 里没有这个 id
+    skillId: chapter-structure-design
+  fillSlotByType:
+    scene:
+      agentId: chapter_writer
+      skillId: scene-writing
+
+limits:
+  maxSlots: 16
+  maxStructureDepth: 3
+  maxToolCallsPerAssignment: 24
+
+output:
+  fileName: chapter.md
+  mediaType: text/markdown
+  assembler: markdown_concat_v1

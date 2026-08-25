@@ -1,0 +1,1146 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/classical-77148255-5e00-4a2c-957b-cef734727482/styles.css">
+<style>
+@keyframes fc-blink { 0%,49% { opacity: 1 } 50%,100% { opacity: 0 } }
+@keyframes fc-pulse { 0%,100% { opacity: .35 } 50% { opacity: 1 } }
+body { margin: 0; overflow: hidden; }
+a { color: var(--color-accent); }
+a:hover { color: var(--color-accent-700); }
+.fc-scroll { overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--color-neutral-400) transparent; }
+nav [title] { cursor: pointer; }
+nav [title]:hover { background: color-mix(in srgb, var(--color-accent) 8%, transparent); }
+</style>
+</helmet>
+
+<div style="height: 100vh; display: flex; background: var(--color-bg); color: var(--color-text); font-family: var(--font-body); font-size: 14px; overflow: hidden;">
+
+  <nav style="width: 68px; flex: none; border-right: 1px solid var(--color-divider); display: flex; flex-direction: column; align-items: center; padding: 18px 0; gap: 6px; background: color-mix(in srgb, var(--color-surface) 55%, transparent);">
+    <div style="font-family: var(--font-heading); font-size: 19px; line-height: 1; color: var(--color-accent); margin-bottom: 20px;">F</div>
+    <div onClick="{{ nav.tasks }}" title="生产任务" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-accent); box-shadow: inset 0 0 0 1px var(--color-accent);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"></path><path d="m6.08 11-3.5 1.6a1 1 0 0 0 0 1.81l8.6 3.91a2 2 0 0 0 1.65 0l8.58-3.9a1 1 0 0 0 0-1.83L17.9 11"></path></svg>
+    </div>
+    <div onClick="{{ nav.templates }}" title="模板" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-neutral-600);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"></path><path d="M14 2v5h5"></path><path d="M9 13h6"></path><path d="M9 17h4"></path></svg>
+    </div>
+    <div onClick="{{ nav.settings }}" title="设置" style="width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); color: var(--color-neutral-600);">
+      <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10"></path><path d="M18 6h2"></path><path d="M4 12h4"></path><path d="M12 12h8"></path><path d="M4 18h10"></path><path d="M18 18h2"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="16" cy="18" r="2"></circle></svg>
+    </div>
+    <div style="margin-top: auto; font-size: 10px; letter-spacing: .08em; color: var(--color-neutral-500); writing-mode: vertical-rl;">{{ providerLabel }}</div>
+  </nav>
+
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column;">
+
+    <header style="flex: none; padding: 20px 28px 16px; border-bottom: 1px solid var(--color-divider);">
+      <div style="display: flex; align-items: flex-start; gap: 24px;">
+        <div style="min-width: 0;">
+          <div style="display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;">
+            <a href="任务列表.dc.html" title="返回任务列表" style="font-size: 12px; letter-spacing: .08em; text-transform: uppercase; text-decoration: none; color: var(--color-neutral-500);">生产任务 /</a>
+            <h3 style="margin: 0; font-size: 26px; letter-spacing: 0;">《深夜来电》第三章</h3>
+            <span style="font-size: 12px; color: var(--color-neutral-600);">知乎盐选单章结构槽生产</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 10px; margin-top: 9px; font-size: 12.5px;">
+            <span style="{{ statusChipStyle }}">{{ statusLabel }}</span>
+            <span style="color: var(--color-neutral-400);">·</span>
+            <span style="color: var(--color-neutral-700);">{{ phaseLabel }}</span>
+            <span style="color: var(--color-neutral-400);">·</span>
+            <span style="color: var(--color-neutral-500);">{{ updatedLabel }}</span>
+          </div>
+        </div>
+        <div style="margin-left: auto; display: flex; align-items: center; gap: 10px;">
+          <button class="btn btn-secondary" style="{{ drawerBtnStyle }}" onClick="{{ toggleDrawer }}">工作面板</button>
+          <sc-if value="{{ hasSecondary }}" hint-placeholder-val="{{ true }}">
+            <button class="btn btn-secondary" onClick="{{ onSecondary }}">{{ secondaryLabel }}</button>
+          </sc-if>
+          <button class="btn btn-primary" onClick="{{ onPrimary }}">{{ primaryLabel }}</button>
+        </div>
+      </div>
+    </header>
+
+    <div style="flex: none; display: flex; align-items: stretch; padding: 0 28px; border-bottom: 1px solid var(--color-divider); background: color-mix(in srgb, var(--color-surface) 40%, transparent);">
+      <sc-for list="{{ steps }}" as="step" hint-placeholder-count="5">
+        <div onClick="{{ step.onClick }}" style="{{ step.style }}">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span style="{{ step.markStyle }}">{{ step.mark }}</span>
+            <span style="font-family: var(--font-heading); font-weight: 600; font-size: 15px; white-space: nowrap;">{{ step.label }}</span>
+            <span style="font-size: 9.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500); border: 1px solid var(--color-divider); border-radius: 2px; padding: 1px 4px;">{{ step.actor }}</span>
+          </div>
+          <div style="{{ step.metaStyle }}">{{ step.meta }}</div>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="flex: 1; min-height: 0; display: flex; position: relative;">
+
+      <aside style="{{ treeStyle }}">
+        <div style="flex: none; padding: 18px 20px 14px; border-bottom: 1px solid var(--color-divider);">
+          <div style="display: flex; align-items: baseline; justify-content: space-between;">
+            <h5 style="margin: 0; font-size: 15px;">内容结构</h5>
+            <span style="font-size: 12px; color: var(--color-neutral-600); font-variant-numeric: tabular-nums;">{{ treeProgress }}</span>
+          </div>
+          <div style="margin-top: 10px; height: 3px; background: var(--color-neutral-300); border-radius: 2px; overflow: hidden;">
+            <div style="{{ treeBarStyle }}"></div>
+          </div>
+        </div>
+        <div class="fc-scroll" style="flex: 1; min-height: 0; padding: 10px 12px 24px;">
+          <sc-if value="{{ treeEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 22px 10px; text-align: center;">
+              <div style="font-family: var(--font-heading); font-size: 16px; margin-bottom: 8px;">结构尚未创建</div>
+              <p style="margin: 0; font-size: 12.5px; line-height: 1.7; color: var(--color-neutral-600); text-wrap: pretty;">{{ treeEmptyNote }}</p>
+            </div>
+          </sc-if>
+          <sc-for list="{{ slotRows }}" as="row" hint-placeholder-count="8">
+            <div onClick="{{ row.onClick }}" style="{{ row.style }}">
+              <span style="{{ row.markStyle }}">{{ row.mark }}</span>
+              <div style="min-width: 0; flex: 1;">
+                <div style="{{ row.idStyle }}">{{ row.id }}</div>
+                <div style="font-size: 11.5px; color: var(--color-neutral-600); margin-top: 2px;">{{ row.meta }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="flex: none; padding: 12px 20px; border-top: 1px solid var(--color-divider); font-size: 11px; color: var(--color-neutral-500); line-height: 1.6;">{{ treeFootnote }}</div>
+        <div onMouseDown="{{ startTreeDrag }}" style="{{ vHandleTreeStyle }}" style-hover="background: color-mix(in srgb, var(--color-accent) 30%, transparent)"></div>
+      </aside>
+
+      <main class="fc-scroll" style="flex: 1; min-width: 0; padding: 26px 34px 60px;">
+
+        <sc-if value="{{ isInputView }}" hint-placeholder-val="{{ false }}">
+          <div style="max-width: 720px; margin: 0 auto;">
+            <h4 style="margin: 0 0 4px; font-size: 21px;">任务输入</h4>
+            <div style="font-size: 12px; color: var(--color-neutral-600); margin-bottom: 20px;">创建任务时已冻结 · 快照 <span style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px;">sha256:4e91c2…</span></div>
+            <div class="card" style="padding: 20px 22px; background: color-mix(in srgb, var(--color-surface) 45%, transparent);">
+              <div style="font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--color-accent-700);">章节执行包</div>
+              <p style="margin: 0; font-size: 14.5px; line-height: 1.95; text-align: justify; text-wrap: pretty;">{{ taskInputText }}</p>
+            </div>
+            <div style="margin-top: 22px;">
+              <h5 style="margin: 0 0 10px; font-size: 15px;">{{ inputSideTitle }}</h5>
+              <p style="margin: 0; font-size: 13.5px; line-height: 1.9; color: var(--color-neutral-700); text-align: justify; max-width: 620px;">{{ inputSideNote }}</p>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isSlotView }}" hint-placeholder-val="{{ true }}">
+          <div style="max-width: 760px; margin: 0 auto;">
+            <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;">
+              <h4 style="margin: 0; font-size: 23px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600; letter-spacing: -.01em;">{{ slotId }}</h4>
+              <span style="{{ slotStatusStyle }}">{{ slotStatusLabel }}</span>
+            </div>
+            <div style="font-size: 12px; color: var(--color-neutral-600); margin-top: 8px;">类型：{{ slotTypeName }} · 位置：{{ slotPath }}</div>
+
+            <div style="margin-top: 22px; border: 1px solid var(--color-accent); border-radius: var(--radius-md); padding: 16px 20px; background: color-mix(in srgb, var(--color-accent) 5%, transparent);">
+              <div style="font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-accent-700); margin-bottom: 8px;">本槽位目标</div>
+              <p style="margin: 0; font-size: 15px; line-height: 1.85; text-wrap: pretty;">{{ slotInstruction }}</p>
+            </div>
+
+            <div style="margin-top: 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+              <span style="font-size: 12px; color: var(--color-neutral-600);">依赖</span>
+              <sc-for list="{{ slotDeps }}" as="dep" hint-placeholder-count="1">
+                <button onClick="{{ dep.onClick }}" style="{{ dep.style }}">{{ dep.label }}</button>
+              </sc-for>
+              <sc-if value="{{ noDeps }}" hint-placeholder-val="{{ false }}">
+                <span style="font-size: 12px; color: var(--color-neutral-500);">无前置依赖</span>
+              </sc-if>
+            </div>
+
+            <hr class="hr">
+
+            <sc-if value="{{ slotBlocked }}" hint-placeholder-val="{{ false }}">
+              <div style="border: 1px solid var(--color-divider); border-radius: var(--radius-md); padding: 18px 20px; background: color-mix(in srgb, var(--color-surface) 45%, transparent);">
+                <div style="font-family: var(--font-heading); font-weight: 600; font-size: 16px; margin-bottom: 6px;">当前尚不能生产</div>
+                <p style="margin: 0; font-size: 13.5px; line-height: 1.8; color: var(--color-neutral-700);">{{ slotBlockedNote }}</p>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ slotHasError }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ errorBoxStyle }}">
+                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path></svg>
+                  <span style="font-family: var(--font-heading); font-weight: 600; font-size: 16px;">{{ errorTitle }}</span>
+                </div>
+                <p style="margin: 0 0 12px; font-size: 13.5px; line-height: 1.85;">{{ errorBody }}</p>
+                <sc-for list="{{ errorItems }}" as="item" hint-placeholder-count="2">
+                  <div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; line-height: 1.9; color: var(--color-neutral-800);">{{ item.text }}</div>
+                </sc-for>
+                <div style="margin-top: 14px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap;">
+                  <span style="font-size: 12px; color: var(--color-neutral-600);">{{ errorRetention }}</span>
+                  <button onClick="{{ toggleErrCode }}" style="background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-size: 12px; color: var(--color-accent-700); text-decoration: underline; text-underline-offset: 3px;">{{ errCodeToggleLabel }}</button>
+                </div>
+                <sc-if value="{{ errCodeOpen }}" hint-placeholder-val="{{ false }}">
+                  <div style="margin-top: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; line-height: 1.9; color: var(--color-neutral-700); border-top: 1px solid var(--color-divider); padding-top: 10px;">{{ errCodeDetail }}</div>
+                </sc-if>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ slotShowContent }}" hint-placeholder-val="{{ true }}">
+              <div>
+                <div style="display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 12px;">
+                  <h5 style="margin: 0; font-size: 15px;">{{ contentHeading }}</h5>
+                  <span style="font-size: 11.5px; color: var(--color-neutral-500); font-variant-numeric: tabular-nums;">{{ contentMeta }}</span>
+                </div>
+                <div style="font-size: 15.5px; line-height: 2.05; text-align: justify; white-space: pre-wrap; text-wrap: pretty; min-height: 40px;">{{ slotContent }}<span style="{{ cursorStyle }}"></span></div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ slotShowProducer }}" hint-placeholder-val="{{ false }}">
+              <div style="margin-top: 30px; border-top: 1px solid var(--color-divider); padding-top: 16px;">
+                <div style="font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500); margin-bottom: 10px;">生产来源</div>
+                <div style="display: grid; grid-template-columns: repeat(4, auto); gap: 6px 34px; justify-content: start; font-size: 12.5px;">
+                  <sc-for list="{{ producerRows }}" as="p" hint-placeholder-count="4">
+                    <div>
+                      <div style="color: var(--color-neutral-500); font-size: 11px;">{{ p.k }}</div>
+                      <div style="{{ p.vStyle }}">{{ p.v }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isContainerView }}" hint-placeholder-val="{{ false }}">
+          <div style="max-width: 700px; margin: 0 auto;">
+            <div style="display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;">
+              <h4 style="margin: 0; font-size: 23px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600;">chapter</h4>
+              <span style="font-size: 11.5px; padding: 3px 10px; border-radius: 3px; background: var(--color-neutral-200); color: var(--color-neutral-800);">容器槽位</span>
+            </div>
+            <div style="font-size: 12px; color: var(--color-neutral-600); margin-top: 8px;">类型：章节容器 · contentBearing：false · 位置：结构根节点</div>
+            <p style="margin: 22px 0 0; font-size: 14.5px; line-height: 1.95; text-align: justify; max-width: 640px; text-wrap: pretty;">容器槽位只用于组织结构：它决定子槽位的归属、层级和组装顺序，本身不承载正文，也不会创建 Fill Slot Assignment。结构通过校验时，系统直接将它置为 completed。</p>
+            <hr class="hr">
+            <div style="font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500); margin-bottom: 8px;">下级内容槽位 · 按此顺序组装</div>
+            <sc-for list="{{ containerChildren }}" as="c" hint-placeholder-count="7">
+              <div onClick="{{ c.onClick }}" style="{{ c.style }}">
+                <span style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; cursor: pointer;">{{ c.id }}</span>
+                <span style="font-size: 12px; color: var(--color-neutral-600);">{{ c.typeName }}</span>
+                <span style="margin-left: auto; font-size: 12px; color: var(--color-neutral-500);">{{ c.status }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isAssemblyView }}" hint-placeholder-val="{{ false }}">
+          <div style="max-width: 720px; margin: 0 auto;">
+            <h4 style="margin: 0 0 6px; font-size: 23px;">{{ assemblyTitle }}</h4>
+            <p style="margin: 0 0 22px; font-size: 13.5px; color: var(--color-neutral-700);">{{ assemblyNote }}</p>
+            <div style="display: grid; grid-template-columns: repeat(3, auto); gap: 4px 40px; justify-content: start; margin-bottom: 26px; font-size: 13px;">
+              <div><div style="font-size: 11px; color: var(--color-neutral-500);">已完成槽位</div><div style="font-variant-numeric: tabular-nums;">7 / 7</div></div>
+              <div><div style="font-size: 11px; color: var(--color-neutral-500);">Assembler</div><div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;">markdown_concat_v1</div></div>
+              <div><div style="font-size: 11px; color: var(--color-neutral-500);">输出</div><div style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px;">chapter.md</div></div>
+            </div>
+            <div style="font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500); margin-bottom: 12px;">确定性组装顺序</div>
+            <div style="display: flex; flex-direction: column; gap: 0; border-left: 1px solid var(--color-divider); padding-left: 20px;">
+              <sc-for list="{{ assemblyOrder }}" as="a" hint-placeholder-count="6">
+                <div style="{{ a.style }}">
+                  <span style="font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px;">{{ a.id }}</span>
+                  <span style="font-size: 11.5px; color: var(--color-neutral-500); font-variant-numeric: tabular-nums;">{{ a.chars }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isArtifactView }}" hint-placeholder-val="{{ false }}">
+          <div style="max-width: 740px; margin: 0 auto;">
+            <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap;">
+              <div>
+                <h4 style="margin: 0 0 6px; font-size: 23px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-weight: 600;">chapter.md</h4>
+                <div style="font-size: 12px; color: var(--color-neutral-600);">text/markdown · 6.4 KB · 生成于 11:58:04</div>
+              </div>
+              <button class="btn btn-primary">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><path d="m7 10 5 5 5-5"></path><path d="M12 15V3"></path></svg>
+                下载产物
+              </button>
+            </div>
+            <div style="margin-top: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; color: var(--color-neutral-500);">checksum sha256:9c1f77a2e04b…</div>
+            <div style="margin-top: 22px; border: 1px solid var(--color-divider); border-radius: var(--radius-md); padding: 30px 36px; background: color-mix(in srgb, var(--color-neutral-100) 60%, transparent);">
+              <sc-for list="{{ artifactBlocks }}" as="b" hint-placeholder-count="5">
+                <div style="{{ b.style }}">{{ b.text }}</div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+      </main>
+
+      <div onClick="{{ closeDrawer }}" style="{{ scrimStyle }}"></div>
+
+      <aside style="{{ panelStyle }}">
+        <div onMouseDown="{{ startPanelDrag }}" style="{{ vHandlePanelStyle }}" style-hover="background: color-mix(in srgb, var(--color-accent) 30%, transparent)"></div>
+        <div style="{{ toastStyle }}">
+          <span style="width: 6px; height: 6px; border-radius: 50%; background: var(--color-accent); flex: none;"></span>
+          <span>{{ toastText }}</span>
+          <button class="btn btn-ghost" style="font-size: 12px; margin-left: auto;" onClick="{{ backToCurrent }}">查看</button>
+        </div>
+        <div style="flex: none; padding: 18px 20px 12px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div style="display: flex; align-items: center; gap: 8px;">
+              <span style="{{ panelKindStyle }}">{{ panelKind }}</span>
+              <h5 style="margin: 0; font-size: 15px;">{{ panelTitle }}</h5>
+              <button onClick="{{ toggleTrace }}" style="background: none; border: 0; padding: 2px 6px; cursor: pointer; font: inherit; font-size: 11px; color: var(--color-neutral-500);" style-hover="color: var(--color-accent-700)">{{ traceCaret }}</button>
+            </div>
+            <sc-if value="{{ showBackToCurrent }}" hint-placeholder-val="{{ false }}">
+              <button class="btn btn-ghost" style="font-size: 12px;" onClick="{{ backToCurrent }}">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"></path><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11"></path></svg>
+                返回当前工作
+              </button>
+            </sc-if>
+          </div>
+        </div>
+
+        <div style="{{ filtersStyle }}">
+          <sc-for list="{{ filters }}" as="f" hint-placeholder-count="6">
+            <button onClick="{{ f.onClick }}" style="{{ f.style }}">{{ f.label }}</button>
+          </sc-for>
+        </div>
+
+        <div class="fc-scroll" onScroll="{{ onTraceScroll }}" style="{{ traceWrapStyle }}">
+          <sc-if value="{{ traceEmpty }}" hint-placeholder-val="{{ false }}">
+            <div style="padding: 28px 14px; text-align: center; font-size: 12.5px; line-height: 1.8; color: var(--color-neutral-600); text-wrap: pretty;">{{ traceEmptyNote }}</div>
+          </sc-if>
+          <sc-for list="{{ traceEvents }}" as="ev" hint-placeholder-count="6">
+            <div onClick="{{ ev.onClick }}" style="{{ ev.style }}">
+              <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 5px;">
+                <span style="{{ ev.actorStyle }}">{{ ev.actor }}</span>
+                <span style="font-family: var(--font-heading); font-weight: 600; font-size: 13.5px;">{{ ev.title }}</span>
+                <span style="margin-left: auto; font-size: 10.5px; color: var(--color-neutral-500); font-variant-numeric: tabular-nums;">{{ ev.time }}</span>
+              </div>
+              <div style="{{ ev.bodyStyle }}">{{ ev.body }}</div>
+              <sc-if value="{{ ev.open }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top: 8px; border-top: 1px dashed var(--color-divider); padding-top: 8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.8; color: var(--color-neutral-700); white-space: pre-wrap;">{{ ev.detail }}</div>
+              </sc-if>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="{{ followBarStyle }}">
+          <span style="font-size: 12px;">{{ followLabel }}</span>
+          <button class="btn btn-ghost" style="font-size: 12px;" onClick="{{ jumpLatest }}">回到最新</button>
+        </div>
+
+        <div onMouseDown="{{ startSummaryDrag }}" style="{{ hHandleStyle }}" style-hover="background: color-mix(in srgb, var(--color-accent) 30%, transparent)"></div>
+
+        <div class="fc-scroll" style="{{ summaryWrapStyle }}">
+          <div style="flex: none; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 14px 20px 10px;">
+            <div style="font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--color-neutral-500);">{{ summaryHeading }}</div>
+            <button onClick="{{ toggleSummary }}" style="background: none; border: 0; padding: 2px 4px; cursor: pointer; font: inherit; font-size: 11px; color: var(--color-neutral-500);" style-hover="color: var(--color-accent-700)">{{ summaryCaret }}</button>
+          </div>
+          <div style="{{ summaryBodyStyle }}">
+          <p style="margin: 0; font-size: 13px; line-height: 1.75; color: var(--color-neutral-800); text-wrap: pretty;">{{ panelSentence }}</p>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin-top: 16px;">
+            <sc-for list="{{ assignmentRows }}" as="a" hint-placeholder-count="6">
+              <div>
+                <div style="font-size: 10.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--color-neutral-500);">{{ a.k }}</div>
+                <div style="{{ a.vStyle }}">{{ a.v }}</div>
+                <div style="font-size: 11px; color: var(--color-neutral-500); margin-top: 1px;">{{ a.sub }}</div>
+              </div>
+            </sc-for>
+          </div>
+          <button onClick="{{ toggleTech }}" style="margin-top: 14px; background: none; border: 0; padding: 0; cursor: pointer; font: inherit; font-size: 12px; color: var(--color-accent-700); display: flex; align-items: center; gap: 5px;">
+            <span style="{{ techCaretStyle }}">›</span>{{ techLabel }}
+          </button>
+          <sc-if value="{{ techOpen }}" hint-placeholder-val="{{ false }}">
+            <div style="margin-top: 10px; border-top: 1px solid var(--color-divider); padding-top: 10px; display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; line-height: 1.7; color: var(--color-neutral-700);">
+              <sc-for list="{{ techRows }}" as="t" hint-placeholder-count="6">
+                <div style="color: var(--color-neutral-500);">{{ t.k }}</div>
+                <div style="overflow-wrap: anywhere;">{{ t.v }}</div>
+              </sc-for>
+            </div>
+          </sc-if>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div style="{{ dialogWrapStyle }}">
+    <div class="elev-lg" style="width: 420px; background: var(--color-bg); border: 1px solid var(--color-divider); border-radius: var(--radius-md); padding: 24px 26px;">
+      <h4 style="margin: 0 0 12px; font-size: 20px;">停止当前任务？</h4>
+      <p style="margin: 0 0 8px; font-size: 13.5px; line-height: 1.85; color: var(--color-neutral-800); text-wrap: pretty;">当前正在运行的 Agent 结果即使稍后返回，也不会被保存。已完成的结构槽不会丢失，可稍后继续。</p>
+      <div style="margin: 14px 0 20px; font-size: 12.5px; line-height: 1.9; color: var(--color-neutral-700); border-left: 1px solid var(--color-divider); padding-left: 14px;">当前 Assignment 将被取消<br>scene_03 恢复为等待生产<br>已完成的 4 个槽位保留</div>
+      <div style="display: flex; justify-content: flex-end; gap: 10px;">
+        <button class="btn btn-secondary" onClick="{{ closeDialog }}">取消</button>
+        <button class="btn btn-primary" onClick="{{ confirmStop }}">停止任务</button>
+      </div>
+    </div>
+  </div>
+
+  <div style="{{ demoBarStyle }}">
+    <span style="font-size: 10px; letter-spacing: .14em; text-transform: uppercase; color: var(--color-neutral-500); padding-left: 4px; white-space: nowrap;">状态稿</span>
+    <sc-for list="{{ demoStates }}" as="d" hint-placeholder-count="11">
+      <button onClick="{{ d.onClick }}" style="{{ d.style }}">{{ d.label }}</button>
+    </sc-for>
+    <button onClick="{{ hideDemo }}" style="background: none; border: 0; cursor: pointer; font: inherit; font-size: 11px; color: var(--color-neutral-500); padding: 4px 6px; white-space: nowrap;">隐藏</button>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:900},&quot;defaultState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;ready&quot;,&quot;structuring&quot;,&quot;structFail&quot;,&quot;filling&quot;,&quot;history&quot;,&quot;blocked&quot;,&quot;retry&quot;,&quot;stopped&quot;,&quot;failed&quot;,&quot;assembly&quot;,&quot;completed&quot;],&quot;default&quot;:&quot;filling&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;演示&quot;},&quot;autoAdvance&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;演示&quot;},&quot;showDemoBar&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;演示&quot;}}">
+const MONO = 'ui-monospace, SFMono-Regular, Menlo, monospace';
+
+const SLOTS = [
+  { id: 'chapter', typeName: '章节容器', depth: 0, container: true },
+  { id: 'title', typeName: '标题', depth: 1, instruction: '用一句可被记住的短句概括本章的核心变化，不得提前点破仓库线索。', deps: [] },
+  { id: 'opening', typeName: '开场', depth: 1, instruction: '从林昭挂断电话后的第一个动作切入，建立深夜编辑部的空间与她的独处状态。', deps: [] },
+  { id: 'scene_01', typeName: '场景段', depth: 1, instruction: '让林昭反复回放通话录音，在背景音里听见一次金属滑轨的声响。', deps: ['opening'] },
+  { id: 'scene_02', typeName: '场景段', depth: 1, instruction: '周砚主动出现，给出一份看似完整、时间闭合的说明。', deps: ['scene_01'] },
+  { id: 'scene_03', typeName: '场景段', depth: 1, instruction: '主人公发现同事说出的时间与监控记录矛盾，并因此决定独自前往仓库确认。', deps: ['scene_02'] },
+  { id: 'emotional_closure', typeName: '情绪落点', depth: 1, instruction: '在出发前的停顿里，让林昭意识到自己已经无法退回昨天的判断。', deps: ['scene_03'] },
+  { id: 'chapter_end', typeName: '章节结尾', depth: 1, instruction: '留下门禁记录上多出的一次刷卡，作为下一章可追踪的未完成问题。', deps: ['emotional_closure'] }
+];
+
+const CONTENT = {
+  title: '第三章　多出来的十一分钟',
+  opening: '电话挂断后，林昭没有立刻放下手机。编辑部只剩她这一排灯，空调在头顶换了一次气，纸张边缘轻轻掀了一下。她把手机屏幕重新点亮，通话记录停在 23 时 47 分，时长四分十二秒。走廊尽头的感应灯灭了，她听见自己的呼吸比平时重。',
+  scene_01: '她戴上耳机，把录音拖回第三分钟。陈屿的声音压得很低，像是把嘴贴在话筒上，句子之间的停顿比平常长半拍。第四遍听的时候，她终于分辨出那不是电流声——是金属滑轨被推开的声音，短促、干涩，像仓库那种老式卷帘门抬起前的第一下。她把音轨截下来，标上时间：23 时 50 分 08 秒。',
+  scene_02: '周砚是九点二十推门进来的，手里两杯咖啡，像是顺路。他把其中一杯放在她桌角，说昨晚十一点半就到家了，还发了条朋友圈，天气冷得离谱。他说得很顺，顺到每一个时间点都能对上：十一点十分离开公司，十一点半到家，十二点睡下。林昭道了谢，把咖啡挪到手边，没有喝。',
+  scene_03: '门外的感应灯亮了第二次。林昭低头看向手机上的监控时间，B 区仓库的画面停在 23 时 41 分，周砚的背影正推开卷帘门，肩上还挂着公司的工牌。她把这一帧和他刚才说的"十一点十分离开公司"并排放在屏幕上，中间空出十一分钟，谁也填不上。她没有抬头，只是把咖啡杯往外推了半寸，让它离键盘远一点。周砚还在说天气。她听着，同时在心里把去仓库的路线走了一遍——地铁末班车十一点五十七分，打车四十分钟，钥匙在抽屉第二层。她合上电脑，说今天想早点走。',
+  emotional_closure: '走到电梯口时她停了一下。按下按钮之前，她很清楚地知道，从这一刻起，她不能再把周砚当作那个替她加过班、在雨里等过她的同事了。这个念头没有让她愤怒，只是让她觉得冷——像是有人在她身后，把一扇本来虚掩着的门轻轻带上了。',
+  chapter_end: '仓库的门禁记录她后来调出来看过。那天夜里，B 区一共被刷开三次：23 时 41 分，23 时 52 分，还有一次在凌晨 1 时 06 分。前两次都是周砚的卡。第三次的卡号，系统里查不到主人。'
+};
+
+const AGENT_NOTES = {
+  title: {
+    understanding: '标题需要概括本章的核心变化，但不能提前点破仓库与门禁线索。',
+    plan: '从"时间对不上"这一核心矛盾里取一个具体数字，作为标题的骨架。',
+    judgement: '用"多出来的十一分钟"这一具体量，替代"真相"这类抽象词。'
+  },
+  opening: {
+    understanding: '开场承担进入场景的职责：建立深夜编辑部的空间，以及林昭独处的状态。',
+    plan: '从挂断电话后的第一个动作切入，用环境细节压住情绪，不做心理解释。',
+    judgement: '保留通话时长与时刻这类可核对的数字，为后续的时间矛盾埋下参照。'
+  },
+  scene_01: {
+    understanding: '本槽位要让林昭主动获得第一条物证，信息变化必须来自她的行动而非巧合。',
+    plan: '用反复回放录音的动作推进，把发现放在第四次收听时出现。',
+    judgement: '让线索停留在声音层面，暂不指认地点，把判断留给读者。'
+  },
+  scene_02: {
+    understanding: '本槽位要让周砚给出一份看似闭合的说明，冲突暂时不外露。',
+    plan: '用送咖啡这一日常动作承载对话，让时间点密集且自洽。',
+    judgement: '让林昭只是不喝那杯咖啡，用动作表达保留，不写出怀疑。'
+  },
+  scene_03: {
+    understanding: '本槽位需要通过具体行动发现时间矛盾，同时不能提前揭露幕后人物。',
+    plan: '先确认人物当前状态，再选择能够直接触发下一步行动的可见证据。',
+    judgement: '使用监控时间与口述时间的矛盾，避免让角色直接承认撒谎。'
+  },
+  emotional_closure: {
+    understanding: '本槽位不推进事件，只处理林昭对同事关系的判断发生的不可逆变化。',
+    plan: '用一个停顿动作承载情绪，避免直接写出"她很难过"这类结论。',
+    judgement: '把情绪落在温度感受上，与前一场景的冷色调保持连续。'
+  },
+  chapter_end: {
+    understanding: '结尾需要留下一个具体、可追踪的未完成问题，而不是模糊的悬念。',
+    plan: '用门禁记录这一物证收束，给出第三次刷卡这一新事实。',
+    judgement: '只交代无法归属的卡号，不解释其来源，把追查留给下一章。'
+  }
+};
+
+const SKILL_BY_TYPE = {
+  title: 'title-writing', opening: 'opening-writing', scene: 'scene-writing',
+  emotional_closure: 'emotional-closure-writing', chapter_end: 'chapter-ending-writing'
+};
+const TYPE_OF = { title: 'title', opening: 'opening', scene_01: 'scene', scene_02: 'scene', scene_03: 'scene', emotional_closure: 'emotional_closure', chapter_end: 'chapter_end' };
+
+const STATES = [
+  { key: 'ready', label: 'Ready' },
+  { key: 'structuring', label: '创建结构' },
+  { key: 'structFail', label: '结构校验失败' },
+  { key: 'filling', label: '填充 Slot' },
+  { key: 'history', label: '历史 Slot' },
+  { key: 'blocked', label: '等待依赖' },
+  { key: 'retry', label: '超时重试' },
+  { key: 'stopped', label: 'Stopped' },
+  { key: 'failed', label: 'Failed' },
+  { key: 'assembly', label: '组装中' },
+  { key: 'completed', label: 'Completed' }
+];
+
+const ACTOR_COLOR = {
+  System: ['var(--color-neutral-200)', 'var(--color-neutral-800)', 'var(--color-neutral-400)'],
+  Agent: ['var(--color-accent-100)', 'var(--color-accent-800)', 'var(--color-accent)'],
+  Skill: ['transparent', 'var(--color-accent-700)', 'var(--color-accent-300)'],
+  Tool: ['var(--color-neutral-100)', 'var(--color-neutral-700)', 'var(--color-neutral-300)']
+};
+const DANGER = 'oklch(0.46 0.13 32)';
+const DANGER_BG = 'oklch(0.96 0.02 32)';
+
+const GO = p => () => { window.location.href = p; };
+const NAV = {
+  tasks: GO("任务列表.dc.html"),
+  templates: GO("模板列表.dc.html"),
+  settings: GO("Provider%20设置.dc.html"),
+};
+
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = {
+      view: props.defaultState || 'filling',
+      selected: 'scene_03',
+      statuses: {},
+      trace: [],
+      streaming: '',
+      streamSlot: null,
+      elapsedBase: 43,
+      elapsedRun: 0,
+      filter: '全部',
+      openEvents: {},
+      techOpen: false,
+      errCodeOpen: false,
+      demo: props.showDemoBar !== false,
+      drawerOpen: false,
+      treeW: 0,
+      panelW: 0,
+      summaryH: 268,
+      traceOpen: true,
+      summaryOpen: true,
+      narrow: false,
+      following: true,
+      pendingCount: 0,
+      dialog: false
+    };
+    this.timers = [];
+    this.token = 0;
+    this.traceCache = {};
+  }
+  archivedTrace(id) {
+    const s = SLOTS.find(x => x.id === id);
+    if (!s || s.container) return [];
+    if (!this.traceCache[id]) this.traceCache[id] = this.doneTrace(id);
+    return this.traceCache[id];
+  }
+  archivedStructureTrace() {
+    if (!this.structCache) this.structCache = this.structureTrace(false);
+    return this.structCache;
+  }
+
+  componentDidMount() {
+    this.onResize = () => {
+      const w = window.innerWidth;
+      this.setState({ narrow: w < 1280, compact: w < 1400 });
+    };
+    this.onResize();
+    window.addEventListener('resize', this.onResize);
+    this.startedAt = Date.now();
+    const loop = () => {
+      this.raf = requestAnimationFrame(loop);
+      const sec = Math.floor((Date.now() - this.startedAt) / 1000);
+      if (sec !== this.state.elapsedRun) this.setState({ elapsedRun: sec });
+    };
+    loop();
+    this.enter(this.state.view);
+  }
+  componentWillUnmount() {
+    window.removeEventListener('resize', this.onResize);
+    cancelAnimationFrame(this.raf);
+    this.clear();
+  }
+  resetClock(base) { this.startedAt = Date.now(); this.setState({ elapsedBase: base, elapsedRun: 0 }); }
+  get elapsed() { return (this.state.elapsedBase || 0) + (this.state.elapsedRun || 0); }
+  clear() { this.timers.forEach(clearTimeout); this.timers = []; this.token++; }
+
+  drag(e, axis, get, set) {
+    e.preventDefault();
+    const start = axis === 'x' ? e.clientX : e.clientY;
+    const base = get();
+    const move = ev => set(base + ((axis === 'x' ? ev.clientX : ev.clientY) - start));
+    const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); document.body.style.userSelect = ''; };
+    document.body.style.userSelect = 'none';
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  }
+  clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  later(ms, fn) {
+    const tk = this.token;
+    this.timers.push(setTimeout(() => { if (tk === this.token) fn(); }, ms));
+  }
+
+  statusesFor(view) {
+    const done = id => ({ [id]: 'completed' });
+    const base = { chapter: 'completed', title: 'completed', opening: 'completed', scene_01: 'completed', scene_02: 'completed', scene_03: 'pending', emotional_closure: 'pending', chapter_end: 'pending' };
+    if (view === 'ready' || view === 'structuring' || view === 'structFail') return {};
+    if (view === 'filling' || view === 'history' || view === 'blocked') return Object.assign({}, base, { scene_03: 'running' });
+    if (view === 'retry') return Object.assign({}, base, { scene_03: 'running' });
+    if (view === 'stopped') return base;
+    if (view === 'failed') return Object.assign({}, base, { scene_03: 'failed' });
+    if (view === 'assembly' || view === 'completed') return Object.assign({}, base, { scene_03: 'completed', emotional_closure: 'completed', chapter_end: 'completed' });
+    return base;
+  }
+
+  ev(actor, title, body, opts) {
+    const o = opts || {};
+    return { id: 'e' + Math.random().toString(36).slice(2, 9), actor, title, body, time: o.time || null, detail: o.detail || null, output: !!o.output };
+  }
+  clock() {
+    const base = new Date(2026, 0, 1, 11, 42, 0);
+    base.setSeconds(base.getSeconds() + (this.elapsed || 0));
+    const p = n => String(n).padStart(2, '0');
+    return p(base.getHours()) + ':' + p(base.getMinutes()) + ':' + p(base.getSeconds());
+  }
+
+  push(e) {
+    if (!e.time) e.time = this.clock();
+    this.setState(s => ({
+      trace: s.trace.concat(e),
+      pendingCount: s.following ? 0 : s.pendingCount + 1
+    }));
+  }
+
+  enter(view) {
+    this.clear();
+    const st = this.statusesFor(view);
+    const selected = { ready: null, structuring: null, structFail: null, filling: 'scene_03', history: 'scene_01', blocked: 'emotional_closure', retry: 'scene_03', stopped: 'scene_03', failed: 'scene_03', assembly: null, completed: null }[view];
+    this.setState({
+      view, statuses: st, selected, trace: [], streaming: '', streamSlot: null,
+      filter: '全部', openEvents: {}, following: true, pendingCount: 0, dialog: false, stepFocus: null, toast: null
+    });
+    this.resetClock(view === 'filling' ? 0 : 43);
+    if (view === 'structuring') this.playStructure();
+    else if (view === 'structFail') this.setState({ trace: this.structureTrace(true) });
+    else if (view === 'filling') this.later(200, () => this.playFill('scene_03'));
+    else if (view === 'retry') this.setState({ trace: this.retryTrace() });
+    else if (view === 'history') {
+      const live = this.fillScript('scene_03').map(x => x[1]);
+      live.forEach((e, i) => { const s = 2 + i * 4; e.time = '11:42:' + String(s).padStart(2, '0'); });
+      this.setState({ trace: live });
+    }
+    else if (view === 'stopped') this.setState({ trace: this.stoppedTrace() });
+    else if (view === 'failed') this.setState({ trace: this.failedTrace() });
+    else if (view === 'assembly') this.playAssembly();
+    else if (view === 'completed') this.setState({ trace: this.assemblyTrace(true) });
+    else if (view === 'blocked') this.setState({ trace: [] });
+  }
+
+  structureTrace(failed) {
+    const t = [
+      this.ev('System', '创建 Structure Assignment', '目标：task-001 的具体结构', { time: '11:38:02', detail: 'operation  create_structure\nagent      structure_designer\nskill      chapter-structure-design v1.0.0\ncontext    frozen task input + allowed slot types' }),
+      this.ev('Agent', '任务理解', '章节执行包要求本章完成"从怀疑到取证"的转折，需要一个可被后续追踪的物证。', { time: '11:38:04' }),
+      this.ev('Skill', '加载 chapter-structure-design v1.0.0', '自动注入 S1 结构职责划分、S2 依赖声明规则。', { time: '11:38:05', detail: 'skillId    chapter-structure-design\nversion    1.0.0\nsections   S1, S2（自动注入）' }),
+      this.ev('Agent', '工作计划', '按标题、开场、三个场景段、情绪落点、章节结尾划分，场景段之间串行依赖。', { time: '11:38:09' }),
+      this.ev('Tool', 'complete_assignment', '提交 8 个 Slot Proposal（含 1 个容器槽位）。', { time: '11:38:31', detail: 'rootSlotId  chapter\nslots       8\ncontentBearing  7' })
+    ];
+    if (failed) {
+      t.push(this.ev('System', '结构校验未通过', '拒绝整份结构提案，未保存任何 Slot。', { time: '11:38:31', detail: 'DEPENDENCY_CYCLE  scene_02 → scene_03 → scene_02\nSLOT_ID_DUPLICATE scene_02' }));
+      t.push(this.ev('System', '创建重试 Assignment', 'Attempt 2 / 3，附带上一次提案与确定性校验错误。', { time: '11:38:32' }));
+    } else {
+      t.push(this.ev('System', '结构校验通过', '保存 8 个 Slot，Task Phase 推进为 slots。', { time: '11:38:32' }));
+    }
+    return t;
+  }
+
+  playStructure() {
+    const all = this.structureTrace(false);
+    all.forEach((e, i) => this.later(i * 900 + 300, () => this.push(e)));
+  }
+
+  fillScript(id) {
+    const n = AGENT_NOTES[id] || AGENT_NOTES.scene_03;
+    const dep = (SLOTS.find(s => s.id === id).deps || [])[0];
+    const skill = SKILL_BY_TYPE[TYPE_OF[id]];
+    return [
+      [0, this.ev('System', '创建 Fill Slot Assignment', '目标：' + id, { detail: 'operation  fill_slot\nagent      chapter_writer\nskill      ' + skill + ' v1.2.0\nattempt    1 / 3' })],
+      [900, this.ev('Agent', '任务理解', n.understanding)],
+      [1900, this.ev('Skill', '加载 ' + skill + ' v1.2.0', '自动注入 S1、S2、S6。', { detail: 'skillId    ' + skill + '\nversion    1.2.0\nsections   S1 理解槽位目标\n           S2 材料约束\n           S6 输出要求\nsource     task snapshot' })],
+      [2700, this.ev('Tool', 'read_skill_section', '读取 S3"设计可见行动"、S4"推进信息变化"。', { detail: 'args    { sections: ["S3","S4"] }\nresult  读取成功 · 2 段\n耗时    18 ms' })],
+      [3500, dep ? this.ev('Tool', 'read_slot', '读取 ' + dep + '，' + (CONTENT[dep] || '').length + ' 字符。', { detail: 'args    { slotId: "' + dep + '" }\nresult  读取成功\n耗时    24 ms' }) : this.ev('Tool', 'read_task_input', '读取冻结任务输入。', { detail: 'result  读取成功' })],
+      [4400, this.ev('Agent', '工作计划', n.plan)],
+      [5300, this.ev('Agent', '关键判断', n.judgement)]
+    ];
+  }
+
+  playFill(id, prevId) {
+    const cur = this.state.selected;
+    const follow = !cur || cur === id || cur === prevId;
+    const patch = { streamSlot: id, streaming: '', statuses: Object.assign({}, this.state.statuses, { [id]: 'running' }), trace: [] };
+    if (follow) { patch.selected = id; patch.toast = null; }
+    else patch.toast = id + ' 已开始生产';
+    this.setState(patch);
+    this.resetClock(0);
+    const script = this.fillScript(id);
+    script.forEach(([t, e]) => this.later(t + 200, () => this.push(e)));
+    this.later(6200, () => this.stream(id));
+  }
+
+  stream(id) {
+    const text = CONTENT[id] || '';
+    let i = 0;
+    const step = () => {
+      i += 2;
+      this.setState({ streaming: text.slice(0, i) });
+      if (i < text.length) this.later(24, step);
+      else this.later(600, () => this.finishSlot(id, text));
+    };
+    step();
+  }
+
+  finishSlot(id, text) {
+    this.push(this.ev('Agent', '正式正文输出', text.slice(0, 46) + '……', { output: true }));
+    this.push(this.ev('Tool', 'complete_assignment', '提交 ' + id + ' 正文。', { detail: 'assignmentId    asg-' + id + '\nexecutionToken  ****\ncontentChars    ' + text.length }));
+    this.later(500, () => {
+      this.push(this.ev('System', '校验通过 · 已保存', '目标 Slot：' + id + ' · 内容长度：' + text.length + ' 字符 · 依赖状态：满足', { detail: 'targetSlot      ' + id + '\nlength          ' + text.length + '\nexecutionToken  有效\ncommit          atomic' }));
+      this.setState(s => ({ statuses: Object.assign({}, s.statuses, { [id]: 'completed' }), streaming: '', streamSlot: null }));
+      this.later(60, () => { this.traceCache[id] = this.state.trace.slice(); });
+      const order = ['scene_03', 'emotional_closure', 'chapter_end'];
+      const next = order[order.indexOf(id) + 1];
+      if (next && this.props.autoAdvance !== false) this.later(1400, () => this.playFill(next, id));
+      else if (!next) this.later(1400, () => this.enter('assembly'));
+    });
+  }
+
+  hhmmss(total) {
+    const p = n => String(n).padStart(2, '0');
+    return p(Math.floor(total / 3600)) + ':' + p(Math.floor(total / 60) % 60) + ':' + p(total % 60);
+  }
+  doneTrace(id) {
+    const order = ['title', 'opening', 'scene_01', 'scene_02', 'scene_03', 'emotional_closure', 'chapter_end'];
+    const idx = Math.max(0, order.indexOf(id));
+    const base = 11 * 3600 + (16 + idx * 4) * 60 + 6;
+    const t = this.fillScript(id).map(x => x[1]);
+    t.push(this.ev('Agent', '正式正文输出', (CONTENT[id] || '').slice(0, 46) + '……', { output: true }));
+    t.push(this.ev('Tool', 'complete_assignment', '提交 ' + id + ' 正文。', { detail: 'assignmentId    asg-' + id + '\ncontentChars    ' + (CONTENT[id] || '').length }));
+    t.push(this.ev('System', '校验通过 · 已保存', '目标 Slot：' + id + ' · 内容长度：' + (CONTENT[id] || '').length + ' 字符 · 依赖状态：满足', { detail: 'targetSlot      ' + id + '\nexecutionToken  有效\ncommit          atomic' }));
+    const offsets = [0, 2, 4, 7, 10, 14, 19, 33, 47, 48];
+    t.forEach((e, i) => { e.time = this.hhmmss(base + (offsets[i] === undefined ? 48 + i : offsets[i])); });
+    return t;
+  }
+  finishTime(id) {
+    const t = this.archivedTrace(id);
+    return t.length ? t[t.length - 1].time : '—';
+  }
+
+  retryTrace() {
+    return [
+      this.ev('System', '创建 Fill Slot Assignment', '目标：scene_03 · Attempt 1 / 3', { time: '11:39:10' }),
+      this.ev('Agent', '任务理解', AGENT_NOTES.scene_03.understanding, { time: '11:39:12' }),
+      this.ev('System', 'Provider 超时', 'Attempt 1 在 120 秒内未返回结果，执行已中止，Execution Token 失效。', { time: '11:41:12', detail: 'errorCode   PROVIDER_TIMEOUT\ntimeoutMs   120000\nexecution   exec-011 → cancelled\n迟到结果将被标记为 stale，不写入 Slot' }),
+      this.ev('System', '创建重试 Assignment', 'Attempt 2 / 3 · 新 Execution 与新 Token，上下文与上次一致。', { time: '11:41:13', detail: 'execution   exec-012\ncontextHash 与 exec-011 相同\nattempt     2 / 3' }),
+      this.ev('Agent', '任务理解', AGENT_NOTES.scene_03.understanding, { time: '11:41:16' }),
+      this.ev('Skill', '加载 scene-writing v1.2.0', '自动注入 S1、S2、S6。', { time: '11:41:17' })
+    ];
+  }
+
+  stoppedTrace() {
+    return [
+      this.ev('System', '创建 Fill Slot Assignment', '目标：scene_03', { time: '11:41:02' }),
+      this.ev('Agent', '任务理解', AGENT_NOTES.scene_03.understanding, { time: '11:41:04' }),
+      this.ev('System', '用户停止任务', 'Execution Token 已失效，当前 Execution 标记为 cancelled，scene_03 恢复为等待生产。', { time: '11:42:20', detail: 'execution   exec-013 → cancelled\nslot        scene_03 → pending\ntask        stopped\n迟到结果标记 stale，不写入 Slot' })
+    ];
+  }
+
+  failedTrace() {
+    return [
+      this.ev('System', '创建重试 Assignment', 'Attempt 3 / 3', { time: '11:45:02' }),
+      this.ev('Agent', '任务理解', AGENT_NOTES.scene_03.understanding, { time: '11:45:04' }),
+      this.ev('System', 'Provider 调用失败', 'Attempt 3 返回 502，已达到模板声明的最大重试次数。', { time: '11:47:06', detail: 'errorCode   PROVIDER_UNAVAILABLE\nhttpStatus  502\nattempt     3 / 3' }),
+      this.ev('System', 'Slot 标记失败', 'scene_03 状态置为 failed，Task 状态置为 failed。已完成的 4 个槽位内容保留。', { time: '11:47:06' })
+    ];
+  }
+
+  assemblyTrace(done) {
+    const t = [
+      this.ev('System', '全部内容槽位已完成', '7 / 7 · Task Phase 推进为 assembly', { time: '11:57:58' }),
+      this.ev('System', '开始确定性组装', 'Assembler：markdown_concat_v1 · 深度优先遍历，跳过容器槽位。', { time: '11:57:59', detail: 'assembler   markdown_concat_v1\norder       depth-first\nseparator   "\\n\\n"\ncontainer   skipped' })
+    ];
+    if (done) {
+      t.push(this.ev('System', '写入产物', '临时文件 → fsync → 原子 rename → 保存 Artifact 记录。', { time: '11:58:04', detail: 'path        artifacts/task-001/chapter.md\nbyteSize    6553\nchecksum    sha256:9c1f77a2e04b…' }));
+      t.push(this.ev('System', '任务完成', 'Task Status 置为 completed，Phase 置为 done。', { time: '11:58:04' }));
+    }
+    return t;
+  }
+
+  playAssembly() {
+    const all = this.assemblyTrace(true);
+    all.forEach((e, i) => this.later(i * 1100 + 400, () => this.push(e)));
+    this.later(all.length * 1100 + 1600, () => { if (this.props.autoAdvance !== false) this.enter('completed'); });
+  }
+
+  fmt(sec) { const m = Math.floor(sec / 60), s = sec % 60; return String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0'); }
+
+  renderVals() {
+    const S = this.state;
+    const v = S.view;
+    const statuses = S.statuses;
+    const hasStructure = Object.keys(statuses).length > 0;
+    const contentSlots = SLOTS.filter(s => !s.container);
+    const doneCount = contentSlots.filter(s => statuses[s.id] === 'completed').length;
+    const running = Object.keys(statuses).find(k => statuses[k] === 'running');
+    const sel = S.selected;
+    const selSlot = SLOTS.find(s => s.id === sel) || null;
+    const selStatus = sel ? statuses[sel] : null;
+
+    const taskStatus = { ready: ['未启动', 'neutral'], structuring: ['正在运行', 'run'], structFail: ['正在重试', 'warn'], filling: ['正在运行', 'run'], history: ['正在运行', 'run'], blocked: ['正在运行', 'run'], retry: ['正在重试', 'warn'], stopped: ['已停止', 'neutral'], failed: ['已失败', 'bad'], assembly: ['正在运行', 'run'], completed: ['已完成', 'ok'] }[v];
+    const chipTone = { neutral: ['var(--color-neutral-200)', 'var(--color-neutral-800)'], run: ['var(--color-accent-100)', 'var(--color-accent-800)'], warn: ['var(--color-accent-200)', 'var(--color-accent-900)'], bad: [DANGER_BG, DANGER], ok: ['var(--color-neutral-100)', 'var(--color-neutral-900)'] }[taskStatus[1]];
+    const phaseLabel = { ready: '阶段：创建结构（待开始）', structuring: '阶段：创建结构', structFail: '阶段：创建结构', filling: '阶段：槽位生产', history: '阶段：槽位生产', blocked: '阶段：槽位生产', retry: '阶段：槽位生产', stopped: '阶段：槽位生产', failed: '阶段：槽位生产', assembly: '阶段：组装产物', completed: '阶段：已完成' }[v];
+
+    const primary = { ready: '开始生产', structuring: '停止', structFail: '停止', filling: '停止', history: '停止', blocked: '停止', retry: '停止', stopped: '继续生产', failed: '重试 scene_03', assembly: '停止', completed: '下载产物' }[v];
+    const secondary = { failed: '查看保留内容', stopped: '查看已完成内容', completed: '查看结构' }[v] || null;
+
+    const stepState = (idx) => {
+      const cur = { ready: 0, structuring: 1, structFail: 1, filling: 2, history: 2, blocked: 2, retry: 2, stopped: 2, failed: 2, assembly: 3, completed: 4 }[v];
+      if (v === 'ready' && idx === 0) return 'done';
+      if (idx < cur) return 'done';
+      if (idx === cur) return v === 'completed' ? 'done' : 'active';
+      return 'todo';
+    };
+    const stepMeta = [
+      '已冻结',
+      hasStructure ? '8 个槽位' : (v === 'structFail' ? '校验未通过 · Attempt 2/3' : '进行中'),
+      hasStructure ? doneCount + ' / 7' : '等待结构',
+      v === 'assembly' || v === 'completed' ? 'markdown_concat_v1' : '等待全部槽位完成',
+      v === 'completed' ? 'chapter.md' : '尚未生成'
+    ];
+    const focusNow = S.stepFocus || null;
+    const viewIdx = sel ? 2
+      : focusNow === 'input' ? 0 : focusNow === 'structure' ? 1 : focusNow === 'assembly' ? 3 : focusNow === 'artifact' ? 4
+      : (v === 'assembly') ? 3 : (v === 'completed') ? 4 : 0;
+
+    const steps = ['输入', '创建结构', '填充槽位', '组装产物', '完成'].map((label, i) => {
+      const st = stepState(i);
+      const on = st === 'active', done = st === 'done';
+      const viewing = viewIdx === i;
+      return {
+        label, meta: viewing ? '正在查看 · ' + stepMeta[i] : stepMeta[i], actor: ['System', 'Agent', 'Agent', 'System', 'System'][i],
+        mark: done ? '✓' : (on ? '▶' : '○'),
+        markStyle: 'font-size:12px;width:16px;text-align:center;color:' + (done ? 'var(--color-neutral-700)' : on ? 'var(--color-accent)' : 'var(--color-neutral-400)'),
+        metaStyle: 'font-size:11.5px;margin-top:3px;padding-left:24px;font-variant-numeric:tabular-nums;color:' + (viewing ? 'var(--color-accent-700)' : on ? 'var(--color-accent-700)' : 'var(--color-neutral-500)'),
+        style: 'flex:1;padding:14px 16px 13px;border-right:1px solid var(--color-divider);cursor:' + (st === 'todo' ? 'default' : 'pointer') + ';'
+          + (viewing ? 'background:color-mix(in srgb, var(--color-accent) 10%, transparent);box-shadow:inset 0 0 0 1px var(--color-accent-300)' + (on ? ', inset 0 -2px 0 var(--color-accent)' : '') + ';' : on ? 'box-shadow: inset 0 -2px 0 var(--color-accent);' : '')
+          + (st === 'todo' ? 'opacity:.6;' : ''),
+        onClick: () => {
+          if (st === 'todo') return;
+          const lastDone = contentSlots.filter(s => statuses[s.id] === 'completed').slice(-1)[0];
+          const target = [
+            { selected: null, stepFocus: 'input' },
+            { selected: null, stepFocus: 'structure' },
+            { selected: running || (lastDone && lastDone.id) || null, stepFocus: null },
+            { selected: null, stepFocus: 'assembly' },
+            { selected: null, stepFocus: 'artifact' }
+          ][i];
+          this.setState(Object.assign({ toast: null }, target));
+        }
+      };
+    });
+
+    const slotRows = !hasStructure ? [] : SLOTS.map(s => {
+      const st = statuses[s.id];
+      const blocked = st === 'pending' && (s.deps || []).some(d => statuses[d] !== 'completed');
+      const mark = s.container ? '▣' : st === 'completed' ? '✓' : st === 'running' ? '▶' : st === 'failed' ? '!' : blocked ? '○' : '●';
+      const color = st === 'completed' ? 'var(--color-neutral-700)' : st === 'running' ? 'var(--color-accent)' : st === 'failed' ? DANGER : blocked ? 'var(--color-neutral-400)' : 'var(--color-accent-400)';
+      const meta = s.container ? '容器槽位 · 不承载正文' : s.typeName + ' · ' + (st === 'completed' ? '已完成' : st === 'running' ? '正在生产' : st === 'failed' ? '失败' : blocked ? '等待 ' + (s.deps || []).filter(d => statuses[d] !== 'completed')[0] : '可生产');
+      const isSel = sel === s.id;
+      return {
+        id: s.id, meta, mark,
+        markStyle: 'width:18px;flex:none;text-align:center;font-size:12px;line-height:1.5;color:' + color + (st === 'running' ? ';animation:fc-pulse 1.6s ease-in-out infinite' : ''),
+        idStyle: 'font-family:' + MONO + ';font-size:13px;letter-spacing:-.01em;color:' + (s.container ? 'var(--color-neutral-600)' : 'var(--color-text)'),
+        style: 'display:flex;gap:8px;align-items:flex-start;padding:9px 10px 9px ' + (10 + s.depth * 14) + 'px;border-radius:var(--radius-md);cursor:pointer;margin-bottom:2px;' + (isSel ? 'background:color-mix(in srgb, var(--color-accent) 10%, transparent);box-shadow:inset 0 0 0 1px var(--color-accent-300);' : ''),
+        onClick: () => this.setState({ selected: s.id, following: true, toast: null })
+      };
+    });
+
+    const isContainer = !!(selSlot && selSlot.container);
+    const focus = S.stepFocus || null;
+    const isSlotView = !!selSlot && !isContainer;
+    const isContainerView = isContainer;
+    const isInputView = !selSlot && (focus === 'input' || focus === 'structure' || (!focus && (v === 'ready' || v === 'structuring' || v === 'structFail')));
+    const isAssemblyView = !selSlot && (focus === 'assembly' || (!focus && v === 'assembly'));
+    const isArtifactView = !selSlot && (focus === 'artifact' || (!focus && v === 'completed'));
+    const children = SLOTS.filter(s => !s.container);
+
+    const streamingHere = S.streamSlot === sel;
+    const slotContent = streamingHere ? S.streaming : (selStatus === 'completed' ? CONTENT[sel] : '');
+    const slotBlocked = selStatus === 'pending' && selSlot && (selSlot.deps || []).some(d => statuses[d] !== 'completed');
+
+    const structFailErr = v === 'structFail' && !selSlot;
+    const slotHasError = (v === 'failed' && sel === 'scene_03');
+
+    const producerRows = selStatus === 'completed' && !isContainer && !structFailErr ? [
+      { k: 'Agent', v: 'chapter_writer', vStyle: 'font-family:' + MONO + ';font-size:12.5px' },
+      { k: 'Skill', v: (SKILL_BY_TYPE[TYPE_OF[sel]] || '') + ' v1.2.0', vStyle: 'font-family:' + MONO + ';font-size:12.5px' },
+      { k: 'Execution', v: 'exec-00' + (contentSlots.findIndex(s => s.id === sel) + 2), vStyle: 'font-family:' + MONO + ';font-size:12.5px' },
+      { k: '完成时间', v: this.finishTime(sel), vStyle: 'font-variant-numeric:tabular-nums;font-size:12.5px' }
+    ] : [];
+
+    // right panel
+    let panelKind = '当前工作', panelTitle = '', sentence = '';
+    const selRunning = selStatus === 'running';
+    const skill = SKILL_BY_TYPE[TYPE_OF[sel]] || 'scene-writing';
+    const structureLive = v === 'ready' || v === 'structuring' || v === 'structFail';
+    const structureDone = hasStructure;
+    const subject = isContainer ? 'container'
+      : selSlot ? 'slot'
+      : focus === 'input' ? 'input'
+      : focus === 'structure' ? 'structure'
+      : (focus === 'assembly' || focus === 'artifact') ? 'system'
+      : structureLive ? 'structure'
+      : (v === 'assembly' || v === 'completed') ? 'system'
+      : 'structure';
+    const structFinish = this.archivedStructureTrace().slice(-1)[0].time;
+
+    if (subject === 'container') { panelKind = '无 Assignment'; panelTitle = '容器槽位'; sentence = 'chapter 的 contentBearing 为 false，结构提交时由系统直接置为 completed，不创建 Fill Slot Assignment，因此没有 Agent 工作轨迹。'; }
+    else if (subject === 'input') { panelKind = 'System'; panelTitle = '任务输入'; sentence = '任务创建时，系统冻结了模板、Agent、Skill 与用户输入。冻结后的输入在整个任务运行期间不再变化，此处没有 Agent 工作。'; }
+    else if (subject === 'structure') {
+      if (v === 'ready') { panelKind = '计划工作'; panelTitle = '将要执行'; sentence = '任务启动后，structure_designer 将使用 chapter-structure-design v1.0.0 创建本次任务的具体结构。'; }
+      else if (structureLive) { panelKind = v === 'structFail' ? '重试中' : '当前工作'; panelTitle = '创建结构'; sentence = 'structure_designer 正在使用 chapter-structure-design v1.0.0 创建 task-001 的具体结构。'; }
+      else { panelKind = '历史工作记录'; panelTitle = '创建结构'; sentence = 'structure_designer 使用 chapter-structure-design v1.0.0 创建了本次任务的具体结构，共 8 个槽位。'; }
+    }
+    else if (subject === 'system') { panelKind = 'System'; panelTitle = '系统组装'; sentence = '系统使用 markdown_concat_v1 按结构顺序确定性组装 chapter.md，此阶段没有 Agent 参与创作。'; }
+    else {
+      if (selStatus === 'completed') { panelKind = '历史工作记录'; panelTitle = sel + ' 的生产过程'; sentence = 'chapter_writer 使用 ' + skill + ' v1.2.0 完成了 ' + sel + '，内容已原子保存。'; }
+      else if (selRunning) { panelKind = '当前工作'; panelTitle = '进行中'; sentence = 'chapter_writer 正在使用 ' + skill + ' v1.2.0 填充 ' + sel + '。'; }
+      else if (slotBlocked) { panelKind = '计划工作'; panelTitle = '尚未创建 Assignment'; sentence = '待 ' + (selSlot.deps || [])[0] + ' 完成后，系统将指派 chapter_writer 使用 ' + skill + ' 填充 ' + sel + '。'; }
+      else if (v === 'failed') { panelKind = '已失败'; panelTitle = '执行失败'; sentence = 'chapter_writer 在 ' + sel + ' 上的三次尝试均未成功，已完成槽位内容保留。'; }
+      else if (v === 'stopped') { panelKind = '已停止'; panelTitle = '执行已取消'; sentence = '上一次 Execution 已被取消，迟到结果不会写入 ' + sel + '。点击继续生产可从该槽位恢复。'; }
+      else { panelKind = '计划工作'; panelTitle = '等待系统调度'; sentence = '依赖已满足，系统将按深度优先顺序指派 chapter_writer 使用 ' + skill + ' 填充 ' + sel + '。'; }
+    }
+
+    const assignmentRows = subject === 'container' ? [
+      { k: 'Actor', v: 'System', sub: '结构提交时置为 completed', vStyle: 'font-family:' + MONO + ';font-size:13px' },
+      { k: 'contentBearing', v: 'false', sub: '不承载正文', vStyle: 'font-family:' + MONO + ';font-size:13px' },
+      { k: '子槽位', v: '7 个', sub: '决定组装层级与顺序', vStyle: 'font-size:13px' },
+      { k: 'Assignment', v: '—', sub: '容器槽位不创建', vStyle: 'font-size:13px' }
+    ] : subject === 'input' ? [
+      { k: 'Actor', v: 'System', sub: '创建任务时冻结', vStyle: 'font-family:' + MONO + ';font-size:13px' },
+      { k: 'Template', v: 'zhihu-chapter-v1', sub: 'v0.1.0', vStyle: 'font-family:' + MONO + ';font-size:13px' },
+      { k: 'snapshotHash', v: 'sha256:4e91c2…', sub: '运行期不再读取源文件', vStyle: 'font-family:' + MONO + ';font-size:13px' },
+      { k: '输入字段', v: '章节执行包', sub: '1 项，必填', vStyle: 'font-size:13px' }
+    ] : subject === 'system' ? [
+      { k: 'Actor', v: 'System', sub: '确定性组装', vStyle: 'font-family:' + MONO + ';font-size:13px' },
+      { k: 'Assembler', v: 'markdown_concat_v1', sub: '不调用模型', vStyle: 'font-family:' + MONO + ';font-size:13px' },
+      { k: '输入', v: '7 个内容槽位', sub: '深度优先顺序', vStyle: 'font-size:13px' },
+      { k: '输出', v: 'chapter.md', sub: 'text/markdown', vStyle: 'font-family:' + MONO + ';font-size:13px' }
+    ] : subject === 'structure' ? [
+      { k: 'Agent', v: 'structure_designer', sub: '章节结构设计 Agent', vStyle: 'font-family:' + MONO + ';font-size:13px' },
+      { k: 'Skill', v: 'chapter-structure-design', sub: 'v1.0.0', vStyle: 'font-family:' + MONO + ';font-size:13px' },
+      { k: 'Operation', v: 'create_structure', sub: '创建具体结构', vStyle: 'font-family:' + MONO + ';font-size:13px' },
+      { k: 'Target', v: 'task-001', sub: '本次任务的结构', vStyle: 'font-family:' + MONO + ';font-size:13px' },
+      { k: structureLive ? 'Attempt' : 'Execution', v: structureLive ? (v === 'structFail' ? '2 / 3' : '1 / 3') : 'exec-001', sub: v === 'structFail' ? '上次校验未通过' : structureLive ? '' : 'succeeded', vStyle: (structureLive ? 'font-variant-numeric:tabular-nums;' : 'font-family:' + MONO + ';') + 'font-size:13px' },
+      { k: v === 'ready' ? '状态' : structureLive ? '运行时间' : '完成时间', v: v === 'ready' ? '等待启动' : structureLive ? this.fmt(this.elapsed) : structFinish, sub: '', vStyle: 'font-variant-numeric:tabular-nums;font-size:13px' }
+    ] : [
+      { k: 'Agent', v: 'chapter_writer', sub: '章节正文写作 Agent', vStyle: 'font-family:' + MONO + ';font-size:13px' },
+      { k: 'Skill', v: skill, sub: 'v1.2.0', vStyle: 'font-family:' + MONO + ';font-size:13px' },
+      { k: 'Operation', v: 'fill_slot', sub: slotBlocked ? '尚未创建' : '填充槽位', vStyle: 'font-family:' + MONO + ';font-size:13px' },
+      { k: 'Target', v: sel || '—', sub: selSlot ? selSlot.typeName : '', vStyle: 'font-family:' + MONO + ';font-size:13px' },
+      { k: selStatus === 'completed' ? 'Execution' : 'Attempt', v: selStatus === 'completed' ? 'exec-00' + (contentSlots.findIndex(s => s.id === sel) + 2) : v === 'retry' ? '2 / 3' : v === 'failed' ? '3 / 3' : slotBlocked ? '—' : '1 / 3', sub: selStatus === 'completed' ? 'succeeded' : v === 'retry' ? '上次 Provider 超时' : '', vStyle: (selStatus === 'completed' ? 'font-family:' + MONO + ';' : 'font-variant-numeric:tabular-nums;') + 'font-size:13px' },
+      { k: selStatus === 'completed' ? '完成时间' : '运行时间', v: selStatus === 'completed' ? this.finishTime(sel) : selRunning ? this.fmt(this.elapsed) : '—', sub: '', vStyle: 'font-variant-numeric:tabular-nums;font-size:13px' }
+    ];
+
+    const filters = ['全部', '工作说明', 'Skill', '工具', '输出', '系统'].map(label => ({
+      label,
+      onClick: () => this.setState({ filter: label }),
+      style: 'cursor:pointer;font:inherit;font-size:12px;padding:4px 10px;border-radius:var(--radius-md);border:1px solid ' + (S.filter === label ? 'var(--color-accent)' : 'transparent') + ';background:transparent;color:' + (S.filter === label ? 'var(--color-accent-700)' : 'var(--color-neutral-600)')
+    }));
+
+    const matches = e => {
+      const f = S.filter;
+      if (f === '全部') return true;
+      if (f === '系统') return e.actor === 'System';
+      if (f === 'Skill') return e.actor === 'Skill';
+      if (f === '工具') return e.actor === 'Tool';
+      if (f === '输出') return e.output;
+      if (f === '工作说明') return e.actor === 'Agent' && !e.output;
+      return true;
+    };
+
+    const sourceTrace = subject === 'container' ? []
+      : subject === 'input' ? []
+      : subject === 'slot' ? (selStatus === 'completed' ? this.archivedTrace(sel) : slotBlocked ? [] : S.trace)
+      : subject === 'structure' ? (structureLive ? S.trace : this.archivedStructureTrace())
+      : S.trace;
+
+    const traceEvents = sourceTrace.filter(matches).map(e => {
+      const [bg, fg, bar] = ACTOR_COLOR[e.actor];
+      const open = !!S.openEvents[e.id];
+      return {
+        id: e.id, actor: e.actor, title: e.title, body: e.body, time: e.time, detail: e.detail || '', open: open && !!e.detail,
+        actorStyle: 'font-size:10px;letter-spacing:.08em;text-transform:uppercase;padding:2px 6px;border-radius:2px;background:' + bg + ';color:' + fg + ';border:1px solid ' + (e.actor === 'Skill' ? bar : 'transparent'),
+        bodyStyle: e.output
+          ? 'font-size:13.5px;line-height:1.9;color:var(--color-text);border-left:2px solid var(--color-accent-300);padding-left:10px;text-align:justify'
+          : 'font-size:12.5px;line-height:1.8;color:var(--color-neutral-700);text-wrap:pretty',
+        style: 'border-left:2px solid ' + bar + ';padding:10px 0 12px 12px;margin-bottom:10px;cursor:' + (e.detail ? 'pointer' : 'default'),
+        onClick: () => { if (e.detail) this.setState(s => ({ openEvents: Object.assign({}, s.openEvents, { [e.id]: !s.openEvents[e.id] }) })); }
+      };
+    });
+
+    const narrow = S.narrow;
+    const compact = S.compact;
+    const panelW = S.panelW || (compact ? 400 : 424);
+    const treeW = S.treeW || (compact ? 280 : 300);
+    const traceOpen = S.traceOpen, summaryOpen = S.summaryOpen;
+    const panelBase = 'display:flex;flex-direction:column;border-left:1px solid var(--color-divider);background:var(--color-bg);';
+    const panelStyle = narrow
+      ? panelBase + 'position:absolute;top:0;right:0;bottom:0;width:' + panelW + 'px;max-width:86vw;z-index:30;box-shadow:var(--shadow-lg);' + (S.drawerOpen ? '' : 'display:none;')
+      : panelBase + 'position:relative;width:' + panelW + 'px;flex:none;';
+    const handleBase = 'position:absolute;top:0;bottom:0;width:7px;z-index:16;cursor:col-resize;';
+
+    const artifactBlocks = [
+      { text: CONTENT.title, style: 'font-family:var(--font-heading);font-weight:600;font-size:26px;line-height:1.25;margin-bottom:22px' },
+      { text: CONTENT.opening, style: 'font-size:15px;line-height:2.05;text-align:justify;margin-bottom:16px;text-indent:2em' },
+      { text: CONTENT.scene_01, style: 'font-size:15px;line-height:2.05;text-align:justify;margin-bottom:16px;text-indent:2em' },
+      { text: CONTENT.scene_02, style: 'font-size:15px;line-height:2.05;text-align:justify;margin-bottom:16px;text-indent:2em' },
+      { text: CONTENT.scene_03, style: 'font-size:15px;line-height:2.05;text-align:justify;margin-bottom:16px;text-indent:2em' },
+      { text: CONTENT.emotional_closure, style: 'font-size:15px;line-height:2.05;text-align:justify;margin-bottom:16px;text-indent:2em' },
+      { text: CONTENT.chapter_end, style: 'font-size:15px;line-height:2.05;text-align:justify;text-indent:2em' }
+    ];
+
+    return {
+      nav: NAV,
+      providerLabel: '已连接',
+      statusLabel: taskStatus[0],
+      statusChipStyle: 'font-size:11.5px;padding:3px 10px;border-radius:3px;background:' + chipTone[0] + ';color:' + chipTone[1],
+      phaseLabel, updatedLabel: v === 'completed' ? '完成于 11:58' : '1 分钟前更新',
+      primaryLabel: primary, secondaryLabel: secondary || '', hasSecondary: !!secondary,
+      onPrimary: () => {
+        if (v === 'ready') this.enter('structuring');
+        else if (v === 'stopped') this.enter('filling');
+        else if (v === 'failed') this.enter('filling');
+        else if (v === 'completed') return;
+        else this.setState({ dialog: true });
+      },
+      onSecondary: () => this.setState({ selected: 'scene_02' }),
+      steps,
+
+      vHandleTreeStyle: narrow ? 'display:none' : handleBase + 'right:-4px;',
+      vHandlePanelStyle: narrow ? 'display:none' : handleBase + 'left:-4px;',
+      startTreeDrag: e => this.drag(e, 'x', () => treeW, w => this.setState({ treeW: this.clamp(w, 232, 460) })),
+      startPanelDrag: e => this.drag(e, 'x', () => panelW, w => this.setState({ panelW: this.clamp(2 * panelW - w, 320, 620) })),
+      startSummaryDrag: e => this.drag(e, 'y', () => S.summaryH, h => this.setState({ summaryH: this.clamp(2 * S.summaryH - h, 120, Math.round(window.innerHeight * 0.6)) })),
+      hHandleStyle: (traceOpen && summaryOpen) ? 'flex:none;height:7px;cursor:row-resize;background:transparent' : 'display:none',
+      traceWrapStyle: traceOpen ? 'flex:1;min-height:0;padding:14px 16px 40px' : 'display:none',
+      filtersStyle: traceOpen ? 'flex:none;display:flex;gap:4px;padding:0 16px 10px;border-bottom:1px solid var(--color-divider);overflow-x:auto' : 'display:none',
+      summaryBodyStyle: summaryOpen ? 'padding:0 20px 18px' : 'display:none',
+      summaryWrapStyle: 'flex:none;display:flex;flex-direction:column;min-height:0;border-top:1px solid var(--color-divider);background:color-mix(in srgb, var(--color-surface) 42%, transparent);overflow-y:auto;' + (summaryOpen ? (traceOpen ? 'height:' + S.summaryH + 'px;' : 'flex:1;') : ''),
+      traceCaret: traceOpen ? '收起' : '展开',
+      summaryCaret: summaryOpen ? '收起' : '展开',
+      toggleTrace: () => this.setState({ traceOpen: !traceOpen, summaryOpen: traceOpen ? true : summaryOpen }),
+      toggleSummary: () => this.setState({ summaryOpen: !summaryOpen, traceOpen: summaryOpen ? true : traceOpen }),
+      treeStyle: 'position:relative;width:' + treeW + 'px;flex:none;display:flex;flex-direction:column;border-right:1px solid var(--color-divider);background:color-mix(in srgb, var(--color-surface) 30%, transparent);',
+      treeProgress: hasStructure ? doneCount + ' / 7 已完成' : '—',
+      treeBarStyle: 'height:100%;width:' + (hasStructure ? Math.round(doneCount / 7 * 100) : 0) + '%;background:var(--color-accent);transition:width .5s ease',
+      treeEmpty: !hasStructure,
+      treeEmptyNote: v === 'structFail' ? '上一次结构提案未通过确定性校验，系统已拒绝整份提案，未保存任何槽位。正在进行第 2 次尝试。' : 'Structure Agent 正在根据任务输入设计内容结构。结构通过校验后，槽位树会一次性出现。',
+      slotRows,
+      treeFootnote: hasStructure ? '容器槽位不承载正文，也不创建填充 Assignment。' : '结构在校验通过后冻结，P0 不支持生产期间增删槽位。',
+
+      isInputView, isSlotView, isAssemblyView, isArtifactView,
+      taskInputText: '主人公林昭在深夜接到失踪同事陈屿的电话，并在通话中发现对方可能正被监视。本章需要让林昭发现同事周砚隐瞒了关键证据，并在章末留下一个可追踪的线索。',
+      inputSideTitle: v === 'ready' ? '启动后将发生什么' : '结构设计说明',
+      inputSideNote: v === 'ready'
+        ? '点击"开始生产"后，系统会创建一次 create_structure 工作指派，由 structure_designer 使用 chapter-structure-design v1.0.0 提交结构提案。结构通过确定性校验后才会保存，任何一项校验失败都不会写入部分槽位。'
+        : 'Structure Agent 只决定创建哪些槽位、各自承担什么内容职责以及它们之间的依赖；每个槽位由哪个 Agent、哪个 Skill 填充，由模板 Binding 静态决定，Agent 无权更改。',
+
+      slotId: sel || '', slotTypeName: selSlot ? selSlot.typeName : '', slotPath: 'chapter / ' + (sel || ''),
+      slotStatusLabel: selStatus === 'completed' ? '已完成' : selStatus === 'running' ? '正在生产' : selStatus === 'failed' ? '失败' : slotBlocked ? '等待依赖' : '可生产',
+      slotStatusStyle: 'font-size:11.5px;padding:3px 10px;border-radius:3px;background:' + (selStatus === 'running' ? 'var(--color-accent-100)' : selStatus === 'failed' ? DANGER_BG : 'var(--color-neutral-200)') + ';color:' + (selStatus === 'running' ? 'var(--color-accent-800)' : selStatus === 'failed' ? DANGER : 'var(--color-neutral-800)'),
+      slotInstruction: selSlot ? selSlot.instruction : '',
+      slotDeps: selSlot ? (selSlot.deps || []).map(d => ({
+        label: d + (statuses[d] === 'completed' ? '  ✓' : '  ○'),
+        style: 'cursor:pointer;font:inherit;font-family:' + MONO + ';font-size:12px;padding:4px 10px;border-radius:var(--radius-md);background:transparent;border:1px solid ' + (statuses[d] === 'completed' ? 'var(--color-divider)' : 'var(--color-accent-300)') + ';color:var(--color-text)',
+        onClick: () => this.setState({ selected: d })
+      })) : [],
+      noDeps: !!selSlot && (selSlot.deps || []).length === 0,
+      slotBlocked: !!slotBlocked,
+      slotBlockedNote: slotBlocked ? '等待以下槽位完成：' + (selSlot.deps || []).filter(d => statuses[d] !== 'completed').join('、') + '。依赖全部完成后，该槽位成为可生产状态，由系统按深度优先顺序调度，Agent 不能自行领取。' : '',
+      slotHasError,
+      errorBoxStyle: 'border:1px solid ' + DANGER + ';border-radius:var(--radius-md);padding:18px 20px;background:' + DANGER_BG + ';color:' + DANGER,
+      errorTitle: '槽位生产失败 · scene_03',
+      errorBody: 'Provider 连续三次调用失败，已达到模板声明的最大重试次数 3。任务停留在槽位生产阶段。',
+      errorItems: [],
+      errorRetention: '已完成的 4 个槽位内容全部保留，重试时不会重新生成。',
+      errCodeToggleLabel: S.errCodeOpen ? '收起错误码' : '展开错误码',
+      errCodeOpen: S.errCodeOpen,
+      errCodeDetail: 'errorCode    PROVIDER_UNAVAILABLE\nhttpStatus   502\nattempt      3 / 3\nexecution    exec-018\ncontextHash  9f31…c2a7',
+      toggleErrCode: () => this.setState(s => ({ errCodeOpen: !s.errCodeOpen })),
+      slotShowContent: !!selSlot && !slotBlocked,
+      contentHeading: selStatus === 'running' ? '正在生成 ' + sel + '……' : selStatus === 'completed' ? '槽位内容' : selStatus === 'failed' ? '槽位内容' : '槽位内容',
+      contentMeta: selStatus === 'running' ? (S.streaming.length + ' 字符 · 上限 8000') : selStatus === 'completed' ? ((CONTENT[sel] || '').length + ' 字符') : '尚未生成内容',
+      slotContent: slotContent || (selStatus === 'failed' ? '本次执行未提交任何内容，槽位保持为空。' : selStatus === 'pending' ? '尚未生成内容。该槽位依赖已满足，等待系统调度。' : ''),
+      cursorStyle: streamingHere ? 'display:inline-block;width:2px;height:1em;background:var(--color-accent);vertical-align:-2px;margin-left:2px;animation:fc-blink 1s steps(1) infinite' : 'display:none',
+      slotShowProducer: producerRows.length > 0,
+      producerRows,
+
+      assemblyTitle: '正在组装最终产物',
+      assemblyNote: '组装器只负责排序、连接和输出文件，不进行任何语义创作。相同结构与相同槽位内容将生成完全相同的文件字节。',
+      assemblyOrder: contentSlots.map((s, i) => ({
+        id: s.id, chars: (CONTENT[s.id] || '').length + ' 字符',
+        style: 'display:flex;align-items:baseline;justify-content:space-between;padding:8px 0;' + (i ? 'border-top:1px solid var(--color-divider);' : '')
+      })),
+      artifactBlocks,
+
+      panelStyle,
+      panelKind, panelTitle, panelSentence: sentence,
+      summaryHeading: subject === 'slot' ? (selStatus === 'completed' ? '生产来源' : '本次工作指派') : subject === 'structure' ? '本次工作指派' : subject === 'container' ? '槽位属性' : '系统信息',
+      panelKindStyle: 'font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:2px 6px;border-radius:2px;border:1px solid var(--color-accent);color:var(--color-accent-700)',
+      showBackToCurrent: !!running && sel !== running,
+      backToCurrent: () => this.setState({ selected: running, following: true, toast: null }),
+      toastText: S.toast || '',
+      toastStyle: (S.toast && running && sel !== running)
+        ? 'flex:none;display:flex;align-items:center;gap:8px;padding:8px 20px;border-bottom:1px solid var(--color-divider);background:var(--color-accent-100);color:var(--color-accent-800);font-size:12px'
+        : 'display:none',
+      assignmentRows,
+      techLabel: S.techOpen ? '收起技术详情' : '技术详情',
+      techCaretStyle: 'display:inline-block;transform:rotate(' + (S.techOpen ? '90' : '0') + 'deg);transition:transform .15s',
+      techOpen: S.techOpen,
+      toggleTech: () => this.setState(s => ({ techOpen: !s.techOpen })),
+      techRows: [
+        { k: 'execution', v: 'exec-014' }, { k: 'assignment', v: 'asg-' + (sel || 'structure') },
+        { k: 'contextHash', v: '9f31a0c4…c2a7' }, { k: 'snapshotHash', v: '4e91c2b8…07de' },
+        { k: 'provider', v: 'configured' }, { k: 'model', v: 'main' },
+        { k: 'tokens', v: '3,214 in / 1,102 out' }, { k: 'startedAt', v: '11:42:00' }
+      ],
+      filters, traceEvents,
+      traceEmpty: traceEvents.length === 0,
+      traceEmptyNote: subject === 'input' ? '冻结任务输入由系统在创建任务时保存，不涉及 Agent 工作，因此没有轨迹。'
+        : isContainer ? '容器槽位不创建 Fill Slot Assignment，因此没有 Agent 工作轨迹。它在结构提交时由系统直接置为 completed。'
+        : slotBlocked ? '该槽位尚未创建 Assignment，因此没有工作轨迹。系统不会为未开始的槽位展示虚假执行记录。'
+        : '暂无符合当前筛选的事件。',
+      isContainerView,
+      containerChildren: children.map((s, i) => ({
+        id: s.id, typeName: s.typeName,
+        status: statuses[s.id] === 'completed' ? '已完成' : statuses[s.id] === 'running' ? '正在生产' : statuses[s.id] === 'failed' ? '失败' : '等待',
+        style: 'display:flex;align-items:baseline;gap:14px;padding:9px 0;' + (i ? 'border-top:1px solid var(--color-divider);' : ''),
+        onClick: () => this.setState({ selected: s.id, toast: null })
+      })),
+      onTraceScroll: (e) => {
+        const el = e.target;
+        const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 40;
+        if (atBottom !== S.following) this.setState({ following: atBottom, pendingCount: atBottom ? 0 : S.pendingCount });
+      },
+      followBarStyle: (!S.following && S.pendingCount > 0)
+        ? 'flex:none;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 16px;border-top:1px solid var(--color-divider);background:var(--color-accent-100);color:var(--color-accent-800)'
+        : 'display:none',
+      followLabel: '有 ' + S.pendingCount + ' 条新事件',
+      jumpLatest: () => this.setState({ following: true, pendingCount: 0 }),
+
+      drawerBtnStyle: narrow ? 'display:inline-flex' : 'display:none',
+      toggleDrawer: () => this.setState(s => ({ drawerOpen: !s.drawerOpen })),
+      closeDrawer: () => this.setState({ drawerOpen: false }),
+      scrimStyle: (narrow && S.drawerOpen) ? 'position:absolute;inset:0;background:color-mix(in srgb, var(--color-neutral-900) 28%, transparent);z-index:20' : 'display:none',
+
+      dialogWrapStyle: S.dialog
+        ? 'position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:color-mix(in srgb, var(--color-neutral-900) 34%, transparent)'
+        : 'display:none',
+      closeDialog: () => this.setState({ dialog: false }),
+      confirmStop: () => { this.setState({ dialog: false }); this.enter('stopped'); },
+
+      demoBarStyle: S.demo
+        ? 'position:fixed;left:50%;bottom:16px;transform:translateX(-50%);z-index:40;display:flex;align-items:center;gap:2px;padding:6px 8px;border-radius:var(--radius-lg);border:1px solid var(--color-divider);background:color-mix(in srgb, var(--color-bg) 94%, transparent);box-shadow:var(--shadow-md);backdrop-filter:blur(6px);max-width:calc(100vw - 40px);overflow-x:auto'
+        : 'display:none',
+      demoStates: STATES.map(s => ({
+        label: s.label,
+        onClick: () => this.enter(s.key),
+        style: 'cursor:pointer;font:inherit;font-size:11.5px;white-space:nowrap;padding:5px 9px;border-radius:var(--radius-md);border:1px solid ' + (v === s.key ? 'var(--color-accent)' : 'transparent') + ';background:transparent;color:' + (v === s.key ? 'var(--color-accent-700)' : 'var(--color-neutral-600)')
+      })),
+      hideDemo: () => this.setState({ demo: false })
+    };
+  }
+}
+</script>
+</body>
+</html>

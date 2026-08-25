@@ -1,0 +1,126 @@
+# 合法模板基准夹具（对照文档 §4.1 的完整格式）。
+# 每类非法夹具都是这份文件的单点变异，见 tests/fixtures/invalid-templates/。
+id: zhihu-chapter
+version: 1.0.0
+name: 知乎盐选单章结构槽生产
+description: 章节结构由 Agent 依据执行包设计，逐槽填充后组装为单章正文。
+status: published
+
+presentation: # 纯展示，不进快照，不计入 templateHash（D-02）
+  outputKind: 单章正文
+  tags: [结构 Agent, 写作 Agent, 场景写作]
+  exampleStructure:
+    - { name: chapter, typeId: chapter, kind: container, depth: 0 }
+    - { name: outline, typeId: chapter_outline, kind: content, depth: 1 }
+    - { name: title, typeId: title, kind: content, depth: 1 }
+    - { name: scene_01, typeId: scene, kind: content, depth: 1 }
+
+inputFields:
+  - id: chapter_packet
+    label: 章节执行包
+    type: textarea
+    required: true
+    hint: 本章的素材、人物状态与情节目标
+
+slotTypes:
+  - id: chapter
+    name: 章节容器
+    description: 承载完整章节结构，不产出正文
+    contentBearing: false
+
+  # 工作槽位（D-16）：产出内容供下游 read_slot 读取，但不进最终产物
+  - id: chapter_outline
+    name: 章节骨架
+    description: 各场景的目标、冲突与出场人物。后续场景槽位读取它，不进正文。
+    contentBearing: true
+    includeInArtifact: false
+    validation:
+      minChars: 100
+      maxChars: 3000
+    guidance:
+      - 每个场景需明确写出目标、冲突与出场人物
+      - 只写规划，不写正文散文
+
+  - id: title
+    name: 章节标题
+    description: 单章标题
+    contentBearing: true
+    validation:
+      minChars: 4
+      maxChars: 40
+
+  - id: scene
+    name: 场景段
+    description: 通过行动、冲突或信息变化推进正文
+    contentBearing: true
+    validation:
+      minChars: 300
+      maxChars: 8000
+      forbidPattern: '(?m)^#{1,6}\s'
+      forbidPatternMessage: 场景正文不得包含 Markdown 小标题
+    guidance:
+      - 首段需衔接前一场景的结尾状态
+      - 通过可见行动推进，不用心理解释代替事件
+
+agents:
+  - id: structure_designer
+    name: 章节结构设计 Agent
+    role: 根据章节执行包设计具体章节结构
+    model: structure
+    systemInstruction: |
+      你负责设计章节的内容结构，不负责撰写正文。
+
+  - id: chapter_writer
+    name: 章节写作 Agent
+    role: 根据结构槽目标生产章节正文
+    model: main
+    systemInstruction: |
+      你负责撰写单个结构槽的正文，不负责修改结构或其他槽位。
+
+skills:
+  - id: chapter-structure-design
+    version: 1.0.0
+    source: skills/chapter-structure-design/SKILL.md
+  - id: outline-writing
+    version: 1.0.0
+    source: skills/outline-writing/SKILL.md
+  - id: title-writing
+    version: 1.0.0
+    source: skills/title-writing/SKILL.md
+  - id: scene-writing
+    version: 1.0.0
+    source: skills/scene-writing/SKILL.md
+
+bindings:
+  createStructure:
+    agentId: structure_designer
+    skillId: chapter-structure-design
+    timeoutMs: 90000 # D-06 覆盖：结构输出短但格式严格
+    maxRetries: 2
+
+  fillSlotByType:
+    chapter_outline:
+      agentId: chapter_writer
+      skillId: outline-writing
+      maxRetries: 2
+    title:
+      agentId: chapter_writer
+      skillId: title-writing
+      # 未指定 timeoutMs / maxRetries：走 limits 默认
+    scene:
+      agentId: chapter_writer
+      skillId: scene-writing
+      timeoutMs: 180000
+      maxRetries: 1
+
+limits:
+  maxSlots: 32
+  maxStructureDepth: 4
+  maxExecutionRetries: 2
+  executionTimeoutMs: 120000
+  maxToolCallsPerAssignment: 24
+
+output:
+  fileName: chapter.md
+  mediaType: text/markdown
+  assembler: markdown_concat_v1

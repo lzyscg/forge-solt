@@ -1,0 +1,66 @@
+# 非法：template.yaml 本身合法，但 id 与所在目录名不一致。
+# 不拦的话，同一个 ID 可以藏在两个目录里，而「按 ID 找模板」会随扫描顺序
+# 返回不同的那一个——一个只在别人机器上复现的 bug。
+id: some-other-id
+version: 1.0.0
+name: 目录名与 id 不一致
+description: 用于验证目录层的同一性检查。
+status: published
+
+presentation:
+  outputKind: 单章正文
+
+inputFields:
+  - id: chapter_packet
+    label: 章节执行包
+    type: textarea
+    required: true
+
+slotTypes:
+  - id: chapter
+    name: 章节容器
+    description: 承载完整章节结构
+    contentBearing: false
+  - id: scene
+    name: 场景段
+    description: 推进正文的场景
+    contentBearing: true
+
+agents:
+  - id: structure_designer
+    name: 结构设计 Agent
+    role: 设计章节结构
+    model: structure
+    systemInstruction: 你负责设计结构。
+  - id: chapter_writer
+    name: 写作 Agent
+    role: 生产正文
+    model: main
+    systemInstruction: 你负责撰写正文。
+
+skills:
+  - id: chapter-structure-design
+    version: 1.0.0
+    source: skills/chapter-structure-design/SKILL.md
+  - id: scene-writing
+    version: 1.0.0
+    source: skills/scene-writing/SKILL.md
+
+bindings:
+  createStructure:
+    agentId: structure_designer
+    skillId: chapter-structure-design
+  fillSlotByType:
+    scene:
+      agentId: chapter_writer
+      skillId: scene-writing
+
+limits:
+  maxSlots: 16
+  maxStructureDepth: 3
+  maxToolCallsPerAssignment: 24
+
+output:
+  fileName: chapter.md
+  mediaType: text/markdown
+  assembler: markdown_concat_v1

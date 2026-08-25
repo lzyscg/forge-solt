@@ -1,0 +1,53 @@
+# Provider 定义与模型别名映射（文档 D-03 / D-17）
+#
+# 安全约束：本文件受版本控制，只允许出现环境变量【名称】（apiKeyEnv），
+# 绝不允许出现 API Key 的值。运行时由 ProviderRegistry 从 process.env 读取。
+#
+# 别名（aliases）是快照冻结的单位：任务快照里冻结的是别名，不是具体模型。
+# 别名 → 具体 provider/model 的解析发生在执行时（late-bound），
+# 这样换模型不需要重建历史快照，而历史任务仍能忠实记录它当时用的是哪个别名。
+
+providers:
+  - id: deepseek
+    name: DeepSeek
+    kind: openai-compatible # 决定用哪个 adapter（D-17）
+    baseUrl: https://api.deepseek.com/v1
+    apiKeyEnv: DEEPSEEK_API_KEY # 只写环境变量名，绝不写值
+    models:
+      # M4 实测（2026-08-21）：`/v1/models` 现在只回 v4 三个型号。
+      # 旧名 deepseek-chat / deepseek-reasoner 仍然可用，但**两者都解析到
+      # deepseek-v4-flash**——请求 deepseek-reasoner，响应的 model 字段回的是 v4-flash。
+      # 这意味着 D-17 的 L3「切到推理型号」按旧名执行是**空操作**：
+      # 模型没变、通过率不会变，而且不会报错。真正更强的型号是 deepseek-v4-pro。
+      - deepseek-chat # = deepseek-v4-flash（服务端别名）
+      - deepseek-v4-flash
+      - deepseek-v4-pro # D-17 L3 的目标型号：结构通过率不达标时切这个
+
+aliases:
+  # 通用内容生产
+  main:
+    provider: deepseek
+    model: deepseek-chat
+  # 槽位类型可通过 template.yaml 的 modelAlias 覆盖到这里（D-06）
+  configured:
+    provider: deepseek
+    model: deepseek-chat
+  # 结构设计。若结构提案一次通过率不达标，这里是 D-17 L3 的调节点
+  structure:
+    provider: deepseek
+    model: deepseek-chat
+
+# 回退链的最后一级（D-06）：模板没写 limits 时用这里的值。
+# 注意没有 defaults.alias——modelAlias 的回退链是
+# binding.modelAlias → agent.model → 模板校验失败，**不允许**兜底到某个全局别名。
+# 一个默认别名会让「忘了给 agent 配模型」变成静默生效，而不是编译期报错。
+defaults:
+  timeoutMs: 180000
+  maxRetries: 2
+  concurrentSlots: 1 # D-04：P0 固定 1，不可配
+  # 限流退避是独立配额，不占用 maxRetries（D-04）
+  rateLimitBackoff:
+    strategy: exponential
+    initialMs: 1000
+    maxMs: 60000
+    maxAttempts: 5
