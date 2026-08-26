@@ -35,7 +35,12 @@ import type { SlotScheduler } from './slot-scheduler.ts';
 import type { AssemblyService } from './assembly-service.ts';
 import type { TraceService } from './trace-service.ts';
 import { buildContext } from './context-builder.ts';
-import type { StructureRetryInput, FillSlotRetryInput } from './context-builder.ts';
+import type {
+  StructureRetryInput,
+  FillSlotRetryInput,
+  FillSlotRevisionInput,
+} from './context-builder.ts';
+import { collectPriorRounds } from './revision-source.ts';
 import {
   createCompletionPort,
   createStructurePort,
@@ -372,7 +377,7 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
     round: RoundState,
   ): Promise<boolean> {
     const binding = snapshot.compiled.bindings.createStructure;
-    const key = 'create_structure';
+    const key = STRUCTURE_BUDGET_KEY;
     const previous = structureRetryOf(round, key);
 
     const outcome = await runAssignment({
@@ -476,9 +481,9 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
         );
       }
 
-      // 审核重试配额独立分桶：key = review:<slotId>:<criterionId>
+      // 审核重试配额独立分桶，且**按返修轮分桶**（见 budgetKeyOfReview）。
       // D-32：审核 Agent 每轮全新，不携带往轮审核记录——retry 不回灌
-      const reviewKey = `review:${slot.slotId}:${criterionId}`;
+      const reviewKey = budgetKeyOfReview(slot, criterionId);
       const previous = reviewRetryOf(round, reviewKey);
       previous.record.criterionId = criterionId;
 
@@ -584,9 +589,20 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
       );
     }
 
-    const key = slot.slotId;
+    const key = budgetKeyOfFill(slot);
     const previous = slotRetryOf(round, key);
     const deps = scheduler.dependenciesOf(taskId, slot);
+
+    /**
+     * R3 / D-31：返修那一轮，把上一轮**从库里重建出来**接上去。
+     *
+     * 每次调度都重算一遍，不缓存在 `RoundState` 里：缓存就是一个跨 execution 存活的
+     * 会话对象，D-31 明确否决了它（撑不过重启的连续性等于没有连续性）。
+     * 重算的代价是两次索引查询，换来的是「清空进程内存也能逐字重建」（FR-CTX-005）。
+     */
+    const priorRounds = collectPriorRounds(uow.repositories, slot);
+    const revision: FillSlotRevisionInput | null =
+      priorRounds.length === 0 ? null : { round: slot.revisionRound, priorRounds };
 
     const outcome = await runAssignment({
       taskId,
@@ -600,6 +616,16 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
       dependencies: deps.contents,
       allowedDependencySlotIds: deps.slotIds,
       contextRetry: previous.retry,
+      revision,
+      /**
+       * 「这是第 n 次尝试，共 m 次机会」里的 n 必须是**本轮内**的序号。
+       *
+       * `attemptNumber` 是按槽位全局单调递增的（`UNIQUE (task_id, target_slot_id,
+       * operation, attempt_number)` 的组成部分），而 m 是每轮的配额。
+       * 直接把它印进 prompt，返修轮会出现「这是第 4 次尝试，共 2 次机会」这种
+       * 自相矛盾的数字——模型据此以为自己已经超额了。
+       */
+      promptAttemptNumber: round.budget.attempts(key) + 1,
       record: previous.record,
       state: previous,
     });
@@ -651,6 +677,13 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
     dependencies?: readonly { slotId: string; content: string }[];
     allowedDependencySlotIds?: readonly string[];
     contextRetry: StructureRetryInput | FillSlotRetryInput | null;
+    /** R3 / D-31：只有 fill_slot 会给。D-32：review_slot 恒不给 */
+    revision?: FillSlotRevisionInput | null;
+    /**
+     * 印进 prompt 的「第 n 次尝试」。缺省沿用落库的 `attempt_number`。
+     * 两者刻意分开：前者是本轮配额里的序号，后者是全局单调、UNIQUE 键的一部分。
+     */
+    promptAttemptNumber?: number;
     record: SubmissionRecord;
     /** 失败收尾要知道刚建的是哪个 execution，写回这里 */
     state: { executionId: string };
@@ -694,13 +727,15 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
               snapshot,
               agent,
               skill,
-              attemptNumber,
+              // 印进 prompt 的是本轮序号，落库的仍是全局 attemptNumber（见上）
+              attemptNumber: input.promptAttemptNumber ?? attemptNumber,
               maxAttempts: binding.maxRetries + 1,
               slots: input.slots ?? [],
               targetSlot: mustHave(input.targetSlot, 'targetSlot'),
               slotType: mustHave(input.slotType, 'slotType'),
               dependencies: input.dependencies ?? [],
               retry: input.contextRetry as FillSlotRetryInput | null,
+              revision: input.revision ?? null,
             })
           : buildContext({
               operation: 'review_slot',
@@ -820,8 +855,16 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
   interface RoundState {
     budget: RetryBudget;
     structure: Map<string, RetryState<StructureRetryInput>>;
+    /**
+     * key = `fill:<slotId>:<revisionRound>`（见 `budgetKeyOfFill`）。
+     *
+     * **轮次必须在键里**：`state.retry` 只在失败路径被赋值，没有任何一处把它置回 null。
+     * 键不带轮次的话，第 0 轮那次「字数不足」会一直留在同一个 `RetryState` 上，
+     * 于是第 1 轮返修的 prompt 会追加一整段【上一次提交未通过校验】，
+     * 内容是上一轮**早已修好**的违规——正是下面这段注释要防的那件事。
+     */
     slots: Map<string, RetryState<FillSlotRetryInput>>;
-    /** R2：审核重试状态。key = `review:<slotId>:<criterionId>` */
+    /** R2：审核重试状态。key = `review:<slotId>:<revisionRound>:<criterionId>` */
     reviews: Map<string, ReviewRetryState>;
   }
 
@@ -891,25 +934,45 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
   }
 
   function maxRetriesFor(snapshot: FrozenTaskSnapshot, key: string): number {
-    if (key === 'create_structure') return snapshot.compiled.bindings.createStructure.maxRetries;
-    if (key.startsWith('review:')) {
-      // review:<slotId>:<criterionId> → 用审核绑定的 maxRetries
-      const rest = key.slice('review:'.length);
-      const slotId = rest.includes(':') ? rest.slice(0, rest.indexOf(':')) : rest;
-      const slot = uow.repositories.slots.get(snapshot.taskId, slotId);
-      if (slot !== null) {
-        const reviewBinding = snapshot.compiled.bindings.reviewSlotByType[slot.type];
-        if (reviewBinding !== undefined) return reviewBinding.maxRetries;
-      }
-      return snapshot.compiled.limits.maxExecutionRetries;
-    }
-    const slot = uow.repositories.slots.get(snapshot.taskId, key);
+    if (key === STRUCTURE_BUDGET_KEY) return snapshot.compiled.bindings.createStructure.maxRetries;
+
+    // `fill:<slotId>:<round>` / `review:<slotId>:<round>:<criterionId>`。
+    // slotId 与 criterionId 都不含冒号（SLOT_ID_PATTERN / SECTION_ID_PATTERN），拆分是安全的。
+    const parts = key.split(':');
+    const slot = uow.repositories.slots.get(snapshot.taskId, parts[1] ?? '');
     if (slot === null) return snapshot.compiled.limits.maxExecutionRetries;
-    return (
-      snapshot.compiled.bindings.fillSlotByType[slot.type]?.maxRetries ??
-      snapshot.compiled.limits.maxExecutionRetries
-    );
+    const binding =
+      parts[0] === 'review'
+        ? snapshot.compiled.bindings.reviewSlotByType[slot.type]
+        : snapshot.compiled.bindings.fillSlotByType[slot.type];
+    return binding?.maxRetries ?? snapshot.compiled.limits.maxExecutionRetries;
   }
+}
+
+// ---------------------------------------------------------------------------
+// 配额分桶键（R3 返修）
+// ---------------------------------------------------------------------------
+
+const STRUCTURE_BUDGET_KEY = 'create_structure';
+
+/**
+ * 填槽的配额桶键。**必须含 `revisionRound`**（§8 速查第 5 条）。
+ *
+ * `RetryBudget` 的计数器从 `tick()` 建立到结束从不重置，所以桶键就是配额的作用域。
+ * 键里不带轮次的话，真实语义会变成「该槽位一生只有 maxRetries+1 次失败额度，
+ * 跨返修轮共享」：第 0 轮 Provider 抖一次重试成功，进第 1 轮返修后**第一次**失败
+ * 即判耗尽，槽位直接 failed——而返修本身并不是故障，不该吃掉故障重试预算（AC-R-017）。
+ *
+ * 带上轮次之后，`round.slots` / `round.reviews` 里的 `RetryState` 也随之一轮一份，
+ * 于是上一轮的违规列表不会串进返修轮的 prompt（见 `RoundState` 的注释）。
+ */
+function budgetKeyOfFill(slot: Slot): string {
+  return `fill:${slot.slotId}:${slot.revisionRound}`;
+}
+
+/** 审核的配额桶键。同样按轮分桶——第 0 轮某条判据重试过，不该扣掉第 1 轮的额度 */
+function budgetKeyOfReview(slot: Slot, criterionId: string): string {
+  return `review:${slot.slotId}:${slot.revisionRound}:${criterionId}`;
 }
 
 // ---------------------------------------------------------------------------

@@ -18,7 +18,13 @@
  *
  * `contextHash` 覆盖的语义输入清单（D-12 逐字）：
  * snapshotHash、taskInput 字段值、targetSlotId、slot instruction、
- * 依赖槽位内容及其顺序、skill id+version+注入的 section id 列表、validation 限制。
+ * 依赖槽位内容及其顺序、skill id+version+注入的 section id 列表、validation 限制，
+ * **以及 R3 追加的 `revision`**（D-31 授权：上一轮的对话轮次要「序列化进下一次
+ * execution 的 context_json，由它照常参与 context_hash / prompt_hash 计算」）。
+ * 后者与「重试追加块」的区别见 `StructuredContextInput.revision` 处的完整论证：
+ * 重试回灌的是同一份输入上次哪里没过，返修带来的是这一稿真正多出来的信息。
+ * 清单少列一项比多列一项更危险——它是全文件唯一看起来权威的枚举，
+ * 下一个读的人会以为漏进去的那一项是 bug。
  *
  * **重试追加块刻意不在其中。** 第 1 次与第 3 次尝试的 contextHash 相同、promptHash 不同，
  * 这正是想要的读数：「输入没变，只是把上次的违规回灌了进去」。
@@ -45,6 +51,9 @@ import type { StructureViolation } from '@server/domain/structure-validation.ts'
 import { canonicalJson, sha256Hex } from '@server/domain/canonical.ts';
 import { ForgeError } from '@shared/errors.ts';
 import type { Slot } from '@server/domain/types.ts';
+import type { RawFinding } from '@server/domain/review-evidence.ts';
+import type { PriorRound } from '@server/domain/revision-context.ts';
+import { renderRevisionContext } from '@server/domain/revision-context.ts';
 import { compareSiblings, documentOrder } from '@server/domain/readiness.ts';
 import type { FrozenSkill, FrozenTaskSnapshot } from './snapshot-service.ts';
 import type { CompiledAgent, CompiledSlotType } from './template-loader.ts';
@@ -100,6 +109,28 @@ export interface FillSlotRetryInput {
   reasons: readonly string[];
 }
 
+/**
+ * R3：返修那一轮的追加上下文（D-31）。
+ *
+ * 与 `retry` 是**两件事**，不能合并：
+ * `retry` 是「上一次提交没过系统的确定性校验」，同一稿的重来；
+ * `revision` 是「上一稿已经入库，审核按判据检出了问题」，是下一稿。
+ * 一个槽位可能同时处在两者之中（返修轮里又写短了），两段各自成段。
+ */
+export interface FillSlotRevisionInput {
+  /** `slots.revision_round`，从 1 起。只用于「第 n 轮返修」这句话 */
+  round: number;
+  /**
+   * 第 0 … round-1 轮，**按轮次升序，一轮不缺**。
+   *
+   * D-31 要求同一槽位从首稿到第 N 轮返修是一段连续的对话（「都还在」），
+   * 且明确接受「context_json 随轮次增长，最多 3 稿」这个代价。
+   * 只带最近一轮会让第 2 轮的 Agent 不知道第 0 轮被指出过什么，
+   * 于是它可能在修 S2 的问题时把 S1 的修复改回去——白烧一轮预算。
+   */
+  priorRounds: readonly PriorRound[];
+}
+
 export interface FillSlotContextInput extends ContextBuilderCommonInput {
   operation: 'fill_slot';
   /** 全部槽位，用于渲染【结构概要】。含正文的字段本层不读 */
@@ -109,6 +140,8 @@ export interface FillSlotContextInput extends ContextBuilderCommonInput {
   slotType: CompiledSlotType;
   dependencies: readonly DependencyContent[];
   retry: FillSlotRetryInput | null;
+  /** R3 / D-31：非 null 表示这是返修轮。首稿为 null */
+  revision: FillSlotRevisionInput | null;
 }
 
 /** R2：审核上下文输入（D-23/D-32） */
@@ -165,6 +198,28 @@ export interface StructuredContextInput {
     forbidPattern: string | null;
     forbidPatternFlags: string | null;
     forbidPatternMessage: string | null;
+  } | null;
+  /**
+   * R3 / D-31：返修轮的追加语义输入。**刻意进 contextHash**，与 `retry` 相反。
+   *
+   * `retry` 不进，因为它回灌的是「同一份输入上次哪里没过」——输入本身没变。
+   * `revision` 必须进，因为它就是新的输入：上一轮的对话轮次与审核意见是这一稿
+   * 真正多出来的信息，D-31 明写「由它照常参与 context_hash / prompt_hash 计算」。
+   * 不进的后果是 `context_json` 与 `context_hash` 不再逐字对应，
+   * 「拿库里那一列重算一遍」这句话失效（AC-R-013 靠的正是这一列）。
+   *
+   * **只记读过的槽位 ID，不记它们的正文**（FR-CTX-005）：正文已经在
+   * `dependencies` 里了，那一份是装配时从库里现取的，是唯一的真相来源。
+   */
+  revision: {
+    round: number;
+    /** 第 0 … round-1 轮，升序。数组本身随轮次增长，D-31 的代价一节已接受 */
+    priorRounds: readonly {
+      visibleOutput: string;
+      readSlotIds: readonly string[];
+      submittedContent: string;
+      findings: readonly RawFinding[];
+    }[];
   } | null;
 }
 
@@ -500,6 +555,45 @@ function renderFillSlotRetry(retry: FillSlotRetryInput, attempt: number, maxAtte
   return lines.join('\n');
 }
 
+/**
+ * R3：返修段（D-31）。**每一轮一段，第 0 轮起，一轮不缺。**
+ *
+ * ## 依赖槽位只列 ID，正文不重复渲染
+ *
+ * `renderRevisionContext` 的第二个参数在这里恒为**空 Map**，因此它不渲染
+ * 「依赖槽位内容」那一节。依赖正文在同一条 User Message 里已经由
+ * `renderDependencies` 完整渲染过一遍了（而且那一份是调度器刚从库里读出来的，
+ * 是唯一的真相来源）。把它再印一遍既撑大 prompt，又制造了两个看起来平级的版本。
+ *
+ * 「上一轮读过哪些槽位」这条信息（D-31 第 2 项）仍然保留，只是改成列 ID 并
+ * 指回上面那一段——这也正是把 slotId 记进 trace 的代价所换来的东西。
+ *
+ * 措辞受 D-30 约束：只说「检出的问题」，不说「审核通过 / 质量合格 / 已校验」。
+ */
+const NO_DEPENDENCY_CONTENTS: ReadonlyMap<string, string> = new Map();
+
+function renderFillSlotRevision(revision: FillSlotRevisionInput): string {
+  const blocks: string[] = [
+    `【返修】第 ${revision.round} 轮`,
+    '这一稿由你自己接着改：下面按轮次列出你每一轮的工作过程、当轮提交的正文，以及按判据检出的问题。',
+    '请针对尚未解决的问题定点修改，未被指出问题的部分保持原样，然后提交完整正文。',
+    '注意：往轮已经改好的地方不要改回去。',
+  ];
+
+  revision.priorRounds.forEach((prior, round) => {
+    blocks.push('', `── 第 ${round} 轮 ──`);
+    if (prior.readSlotIds.length > 0) {
+      // 只列 ID，正文指回上面的【依赖槽位内容】——不在这里印第二遍
+      blocks.push(
+        `你这一轮读过的依赖槽位：${prior.readSlotIds.join('、')}（正文见上面的【依赖槽位内容】）`,
+      );
+    }
+    blocks.push(renderRevisionContext(prior, NO_DEPENDENCY_CONTENTS));
+  });
+
+  return blocks.join('\n');
+}
+
 function buildFillSlotTexts(input: FillSlotContextInput): {
   systemText: string;
   userText: string;
@@ -548,6 +642,9 @@ function buildFillSlotTexts(input: FillSlotContextInput): {
       '',
       'content 为本槽位的正文，不要包含槽位标题或编号，不要包含对其他槽位的引用说明。',
     ].join('\n'),
+    // 返修段在重试段之前：前者说的是「上一稿要怎么改」，后者说的是
+    // 「上一次提交连校验都没过」。后者更近、更急，放在最后一段。
+    input.revision === null ? null : renderFillSlotRevision(input.revision),
     input.retry === null ? null : renderFillSlotRetry(input.retry, input.attemptNumber, input.maxAttempts),
   ]);
 
@@ -674,6 +771,7 @@ function structuredInputOf(
       dependencies: [],
       skill,
       validation: null,
+      revision: null,
     };
   }
 
@@ -693,6 +791,27 @@ function structuredInputOf(
       forbidPatternFlags: input.slotType.validation.forbidPatternFlags,
       forbidPatternMessage: input.slotType.validation.forbidPatternMessage,
     },
+    /**
+     * D-32：审核 Agent 每轮全新。`review_slot` 这一支恒为 null，
+     * 不是「碰巧没传」——`ReviewSlotContextInput` 里根本没有可以装往轮记录的字段，
+     * 于是「审核带上了历史」这件事在类型层就表达不出来（AC-R-016）。
+     */
+    revision:
+      input.operation === 'fill_slot' && input.revision !== null
+        ? {
+            round: input.revision.round,
+            priorRounds: input.revision.priorRounds.map((prior) => ({
+              visibleOutput: prior.visibleOutput,
+              readSlotIds: [...prior.readSlotIds],
+              submittedContent: prior.submittedContent,
+              findings: prior.findings.map((f) => ({
+                criterionId: f.criterionId,
+                quote: f.quote,
+                problem: f.problem,
+              })),
+            })),
+          }
+        : null,
   };
 }
 

@@ -107,7 +107,7 @@ export async function dispatchToolCall(
       kind: 'tool_call_completed',
       title: `工具 ${call.name} 完成`,
       summary: firstLine(content),
-      payload: { toolName: call.name, toolCallId: call.id, ok: true },
+      payload: { toolName: call.name, toolCallId: call.id, ok: true, ...slotIdOf(args) },
     });
     return { toolCallId: call.id, content, isError: false };
   } catch (error) {
@@ -124,6 +124,25 @@ export async function dispatchToolCall(
     // 错误码一并回给模型：它是模型能识别的稳定信号，比自然语言更不容易被改写理解
     return { toolCallId: call.id, content: `[${error.code}] ${error.message}`, isError: true };
   }
+}
+
+/**
+ * 把工具参数里的 `slotId` 记进 trace（R3 / D-31 / FR-CTX-005）。
+ *
+ * 返修那一轮的上下文要回答「上一轮读过哪些依赖槽位」，而这个事实只有工具调用现场知道。
+ * 不落进 trace 的话，进程一重启它就没了——而 FR-CTX-005 的判定标准正是
+ * 「清空进程内存后，只凭数据库与冻结快照能重建出逐字相同的上下文」。
+ *
+ * **只记 ID，绝不记工具返回的正文**：正文在 `slots.content_text` 里是权威的，
+ * 存副本会与它漂移，还白白撑大 trace。
+ *
+ * 写成「参数里有字符串 slotId 就记」而不是「工具名等于 read_slot 才记」：
+ * 分发器不该认识某一个具体工具的参数形状。
+ */
+function slotIdOf(args: unknown): { slotId?: string } {
+  if (typeof args !== 'object' || args === null) return {};
+  const value = (args as { slotId?: unknown }).slotId;
+  return typeof value === 'string' ? { slotId: value } : {};
 }
 
 function parseArguments(argumentsJson: string, toolName: string): unknown {

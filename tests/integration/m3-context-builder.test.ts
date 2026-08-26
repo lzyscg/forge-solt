@@ -96,6 +96,7 @@ function fillSlotInput(overrides: Partial<FillSlotContextInput> = {}): FillSlotC
     slotType: slotType('scene'),
     dependencies: [{ slotId: 'outline', content: '场景一：雨夜对峙' }],
     retry: null,
+    revision: null,
     ...overrides,
   };
 }

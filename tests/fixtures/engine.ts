@@ -18,6 +18,7 @@ import { runMigrations } from '@server/infrastructure/database/migrate.ts';
 import { buildApp, type ForgeApp } from '@server/application/composition.ts';
 import type { ProviderConfig } from '@server/application/provider-config.ts';
 import { FakeProvider } from '@server/runtime/provider/fake.ts';
+import type { ProviderAdapter } from '@server/runtime/provider/provider-adapter.ts';
 
 const FIXTURE_ROOT = fileURLToPath(new URL('.', import.meta.url));
 
@@ -66,6 +67,14 @@ export interface EngineHarness extends ForgeApp {
 
 export interface EngineHarnessOptions {
   provider?: FakeProvider;
+  /**
+   * 用一个**真实** adapter 顶掉 FakeProvider。
+   *
+   * 只给 AC-R-014 那一类用例：要证明「隐藏推理不出现在返修上下文里」，
+   * 就必须让一条**真的带 `reasoning_content` 的 Provider 响应**走完整条链路。
+   * 拿手工构造的干净对象去测这件事等于什么都没测。
+   */
+  adapter?: ProviderAdapter;
   /** 落到磁盘上的库路径。默认 `:memory:`；测「进程重启」时要用真文件 */
   dbPath?: string;
   templatesDir?: string;
@@ -88,7 +97,7 @@ export function createEngineHarness(options: EngineHarnessOptions = {}): EngineH
     skillsDir: options.skillsDir ?? path.join(FIXTURE_ROOT, 'skills'),
     // 所有 provider 条目都换成同一个 FakeProvider：测试要观察的是
     // 「引擎给 Provider 送了什么、拿回什么」，不是 HTTP 传输
-    adapterFactory: () => provider,
+    adapterFactory: () => options.adapter ?? provider,
     env: options.env ?? { FAKE_API_KEY: 'sk-fake-not-a-real-key' },
     ...(options.startHeartbeat !== undefined ? { startHeartbeat: options.startHeartbeat } : {}),
   });

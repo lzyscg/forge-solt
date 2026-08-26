@@ -11,7 +11,31 @@
  *
  * 隐藏推理剥离（AC-R-014 / REQ §13 / NFR-005）：
  * reasoning_content 绝不许进任何 DB 列，也不得出现在返修上下文中。
- * 本文件提供 domain 层的纯剥离函数，测试用仿真实 Provider 响应的夹具走完整链路。
+ *
+ * **这条约束真正的落点不在本文件**，说清楚以免下一个人误判它的分量：
+ *
+ * 0. 真正承重的是**根本没有读取路径**：`openai-compatible.ts` 只把 `delta.content`
+ *    累进 `assistantText`，隐藏推理没有任何一行代码去读它。
+ * 1. 第一道——同文件的 `StreamChunkSchema` **不声明** `reasoning_content`，
+ *    zod 默认剥离未声明键，于是它连内存对象都进不去。
+ *    这一道是**防止有人不小心写出读取路径**，不是它自己在挡：
+ *    只把这个字段加进 schema（别的都不动），下面那条端到端用例**不会红**（已实测）；
+ * 2. 第二道——`shared/trace.ts` 的 `FORBIDDEN_PAYLOAD_KEY_PATTERN` 把
+ *    `reasoning* / thinking / chain_of_thought` 一类键名拉黑，命中即写 trace 失败，
+ *    所以从 trace 重建返修上下文时，payload 里不可能存在隐藏推理字段；
+ * 3. 第三道（本文件的 `stripReasoning`）——**纵深防御**。
+ *    application 层构造 `RawAssistantTurn` 时 `reasoningContent` 恒为 undefined，
+ *    因此把本函数改坏并不会让 R3 的任何集成断言变红（已实测确认）。
+ *    它存在的价值是：万一将来某个 adapter 改成把推理并进 content 之外的字段透传，
+ *    这里有一个明确的、有类型的收口点，而不是四处 grep。
+ *
+ * 真正守住整条链路的是 `tests/integration/r3-context-continuity.test.ts` 里那条
+ * 端到端用例——真 adapter、真 SSE 帧、真 `reasoning_content`，
+ * 断言返修轮的 `context_json` 一个字都不含它。
+ * 它拦的是**真实的回归**：把 adapter 改成 `reasoning_content + content` 一起累进
+ * `assistantText`（即第 0 条那个「读取路径」被写出来），它会红（已实测）。
+ * 反过来，只动 schema 或只改坏 `stripReasoning` 都不会红——
+ * 这两道是纵深，不是证明。
  */
 
 import type { RawFinding } from './review-evidence.ts';
@@ -36,7 +60,11 @@ export interface RawAssistantTurn {
  * 从 Provider 响应中剥离隐藏推理字段，只保留可见内容。
  *
  * AC-R-014（REQ §13 / NFR-005）：reasoning_content 绝不许进任何 DB 列，
- * 也不得出现在返修上下文中。本函数是这条约束的 domain 层落点。
+ * 也不得出现在返修上下文中。
+ *
+ * **本函数是第三道网，不是第一道**（见文件头的三道网清单）。
+ * 现有调用方喂进来的 `reasoningContent` 恒为 undefined，因为前两道已经把它挡在外面。
+ * 别把它当成「reasoning 不外流」的证明——那个证明在端到端用例里。
  *
  * 剥离在进入 renderRevisionContext 之前完成：本函数拿到的该是「待剥离的原始轮次」，
  * 产出的 string 直接进 PriorRound.visibleOutput。
