@@ -99,8 +99,33 @@ npm run test:coverage # 带覆盖率阈值
 SQLite 不支持修改 CHECK 约束，因此涉及 CHECK 的表要走
 「建新表 → 拷数据 → 删旧表 → 改名」。
 
+**执行顺序（已修订）**：先重建 `slots` 与 `executions`，**最后**建 `slot_reviews`。
+`slot_reviews` 对两张表都有外键，最后建可以整类地绕开建表顺序的疑问。
+
+> ### ⚠️ 修正：`PRAGMA foreign_keys=OFF` 在这里用不了
+>
+> 本文档早期版本要求「重建期间用 `PRAGMA foreign_keys=OFF`」。**那条指令无法执行。**
+> `migrate.ts:95` 把每个迁移文件包在 `db.transaction(() => db.exec(sql))` 里，
+> 而 SQLite 的 `PRAGMA foreign_keys` **在事务内是 no-op**。写了也不生效。
+>
+> **正确做法：事务内重建 + 测试兜底。** 不需要关外键，因为指向被重建表的外键
+> 全都是 `DEFERRABLE INITIALLY DEFERRED`（`tasks.active_execution_id`、
+> `slots.producer_execution_id`、`slots` 的 parent 自引用）——
+> 违反只在 COMMIT 时检查，而那时新表已经就位。
+>
+> **不要为此改 `migrate.ts`。** 那个 runner 是既有资产，
+> 为一个迁移改它属于本次禁止的顺手重构。
+>
+> **重命名方向是死规矩**：`CREATE 新表(别名) → 拷数据 → DROP 原表 → RENAME 新表为原名`。
+> **绝不能先把原表 rename 走**——SQLite ≥3.25 在 rename 时会**回填其他表 schema 里
+> 指向它的引用**，把 `tasks.active_execution_id REFERENCES executions` 改写成
+> 指向改名后的表。按上面的方向做则没有任何表引用那个临时别名，不会触发回填。
+>
+> 正确性由测试兜底：在**全新库**与 **M4 库的副本**上跑完迁移，
+> 断言 `PRAGMA foreign_key_check` 无输出。
+
 ```sql
--- ============ 1. 审核结果表 ============
+-- ============ 1. 审核结果表（实际执行放在最后，见上方顺序说明） ============
 CREATE TABLE slot_reviews (
   task_id       TEXT NOT NULL REFERENCES tasks(id),
   slot_id       TEXT NOT NULL,
@@ -118,15 +143,12 @@ CREATE TABLE slot_reviews (
 );
 
 CREATE INDEX idx_slot_reviews_slot ON slot_reviews(task_id, slot_id, round);
-
--- ============ 2. slots 加两列 ============
-ALTER TABLE slots ADD COLUMN revision_round INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE slots ADD COLUMN review_exhausted INTEGER NOT NULL DEFAULT 0;
 ```
 
-> `review_exhausted` 的 CHECK 与 `status` 的新枚举值一起在下面的重建里加。
-> `ALTER TABLE ADD COLUMN` 无法附带 CHECK 到已有表的重建路径上，
-> 所以两列先加，重建时一并纳入新表定义。
+> **不要用 `ALTER TABLE ADD COLUMN` 加那两列。** 本文档早期版本写了
+> 「先 ADD COLUMN，重建时再纳入」——那是多余的一步：`slots` 反正要重建，
+> 直接把 `revision_round` / `review_exhausted` 写进新表定义，
+> 拷数据时用 `INSERT INTO slots_new SELECT ..., 0, 0 FROM slots` 补上默认值即可。
 
 `slots` 与 `executions` 两张表都要重建。**重建时的新定义相对旧定义的差异**：
 
@@ -158,9 +180,9 @@ ALTER TABLE slots ADD COLUMN review_exhausted INTEGER NOT NULL DEFAULT 0;
   原因：`review_slot` 的 `target_slot_id` 就是被审槽位，
   于是同一槽位的 `fill_slot` attempt 1 与 `review_slot` attempt 1 撞主键。
 
-> ⚠️ 重建 `executions` 时注意：它与 `tasks.active_execution_id` 构成环，
-> 旧表注释里明写了这一点。重建期间用 `PRAGMA foreign_keys=OFF`，
-> 完成后恢复并跑 `PRAGMA foreign_key_check` 确认没有悬空引用。
+> ⚠️ `executions` 与 `tasks.active_execution_id` 构成环（旧表注释里明写了）。
+> 该外键是 `DEFERRABLE INITIALLY DEFERRED`，所以事务内重建是安全的——
+> 具体做法与重命名方向见本节开头的修正框。
 
 ### 2.2 枚举同步的 8 个点（**编译器只帮你抓 4 个**）
 
@@ -177,12 +199,23 @@ ALTER TABLE slots ADD COLUMN review_exhausted INTEGER NOT NULL DEFAULT 0;
 | `src/server/infrastructure/database/repositories/slot-repo.ts:132` `countByStatus` 签名 | ✅ 会 |
 | `src/server/infrastructure/database/repositories/slot-repo.ts:296` 计数器字面量 | ✅ 会 |
 
+**domain 的 `Slot` 类型（`src/server/domain/types.ts`）也在 R0 加这两个字段**：
+`revisionRound: number` 与 `reviewExhausted: boolean`。
+理由：库里有列而 domain 类型没有，会让 R1/R2 的代码到处绕开它，
+中间还留一段「库与 domain 不一致」的窗口。
+代价只是三个测试文件的 `slot()` 工厂各加两个默认值——**只改默认值，不动断言**。
+（`types.ts` 被 `vitest.config.ts:21` 排除在覆盖率外，不影响 100% 门槛。）
+
 `Operation` 加 `'review_slot'`：
 - `src/shared/contracts.ts:31` `OperationSchema`
 - `migrations/003_review.sql` 的 CHECK
 - `src/server/application/skill-loader.ts` 的 `SkillFrontmatterSchema`
   （它直接用 `OperationSchema`，但 `superRefine` 里对
   `fill_slot` / `create_structure` 有分支，需要为 `review_slot` 补规则，见 §6.2）
+
+> **阶段归属澄清**（§4 的标题「R2：Operation + 引擎 + trace」易生歧义）：
+> **R0 只加枚举值**——重建表的 CHECK 本来就逼着必须加；
+> **引擎接线归 R2**；**`skill-loader` 的 `superRefine` 规则归 R4 §6.2**。
 
 ### 2.3 状态机（`src/server/domain/state-machine.ts`）
 
@@ -205,8 +238,47 @@ ALTER TABLE slots ADD COLUMN review_exhausted INTEGER NOT NULL DEFAULT 0;
 > 的纯函数，它不知道也不该知道槽位类型。「这个槽位要不要审」是调用方的知识
 > （调用方读得到 `reviewSkillId`），由调用方选动作，表保持纯粹。
 
-`SLOT_STATUS_LABEL` 加 `reviewing: '审核中'`；
-`SLOT_ACTION_LABEL` 加三条中文标签。
+`SLOT_STATUS_LABEL` 加 `reviewing: '审核中'`。
+
+`SLOT_ACTION_LABEL` 加三条（措辞受 D-30 约束，不得含「通过/合格」意味）：
+
+```ts
+commit_for_review: '提交审核',
+review_clear:      '审核结算',
+review_revise:     '返修',
+```
+
+### 2.3.1 ⚠️ 一个「测试不会变红」正是危险所在的地方
+
+`src/server/domain/state-machine.test.ts:106` 的穷尽性测试是这样写的：
+
+```ts
+const SLOT_STATUSES: SlotStatus[] = ['pending', 'running', 'completed', 'failed'];  // 第 16 行，本地清单
+...
+for (const from of SLOT_STATUSES) {
+  for (const action of ['schedule','commit','exhaust','cancel','reset'] as const) {  // 又一份本地清单
+    expect(typeof canSlotTransition(from, action)).toBe('boolean');
+  }
+}
+```
+
+**两份清单都是硬编码的本地数组。** 加了 `reviewing` 和三个新 action 之后：
+
+- 测试**依然全绿**（`SlotStatus[]` 的子集仍然类型合法）；
+- 但它从覆盖 4×5=20 格，变成只覆盖 5×8=40 格里的 **20 格**——**一半**。
+
+**一个看起来穷尽的测试，会悄悄地不再穷尽。**
+
+而且 **100% 分支覆盖救不了你**：`canSlotTransition` 是一次表查找
+（`SLOT_TRANSITIONS[from][action] !== null`），整个函数就一个分支。
+覆盖率会照样满分，20 个表格却从没被碰过。**覆盖率不保护表驱动的数据。**
+
+**必须做**：把两层循环改成从**导出的常量**推导——
+`SLOT_ACTIONS` 已经在 `state-machine.ts:138` 导出了，直接用；
+状态清单同样导出一份并用它。**外加**为五条新迁移各写一条显式断言。
+
+> 这不是被 §0.3 禁止的「顺手重构」。§0.3 禁的是消除枚举重复那类与本次无关的改动；
+> 这里是**让一个自称穷尽的测试真的穷尽**，属于本次改动的正当组成部分。
 
 ### 2.4 仓储层新增方法（`slot-repo.ts`）
 
@@ -217,7 +289,7 @@ commitContentForReview(input: CommitSlotContentInput): void;
 /**
  * reviewing → pending，用于返修。
  * ⚠️ 绝不触碰 content_text 与 producer 各列——下一轮上下文要用上一稿。
- * WHERE 必须带 AND status = 'reviewing'。
+ * ⚠️ 同一条 UPDATE 里递增 revision_round（见下方说明），WHERE 必须带 AND status = 'reviewing'。
  */
 markForRevision(taskId: string, slotId: string): number;
 
@@ -230,7 +302,23 @@ clearReview(taskId: string, slotId: string, exhausted: boolean): number;
 > 好在它安全失败——不会误删内容。**也不要放宽它的状态条件**：
 > 那条守卫同时在保护「已完成的槽位内容永不被重置」（FR-LIFE-004 / AC-012）。
 
-新增 `src/server/infrastructure/database/repositories/slot-reviews-repo.ts`：`insert(row)` / `listByRound(taskId, slotId, round)`。
+新增 `src/server/infrastructure/database/repositories/slot-reviews-repo.ts`：
+`insert(row)` / `listByRound(taskId, slotId, round)`。
+**R0 就接进 `buildRepositories`**（成员从六变七，同步改 `index.ts` 里「§5.4 的六个成员」那句注释），
+省得 R2 再动一次装配。
+
+> **`revision_round` 必须在 `markForRevision` 的同一条 SQL 里递增**，
+> 不要拆成结算事务里的单独一步：
+>
+> ```sql
+> UPDATE slots SET status = 'pending', revision_round = revision_round + 1, updated_at = ?
+>   WHERE task_id = ? AND slot_id = ? AND status = 'reviewing'
+> ```
+>
+> 拆开会留下一条「状态回了 pending 但计数没加」的路径——
+> **那等于返修预算永不推进，循环无限跑下去**，正是 D-26 要防的东西。
+> 合进同一条 UPDATE 则物理上不可能发生。
+> （因此 §4.4 结算事务里**没有**单独的「递增」步骤。）
 
 ### 2.5 R0 完成判据
 
@@ -419,8 +507,10 @@ export function renderRevisionContext(
 
 1. 调 `settleReview`（§3.2）拿到 `Settlement`；
 2. 按结果调 `markForRevision` 或 `clearReview`（§2.4）；
-3. 写对应 trace；
-4. `revision_round` 递增（仅 revise 分支）。
+3. 写对应 trace。
+
+> **没有第 4 步。** `revision_round` 的递增已经合进 `markForRevision` 的
+> 同一条 UPDATE（见 §2.4），不要在这里再加一次——加了就是双倍计数。
 
 > **返修不消耗 `attempt_number` 与 `maxRetries`**（D-26 补充）。
 > 那两个计的是「同一份工作因故障重试」；返修是「带着新输入做一份新工作」。
