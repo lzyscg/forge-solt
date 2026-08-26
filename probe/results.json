@@ -1,0 +1,780 @@
+[
+  {
+    "caseId": "pos-01",
+    "label": "PASS",
+    "defectKind": null,
+    "defectNote": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_2",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 941,
+    "usage": {
+      "prompt_tokens": 3229,
+      "completion_tokens": 12,
+      "total_tokens": 3241,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "prompt_cache_hit_tokens": 768,
+      "prompt_cache_miss_tokens": 2461
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-02",
+    "label": "PASS",
+    "defectKind": null,
+    "defectNote": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 864,
+    "usage": {
+      "prompt_tokens": 3483,
+      "completion_tokens": 12,
+      "total_tokens": 3495,
+      "prompt_tokens_details": {
+        "cached_tokens": 2304
+      },
+      "prompt_cache_hit_tokens": 2304,
+      "prompt_cache_miss_tokens": 1179
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-03",
+    "label": "PASS",
+    "defectKind": null,
+    "defectNote": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_2",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1964,
+    "usage": {
+      "prompt_tokens": 3321,
+      "completion_tokens": 12,
+      "total_tokens": 3333,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "prompt_cache_hit_tokens": 768,
+      "prompt_cache_miss_tokens": 2553
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-04",
+    "label": "PASS",
+    "defectKind": null,
+    "defectNote": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 689,
+    "usage": {
+      "prompt_tokens": 3683,
+      "completion_tokens": 12,
+      "total_tokens": 3695,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3683
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-05",
+    "label": "PASS",
+    "defectKind": null,
+    "defectNote": null,
+    "story": "林越雨夜",
+    "taskName": "测试1",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 596,
+    "usage": {
+      "prompt_tokens": 3544,
+      "completion_tokens": 12,
+      "total_tokens": 3556,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "prompt_cache_hit_tokens": 768,
+      "prompt_cache_miss_tokens": 2776
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-06",
+    "label": "PASS",
+    "defectKind": null,
+    "defectNote": null,
+    "story": "林越雨夜",
+    "taskName": "测试1",
+    "slotId": "scene_4",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 761,
+    "usage": {
+      "prompt_tokens": 3610,
+      "completion_tokens": 12,
+      "total_tokens": 3622,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "prompt_cache_hit_tokens": 768,
+      "prompt_cache_miss_tokens": 2842
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-07",
+    "label": "PASS",
+    "defectKind": null,
+    "defectNote": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 882,
+    "usage": {
+      "prompt_tokens": 4813,
+      "completion_tokens": 12,
+      "total_tokens": 4825,
+      "prompt_tokens_details": {
+        "cached_tokens": 896
+      },
+      "prompt_cache_hit_tokens": 896,
+      "prompt_cache_miss_tokens": 3917
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-08",
+    "label": "PASS",
+    "defectKind": null,
+    "defectNote": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_4",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1243,
+    "usage": {
+      "prompt_tokens": 4648,
+      "completion_tokens": 17,
+      "total_tokens": 4665,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 4648
+    },
+    "raw": "{\n  \"verdict\": \"PASS\",\n  \"findings\": []\n}"
+  },
+  {
+    "caseId": "pos-09",
+    "label": "PASS",
+    "defectKind": null,
+    "defectNote": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #4",
+    "slotId": "scene_lawyer_private",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1278,
+    "usage": {
+      "prompt_tokens": 4587,
+      "completion_tokens": 17,
+      "total_tokens": 4604,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 4587
+    },
+    "raw": "{\n  \"verdict\": \"PASS\",\n  \"findings\": []\n}"
+  },
+  {
+    "caseId": "pos-10",
+    "label": "PASS",
+    "defectKind": null,
+    "defectNote": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #4",
+    "slotId": "scene_zhou_speaks",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 726,
+    "usage": {
+      "prompt_tokens": 5122,
+      "completion_tokens": 17,
+      "total_tokens": 5139,
+      "prompt_tokens_details": {
+        "cached_tokens": 896
+      },
+      "prompt_cache_hit_tokens": 896,
+      "prompt_cache_miss_tokens": 4226
+    },
+    "raw": "{\n  \"verdict\": \"PASS\",\n  \"findings\": []\n}"
+  },
+  {
+    "caseId": "pos-11",
+    "label": "PASS",
+    "defectKind": null,
+    "defectNote": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #3",
+    "slotId": "scene_2",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 809,
+    "usage": {
+      "prompt_tokens": 4586,
+      "completion_tokens": 12,
+      "total_tokens": 4598,
+      "prompt_tokens_details": {
+        "cached_tokens": 896
+      },
+      "prompt_cache_hit_tokens": 896,
+      "prompt_cache_miss_tokens": 3690
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-12",
+    "label": "PASS",
+    "defectKind": null,
+    "defectNote": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #3",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 975,
+    "usage": {
+      "prompt_tokens": 4842,
+      "completion_tokens": 12,
+      "total_tokens": 4854,
+      "prompt_tokens_details": {
+        "cached_tokens": 896
+      },
+      "prompt_cache_hit_tokens": 896,
+      "prompt_cache_miss_tokens": 3946
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-13",
+    "label": "REVISE",
+    "defectKind": "D1-承接断裂",
+    "defectNote": "首段被换成本章 scene_1 的开头（人物还在雨中赶路），而上一场结尾人已在包间桌前、老周正伸手接凭证。",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_3",
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "criterion": "首段衔接上一场的结尾状态",
+        "quote": "雨是从傍晚五点开始下的，到七点已经压得路灯抬不起头。林越站在公交站台的檐下，把外套领子竖起来，手没有伸进口袋——那件东西在怀里，攥在手里反而踏实些。",
+        "problem": "首段没有衔接上一场结尾的状态。上一场结尾是林越在包间内，老周的目光停在信封上，没有抬起来。而本段首句描写雨和公交站台，场景完全跳回室外，与上一场结尾的室内对峙状态脱节，违反了判据一。"
+      },
+      {
+        "criterion": "用可见行动推进，不用心理解释代替事件",
+        "quote": "林越觉得自己手心里那层汗又起来了，黏在贴身那件衬衫的后腰上，凉得像贴了块冰。",
+        "problem": "这句话是心理解释，描述林越的主观感受（觉得汗起来、凉得像冰），摄像机拍不到，属于解释而非可见行动。虽然前文有行动支撑，但此处用心理描写代替事件推进，违反了判据二。"
+      },
+      {
+        "criterion": "不与骨架/别的场次撞设定",
+        "quote": "雨是从傍晚五点开始下的，到七点已经压得路灯抬不起头。林越站在公交站台的檐下，把外套领子竖起来，手没有伸进口袋——那件东西在怀里，攥在手里反而踏实些。",
+        "problem": "本段描写林越在公交站台等车，与章节执行包中场景一的目标（林越冒雨走向约见处）和上一场正文（已在包间内）冲突，且与骨架中场景一、二、三的设定不符，撞了设定。"
+      },
+      {
+        "criterion": "「停在哪里」必须兑现",
+        "quote": "门没有响。老周坐回了椅子里，指尖在杯沿上慢慢叩着，眼神落在他那只还未端起的水杯上，像是在等他开口。",
+        "problem": "本槽位目标要求结尾留下一个具体的、下一章可直接承接的状态，如老周抛出一个条件、期限或指令，把林越钉在原地。本段结尾老周坐回椅子，眼神落在水杯上，没有给出具体的指令或期限，也没有把林越钉在原地的动作，停在哪里未兑现。"
+      }
+    ],
+    "elapsedMs": 4990,
+    "usage": {
+      "prompt_tokens": 3488,
+      "completion_tokens": 557,
+      "total_tokens": 4045,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3488
+    },
+    "raw": "{\n  \"verdict\": \"REVISE\",\n  \"findings\": [\n    {\n      \"criterion\": \"首段衔接上一场的结尾状态\",\n      \"quote\": \"雨是从傍晚五点开始下的，到七点已经压得路灯抬不起头。林越站在公交站台的檐下，把外套领子竖起来，手没有伸进口袋——那件东西在怀里，攥在手里反而踏实些。\",\n      \"problem\": \"首段没有衔接上一场结尾的状态。上一场结尾是林越在包间内，老周的目光停在信封上，没有抬起来。而本段首句描写雨和公交站台，场景完全跳回室外，与上一场结尾的室内对峙状态脱节，违反了判据一。\"\n    },\n    {\n      \"criterion\": \"用可见行动推进，不用心理解释代替事件\",\n      \"quote\": \"林越觉得自己手心里那层汗又起来了，黏在贴身那件衬衫的后腰上，凉得像贴了块冰。\",\n      \"problem\": \"这句话是心理解释，描述林越的主观感受（觉得汗起来、凉得像冰），摄像机拍不到，属于解释而非可见行动。虽然前文有行动支撑，但此处用心理描写代替事件推进，违反了判据二。\"\n    },\n    {\n      \"criterion\": \"不与骨架/别的场次撞设定\",\n      \"quote\": \"雨是从傍晚五点开始下的，到七点已经压得路灯抬不起头。林越站在公交站台的檐下，把外套领子竖起来，手没有伸进口袋——那件东西在怀里，攥在手里反而踏实些。\",\n      \"problem\": \"本段描写林越在公交站台等车，与章节执行包中场景一的目标（林越冒雨走向约见处）和上一场正文（已在包间内）冲突，且与骨架中场景一、二、三的设定不符，撞了设定。\"\n    },\n    {\n      \"criterion\": \"「停在哪里」必须兑现\",\n      \"quote\": \"门没有响。老周坐回了椅子里，指尖在杯沿上慢慢叩着，眼神落在他那只还未端起的水杯上，像是在等他开口。\",\n      \"problem\": \"本槽位目标要求结尾留下一个具体的、下一章可直接承接的状态，如老周抛出一个条件、期限或指令，把林越钉在原地。本段结尾老周坐回椅子，眼神落在水杯上，没有给出具体的指令或期限，也没有把林越钉在原地的动作，停在哪里未兑现。\"\n    }\n  ]\n}"
+  },
+  {
+    "caseId": "neg-14",
+    "label": "REVISE",
+    "defectKind": "D1-承接断裂",
+    "defectNote": "首段被换成本章 scene_1 的开头（人物还在雨中赶路），而上一场结尾人已在包间桌前、老周正伸手接凭证。",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "criterion": "判据一：首段衔接上一场的结尾状态",
+        "quote": "雨是从下午就开始下的，入夜也没歇，反而越落越密，把整条巷子压成一层灰蒙蒙的水雾。路灯隔着水帘，昏黄的一点光只够照亮脚下三块砖。林越没打伞。",
+        "problem": "首段没有衔接上一场景的结尾状态。上一场景结尾是林越和老周在屋内对峙，老周刚说完半句话，林越正紧张地等待。而本段却重新描写雨夜街景，将场景拉回室外，且林越在街上行走，与上一场景的室内对峙状态脱节，没有从那个状态接着往下走。"
+      },
+      {
+        "criterion": "判据二：用可见行动推进，不用心理解释代替事件",
+        "quote": "骗人的人最怕的不是被拆穿，是对方拆穿的时候，连火都不发。",
+        "problem": "这句话是心理解释，不是可见行动。它描述了林越的内心感受，但摄像机拍不到，属于解释而非事件。虽然前后有行动支撑，但此句本身是心理解释，且不是必要的调味，而是直接陈述心理，违反了判据二。"
+      },
+      {
+        "criterion": "判据三：不与骨架/别的场次撞设定",
+        "quote": "他走出巷口，在第一个街角停下来，左手不自觉地探进西装内袋，指尖先碰到那叠纸币的边，再往下一寸，摸到那张折过两折的纸。",
+        "problem": "本场景是场景三，但首段描写林越在街上行走，与场景一的雨夜赴约设定重复。场景一已经描写过林越在雨夜行走、摸凭证的动作，本场景应直接从场景二的室内对峙继续，不应再重复室外行走的设定，否则与场景一撞设定。"
+      },
+      {
+        "criterion": "判据四：「停在哪里」必须兑现",
+        "quote": "他攥紧衣领下的那道硬角，冲着那片已经空了的方向，把\"下月十五\"这四个字在舌尖上滚过一遍。雨水顺着他的下颌滴下来，落在他脚边那片积水里，打出一个接一个的圈。",
+        "problem": "本槽位目标要求停在哪里：老周离开后，林越独自站在（或坐在）雨里，手里握住老周留下的那件有明确后续含义的物件。本段确实描写了林越站在雨里，手里攥着那张纸，但最后一句是雨水打圈，没有明确强调他握着物件作为下一章的承接点，虽然提到了“攥紧衣领下的那道硬角”，但整体停靠点不够具体，没有突出那个物件作为下一章开头的明确承接，且最后一句是环境描写，削弱了停靠点的明确性。"
+      }
+    ],
+    "elapsedMs": 6231,
+    "usage": {
+      "prompt_tokens": 3736,
+      "completion_tokens": 655,
+      "total_tokens": 4391,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3736
+    },
+    "raw": "{\n  \"verdict\": \"REVISE\",\n  \"findings\": [\n    {\n      \"criterion\": \"判据一：首段衔接上一场的结尾状态\",\n      \"quote\": \"雨是从下午就开始下的，入夜也没歇，反而越落越密，把整条巷子压成一层灰蒙蒙的水雾。路灯隔着水帘，昏黄的一点光只够照亮脚下三块砖。林越没打伞。\",\n      \"problem\": \"首段没有衔接上一场景的结尾状态。上一场景结尾是林越和老周在屋内对峙，老周刚说完半句话，林越正紧张地等待。而本段却重新描写雨夜街景，将场景拉回室外，且林越在街上行走，与上一场景的室内对峙状态脱节，没有从那个状态接着往下走。\"\n    },\n    {\n      \"criterion\": \"判据二：用可见行动推进，不用心理解释代替事件\",\n      \"quote\": \"骗人的人最怕的不是被拆穿，是对方拆穿的时候，连火都不发。\",\n      \"problem\": \"这句话是心理解释，不是可见行动。它描述了林越的内心感受，但摄像机拍不到，属于解释而非事件。虽然前后有行动支撑，但此句本身是心理解释，且不是必要的调味，而是直接陈述心理，违反了判据二。\"\n    },\n    {\n      \"criterion\": \"判据三：不与骨架/别的场次撞设定\",\n      \"quote\": \"他走出巷口，在第一个街角停下来，左手不自觉地探进西装内袋，指尖先碰到那叠纸币的边，再往下一寸，摸到那张折过两折的纸。\",\n      \"problem\": \"本场景是场景三，但首段描写林越在街上行走，与场景一的雨夜赴约设定重复。场景一已经描写过林越在雨夜行走、摸凭证的动作，本场景应直接从场景二的室内对峙继续，不应再重复室外行走的设定，否则与场景一撞设定。\"\n    },\n    {\n      \"criterion\": \"判据四：「停在哪里」必须兑现\",\n      \"quote\": \"他攥紧衣领下的那道硬角，冲着那片已经空了的方向，把\\\"下月十五\\\"这四个字在舌尖上滚过一遍。雨水顺着他的下颌滴下来，落在他脚边那片积水里，打出一个接一个的圈。\",\n      \"problem\": \"本槽位目标要求停在哪里：老周离开后，林越独自站在（或坐在）雨里，手里握住老周留下的那件有明确后续含义的物件。本段确实描写了林越站在雨里，手里攥着那张纸，但最后一句是雨水打圈，没有明确强调他握着物件作为下一章的承接点，虽然提到了“攥紧衣领下的那道硬角”，但整体停靠点不够具体，没有突出那个物件作为下一章开头的明确承接，且最后一句是环境描写，削弱了停靠点的明确性。\"\n    }\n  ]\n}"
+  },
+  {
+    "caseId": "neg-15",
+    "label": "REVISE",
+    "defectKind": "D1-承接断裂",
+    "defectNote": "首段被换成本章 scene_1 的开头（人物还在雨中赶路），而上一场结尾人已在包间桌前、老周正伸手接凭证。",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #12",
+    "slotId": "scene_deal",
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "criterion": "判据一：首段衔接上一场的结尾状态",
+        "quote": "雨是从傍晚开始下的，先是一阵一阵地洒，等林越出门时已经成了斜斜的帘子。",
+        "problem": "上一场结尾林越已坐在老周对面，老周刚提出条件，林越正等着他说出条件。本场首段却回溯到林越出门时的雨景，完全跳过了上一场结尾的对话状态，没有从'老周提出条件、林越等待'这个状态接着写，而是重新开始叙述，违反了首段必须衔接上一场结尾状态的要求。"
+      },
+      {
+        "criterion": "判据二：用可见行动推进，不用心理解释代替事件",
+        "quote": "林越的手指在桌面下收了一下。三个月都凑不齐整数的债，要他在三十天内还清本金，这像是要他把命端上来。",
+        "problem": "'这像是要他把命端上来'是心理解释，摄像机拍不到，且前面没有具体事件支撑这个比喻，属于用解释代替事件推进。"
+      },
+      {
+        "criterion": "判据三：不与骨架/别的场次撞设定",
+        "quote": "他走到第一个路口停了下来。路灯把雨丝照成一根根银线，光里没人。他解开拉链，探进内袋，指腹沿着那张纸的折角摸了一遍——纸是软的，怕潮。他用两根指头夹着它边角抽出来半寸，又放回去，掌心覆上去按了按，确定没湿，才重新拉好外套。",
+        "problem": "这段内容属于场景一（雨夜赴约）的描写，但本槽位是场景三（留与承），骨架中场景三的出场人物只有林越和老周，且场景三应承接场景二结尾（老周已识破凭证并提议条件），不应再出现林越独自在雨夜赴约的细节，与骨架场景划分冲突。"
+      },
+      {
+        "criterion": "判据四：「停在哪里」必须兑现",
+        "quote": "他站了很久，抬头看了看天，雨密得像一张继续往下写的纸。他重新迈开步子，这一次没再停。",
+        "problem": "本槽位目标要求结尾停在林越离开时的具体状态（他的承诺、欠下的约定、或拿到的新期限），让下一章能直接从这一状态起笔。但这里结尾停在林越在雨中行走的抽象描写，没有明确体现他离开时的具体状态（如他承诺了什么、欠下什么约定、拿到什么新期限），下一章无法直接承接。"
+      }
+    ],
+    "elapsedMs": 4919,
+    "usage": {
+      "prompt_tokens": 3423,
+      "completion_tokens": 545,
+      "total_tokens": 3968,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "prompt_cache_hit_tokens": 768,
+      "prompt_cache_miss_tokens": 2655
+    },
+    "raw": "{\"verdict\":\"REVISE\",\"findings\":[{\"criterion\":\"判据一：首段衔接上一场的结尾状态\",\"quote\":\"雨是从傍晚开始下的，先是一阵一阵地洒，等林越出门时已经成了斜斜的帘子。\",\"problem\":\"上一场结尾林越已坐在老周对面，老周刚提出条件，林越正等着他说出条件。本场首段却回溯到林越出门时的雨景，完全跳过了上一场结尾的对话状态，没有从'老周提出条件、林越等待'这个状态接着写，而是重新开始叙述，违反了首段必须衔接上一场结尾状态的要求。\"},{\"criterion\":\"判据二：用可见行动推进，不用心理解释代替事件\",\"quote\":\"林越的手指在桌面下收了一下。三个月都凑不齐整数的债，要他在三十天内还清本金，这像是要他把命端上来。\",\"problem\":\"'这像是要他把命端上来'是心理解释，摄像机拍不到，且前面没有具体事件支撑这个比喻，属于用解释代替事件推进。\"},{\"criterion\":\"判据三：不与骨架/别的场次撞设定\",\"quote\":\"他走到第一个路口停了下来。路灯把雨丝照成一根根银线，光里没人。他解开拉链，探进内袋，指腹沿着那张纸的折角摸了一遍——纸是软的，怕潮。他用两根指头夹着它边角抽出来半寸，又放回去，掌心覆上去按了按，确定没湿，才重新拉好外套。\",\"problem\":\"这段内容属于场景一（雨夜赴约）的描写，但本槽位是场景三（留与承），骨架中场景三的出场人物只有林越和老周，且场景三应承接场景二结尾（老周已识破凭证并提议条件），不应再出现林越独自在雨夜赴约的细节，与骨架场景划分冲突。\"},{\"criterion\":\"判据四：「停在哪里」必须兑现\",\"quote\":\"他站了很久，抬头看了看天，雨密得像一张继续往下写的纸。他重新迈开步子，这一次没再停。\",\"problem\":\"本槽位目标要求结尾停在林越离开时的具体状态（他的承诺、欠下的约定、或拿到的新期限），让下一章能直接从这一状态起笔。但这里结尾停在林越在雨中行走的抽象描写，没有明确体现他离开时的具体状态（如他承诺了什么、欠下什么约定、拿到什么新期限），下一章无法直接承接。\"}]}"
+  },
+  {
+    "caseId": "neg-16",
+    "label": "REVISE",
+    "defectKind": "D3-事实矛盾",
+    "defectNote": "后半段把「凭证/信封」改成「欠条/布包」，与前半段及章节骨架矛盾。",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 482,
+    "usage": {
+      "prompt_tokens": 3491,
+      "completion_tokens": 12,
+      "total_tokens": 3503,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "prompt_cache_hit_tokens": 768,
+      "prompt_cache_miss_tokens": 2723
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-17",
+    "label": "REVISE",
+    "defectKind": "D3-事实矛盾",
+    "defectNote": "后半段把「凭证/信封」改成「欠条/布包」，与前半段及章节骨架矛盾。",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1105,
+    "usage": {
+      "prompt_tokens": 3687,
+      "completion_tokens": 12,
+      "total_tokens": 3699,
+      "prompt_tokens_details": {
+        "cached_tokens": 2432
+      },
+      "prompt_cache_hit_tokens": 2432,
+      "prompt_cache_miss_tokens": 1255
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-18",
+    "label": "REVISE",
+    "defectKind": "D3-事实矛盾",
+    "defectNote": "后半段把「凭证/信封」改成「欠条/布包」，与前半段及章节骨架矛盾。",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #13",
+    "slotId": "scene_reveal",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 814,
+    "usage": {
+      "prompt_tokens": 3921,
+      "completion_tokens": 12,
+      "total_tokens": 3933,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "prompt_cache_hit_tokens": 768,
+      "prompt_cache_miss_tokens": 3153
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-19",
+    "label": "REVISE",
+    "defectKind": "D4-停错地方",
+    "defectNote": "删掉结尾 3 段，场景没有停在 instruction 指定的位置。",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1230,
+    "usage": {
+      "prompt_tokens": 3522,
+      "completion_tokens": 12,
+      "total_tokens": 3534,
+      "prompt_tokens_details": {
+        "cached_tokens": 3072
+      },
+      "prompt_cache_hit_tokens": 3072,
+      "prompt_cache_miss_tokens": 450
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-20",
+    "label": "REVISE",
+    "defectKind": "D4-停错地方",
+    "defectNote": "删掉结尾 3 段，场景没有停在 instruction 指定的位置。",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 788,
+    "usage": {
+      "prompt_tokens": 3375,
+      "completion_tokens": 12,
+      "total_tokens": 3387,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "prompt_cache_hit_tokens": 768,
+      "prompt_cache_miss_tokens": 2607
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-21",
+    "label": "REVISE",
+    "defectKind": "D4-停错地方",
+    "defectNote": "删掉结尾 3 段，场景没有停在 instruction 指定的位置。",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #4",
+    "slotId": "scene_revelation",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1265,
+    "usage": {
+      "prompt_tokens": 3113,
+      "completion_tokens": 12,
+      "total_tokens": 3125,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3113
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-22",
+    "label": "PASS",
+    "defectKind": null,
+    "defectNote": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #20",
+    "slotId": "scene3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 440,
+    "usage": {
+      "prompt_tokens": 3353,
+      "completion_tokens": 17,
+      "total_tokens": 3370,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "prompt_cache_hit_tokens": 768,
+      "prompt_cache_miss_tokens": 2585
+    },
+    "raw": "{\n  \"verdict\": \"PASS\",\n  \"findings\": []\n}"
+  },
+  {
+    "caseId": "pos-23",
+    "label": "PASS",
+    "defectKind": null,
+    "defectNote": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #19",
+    "slotId": "scene3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 784,
+    "usage": {
+      "prompt_tokens": 3774,
+      "completion_tokens": 12,
+      "total_tokens": 3786,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "prompt_cache_hit_tokens": 768,
+      "prompt_cache_miss_tokens": 3006
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-24",
+    "label": "PASS",
+    "defectKind": null,
+    "defectNote": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #2",
+    "slotId": "scene_will",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 906,
+    "usage": {
+      "prompt_tokens": 4813,
+      "completion_tokens": 12,
+      "total_tokens": 4825,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 4813
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-25",
+    "label": "PASS",
+    "defectKind": null,
+    "defectNote": null,
+    "story": "深夜来电",
+    "taskName": "《深夜来电》第三章",
+    "slotId": "scene_4",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 892,
+    "usage": {
+      "prompt_tokens": 3215,
+      "completion_tokens": 12,
+      "total_tokens": 3227,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2703
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-26",
+    "label": "REVISE",
+    "defectKind": "D2-心理解释",
+    "defectNote": "人工撰写：把一段具体动作改写成同等篇幅的内心解释（原段以动作/环境为主，改后摄像机拍不到任何新东西）。",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #20",
+    "slotId": "scene3",
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "criterion": "判据一：首段衔接上一场的结尾状态",
+        "quote": "\"这个星期三。\"林越说出了这四个字，声音没有抖。",
+        "problem": "上一场结尾是老周问'你妈那两间房，到底是去年抵的，还是……这个星期三才抵的？'，本场首段直接回答'这个星期三'，衔接了对话，但未明确承接上一场结尾的僵持状态（老周按着凭证、雨声密了一层），首段缺少对上一场结尾气氛和动作的延续，显得突兀。"
+      },
+      {
+        "criterion": "判据二：用可见行动推进，不用心理解释代替事件",
+        "quote": "林越心里慌得厉害，知道主动权已经完全落在老周手里。他说不清自己哪一环露了，只觉得老周说的每一句，都像早就写好，等他撞上来。越想越是胸闷，那股压在心口的不安越来越重，他甚至开始怀疑自己今晚这一趟，是不是从一开始就错了。",
+        "problem": "这段是典型的心理解释，没有可见行动支撑，摄像机拍不到'心里慌'、'觉得'、'怀疑'，属于用解释代替事件，违反了判据二。"
+      },
+      {
+        "criterion": "判据三：不与骨架/别的场次撞设定",
+        "quote": "他走到林越跟前，居高临下，目光却算不上凶狠：'过了二十六号，天一黑，进你家门的就不是我了。'",
+        "problem": "骨架中场景三的结束状态是老周'起身，留下一句话和一杯没喝完的茶，给出明确的期限'，但本段中老周走到林越跟前并说出威胁性话语，与骨架中'不翻脸、不掀桌'的设定冲突，且'进你家门的就不是我了'暗示了激烈后果，与'留余地'的设定不符。"
+      },
+      {
+        "criterion": "判据四：「停在哪里」必须兑现",
+        "quote": "风灌进来，把灯焰压了一下，再亮起来时，堂里只剩林越一个人，和桌上那道被茶渍洇开的、没被收走的潮痕。",
+        "problem": "本槽位目标要求停在哪里：明确写出老周给出的后续要求或期限，让下一章有清晰可接的现实起点。本段结尾虽然提到了'十天'和'二十六号'，但最后一句聚焦于林越独自和茶渍，没有明确重申期限或条件，且'风灌进来'等描写偏离了目标要求的'具体状态'，下一章难以直接承接。"
+      }
+    ],
+    "elapsedMs": 4982,
+    "usage": {
+      "prompt_tokens": 3345,
+      "completion_tokens": 535,
+      "total_tokens": 3880,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "prompt_cache_hit_tokens": 768,
+      "prompt_cache_miss_tokens": 2577
+    },
+    "raw": "{\"verdict\":\"REVISE\",\"findings\":[{\"criterion\":\"判据一：首段衔接上一场的结尾状态\",\"quote\":\"\\\"这个星期三。\\\"林越说出了这四个字，声音没有抖。\",\"problem\":\"上一场结尾是老周问'你妈那两间房，到底是去年抵的，还是……这个星期三才抵的？'，本场首段直接回答'这个星期三'，衔接了对话，但未明确承接上一场结尾的僵持状态（老周按着凭证、雨声密了一层），首段缺少对上一场结尾气氛和动作的延续，显得突兀。\"},{\"criterion\":\"判据二：用可见行动推进，不用心理解释代替事件\",\"quote\":\"林越心里慌得厉害，知道主动权已经完全落在老周手里。他说不清自己哪一环露了，只觉得老周说的每一句，都像早就写好，等他撞上来。越想越是胸闷，那股压在心口的不安越来越重，他甚至开始怀疑自己今晚这一趟，是不是从一开始就错了。\",\"problem\":\"这段是典型的心理解释，没有可见行动支撑，摄像机拍不到'心里慌'、'觉得'、'怀疑'，属于用解释代替事件，违反了判据二。\"},{\"criterion\":\"判据三：不与骨架/别的场次撞设定\",\"quote\":\"他走到林越跟前，居高临下，目光却算不上凶狠：'过了二十六号，天一黑，进你家门的就不是我了。'\",\"problem\":\"骨架中场景三的结束状态是老周'起身，留下一句话和一杯没喝完的茶，给出明确的期限'，但本段中老周走到林越跟前并说出威胁性话语，与骨架中'不翻脸、不掀桌'的设定冲突，且'进你家门的就不是我了'暗示了激烈后果，与'留余地'的设定不符。\"},{\"criterion\":\"判据四：「停在哪里」必须兑现\",\"quote\":\"风灌进来，把灯焰压了一下，再亮起来时，堂里只剩林越一个人，和桌上那道被茶渍洇开的、没被收走的潮痕。\",\"problem\":\"本槽位目标要求停在哪里：明确写出老周给出的后续要求或期限，让下一章有清晰可接的现实起点。本段结尾虽然提到了'十天'和'二十六号'，但最后一句聚焦于林越独自和茶渍，没有明确重申期限或条件，且'风灌进来'等描写偏离了目标要求的'具体状态'，下一章难以直接承接。\"}]}"
+  },
+  {
+    "caseId": "neg-27",
+    "label": "REVISE",
+    "defectKind": "D2-心理解释",
+    "defectNote": "人工撰写：把一段具体动作改写成同等篇幅的内心解释（原段以动作/环境为主，改后摄像机拍不到任何新东西）。",
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "criterion": "判据一：首段衔接上一场的结尾状态",
+        "quote": "那根引信没来。来的是陈律师起身的动作。",
+        "problem": "上一场结尾是'满屋的话都停在一个上不去的坎上，像烧到顶的油锅，还差一根引信。'本场首段直接说'那根引信没来'，虽然承接了比喻，但紧接着陈律师起身，与上一场结尾的静止状态衔接不够自然，上一场结尾是静止的，本场首段应更明确地从那个静止状态过渡到陈律师的动作，而不是直接否定引信的到来。"
+      },
+      {
+        "criterion": "判据二：用可见行动推进，不用心理解释代替事件",
+        "quote": "他心里乱极了：一方面愿意相信这份遗嘱是真的，另一方面那行日期又像一根刺扎在眼前，让他没法踏实。他明白自己一旦开口追问，就再也没有回头的余地，于是只好把那份怀疑硬压下去，不敢让它露出分毫。",
+        "problem": "这段是典型的心理解释，摄像机拍不到'心里乱极了'、'愿意相信'、'没法踏实'、'明白'、'硬压下去'等内心活动。虽然前面有陈律师展示文件的可见行动，但此处用大段心理描写代替了可见的行动推进，违反了判据二。"
+      },
+      {
+        "criterion": "判据三：不与骨架/别的场次撞设定",
+        "quote": "他忽然觉得这座老宅的每一件东西都不太经看了。自己屁股底下那把主位，方才还觉得是稳的，此刻却像悬着，底下空空的，踩不着实。",
+        "problem": "骨架中场景三的目标是'沈明远此刻才意识到自己手里那段杂音盖住的录音恰好可能对上这一点'，本段中沈明远已经意识到录音问题，但'觉得老宅每件东西都不太经看'、'主位悬着'等心理描写与骨架中'沈明远必须在主持到底与证据有异之间作判断'的设定略有冲突，骨架中他是在判断，而不是泛泛地怀疑一切，此处心理描写可能偏离了骨架设定的具体冲突。"
+      },
+      {
+        "criterion": "判据四：「停在哪里」必须兑现",
+        "quote": "他那一脚，就这么悬在门槛上方。风从厅门口灌进来，吹动他衣摆。他还没决定，自己到底该不该跨进去。",
+        "problem": "本槽位目标要求'停在沈明远默记这一信息、与陈律师并肩往回走、正要重新跨进正厅门槛的瞬间'，本段确实停在了门槛前，但'他还没决定，自己到底该不该跨进去'这一心理活动，使得停的位置变成了'犹豫不决'，而目标要求是'正要跨进'，即动作即将发生，而不是犹豫。这改变了停在哪里的具体状态，下一场将难以从'正要跨进'的状态接续，而是从'犹豫'接续，可能不符合骨架中'随后返回场中宣布暂不决断'的设定。"
+      }
+    ],
+    "elapsedMs": 6271,
+    "usage": {
+      "prompt_tokens": 4827,
+      "completion_tokens": 655,
+      "total_tokens": 5482,
+      "prompt_tokens_details": {
+        "cached_tokens": 3712
+      },
+      "prompt_cache_hit_tokens": 3712,
+      "prompt_cache_miss_tokens": 1115
+    },
+    "raw": "{\"verdict\":\"REVISE\",\"findings\":[{\"criterion\":\"判据一：首段衔接上一场的结尾状态\",\"quote\":\"那根引信没来。来的是陈律师起身的动作。\",\"problem\":\"上一场结尾是'满屋的话都停在一个上不去的坎上，像烧到顶的油锅，还差一根引信。'本场首段直接说'那根引信没来'，虽然承接了比喻，但紧接着陈律师起身，与上一场结尾的静止状态衔接不够自然，上一场结尾是静止的，本场首段应更明确地从那个静止状态过渡到陈律师的动作，而不是直接否定引信的到来。\"},{\"criterion\":\"判据二：用可见行动推进，不用心理解释代替事件\",\"quote\":\"他心里乱极了：一方面愿意相信这份遗嘱是真的，另一方面那行日期又像一根刺扎在眼前，让他没法踏实。他明白自己一旦开口追问，就再也没有回头的余地，于是只好把那份怀疑硬压下去，不敢让它露出分毫。\",\"problem\":\"这段是典型的心理解释，摄像机拍不到'心里乱极了'、'愿意相信'、'没法踏实'、'明白'、'硬压下去'等内心活动。虽然前面有陈律师展示文件的可见行动，但此处用大段心理描写代替了可见的行动推进，违反了判据二。\"},{\"criterion\":\"判据三：不与骨架/别的场次撞设定\",\"quote\":\"他忽然觉得这座老宅的每一件东西都不太经看了。自己屁股底下那把主位，方才还觉得是稳的，此刻却像悬着，底下空空的，踩不着实。\",\"problem\":\"骨架中场景三的目标是'沈明远此刻才意识到自己手里那段杂音盖住的录音恰好可能对上这一点'，本段中沈明远已经意识到录音问题，但'觉得老宅每件东西都不太经看'、'主位悬着'等心理描写与骨架中'沈明远必须在主持到底与证据有异之间作判断'的设定略有冲突，骨架中他是在判断，而不是泛泛地怀疑一切，此处心理描写可能偏离了骨架设定的具体冲突。\"},{\"criterion\":\"判据四：「停在哪里」必须兑现\",\"quote\":\"他那一脚，就这么悬在门槛上方。风从厅门口灌进来，吹动他衣摆。他还没决定，自己到底该不该跨进去。\",\"problem\":\"本槽位目标要求'停在沈明远默记这一信息、与陈律师并肩往回走、正要重新跨进正厅门槛的瞬间'，本段确实停在了门槛前，但'他还没决定，自己到底该不该跨进去'这一心理活动，使得停的位置变成了'犹豫不决'，而目标要求是'正要跨进'，即动作即将发生，而不是犹豫。这改变了停在哪里的具体状态，下一场将难以从'正要跨进'的状态接续，而是从'犹豫'接续，可能不符合骨架中'随后返回场中宣布暂不决断'的设定。\"}]}"
+  },
+  {
+    "caseId": "neg-28",
+    "label": "REVISE",
+    "defectKind": "D2-心理解释",
+    "defectNote": "人工撰写：把一段具体动作改写成同等篇幅的内心解释（原段以动作/环境为主，改后摄像机拍不到任何新东西）。",
+    "story": "深夜来电",
+    "taskName": "《深夜来电》第三章",
+    "slotId": "scene_3",
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "criterion": "判据二：用可见行动推进，不用心理解释代替事件",
+        "quote": "林昭心里乱成一团。周砚和他朝夕共事这些年，他不愿意怀疑对方，可「早就清走了」「从来没见过」那几句话，此刻越想越刺耳。信任与怀疑在他心里来回拉扯，谁也没能压倒谁，他只觉这夜太长了，长得让他害怕听到答案。",
+        "problem": "这段是典型的心理解释，摄像机拍不到「心里乱成一团」「信任与怀疑拉扯」「害怕听到答案」，它没有用可见行动推进，而是直接告诉读者林昭的心理状态。虽然前面有可见行动支撑，但这段解释过长，且没有对应的事件支撑，违反了判据二的要求——心理解释只能是调味，不能作为推进主体。"
+      }
+    ],
+    "elapsedMs": 2433,
+    "usage": {
+      "prompt_tokens": 3301,
+      "completion_tokens": 179,
+      "total_tokens": 3480,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3301
+    },
+    "raw": "{\"verdict\":\"REVISE\",\"findings\":[{\"criterion\":\"判据二：用可见行动推进，不用心理解释代替事件\",\"quote\":\"林昭心里乱成一团。周砚和他朝夕共事这些年，他不愿意怀疑对方，可「早就清走了」「从来没见过」那几句话，此刻越想越刺耳。信任与怀疑在他心里来回拉扯，谁也没能压倒谁，他只觉这夜太长了，长得让他害怕听到答案。\",\"problem\":\"这段是典型的心理解释，摄像机拍不到「心里乱成一团」「信任与怀疑拉扯」「害怕听到答案」，它没有用可见行动推进，而是直接告诉读者林昭的心理状态。虽然前面有可见行动支撑，但这段解释过长，且没有对应的事件支撑，违反了判据二的要求——心理解释只能是调味，不能作为推进主体。\"}]}"
+  },
+  {
+    "caseId": "ctl-29",
+    "label": "CONTROL",
+    "defectKind": "CONTROL-句序倒置",
+    "defectNote": "动作原样保留、仅句序倒置：读着别扭，但四条判据都没有违反。若被打回，说明模型在挑文风。",
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1025,
+    "usage": {
+      "prompt_tokens": 4813,
+      "completion_tokens": 12,
+      "total_tokens": 4825,
+      "prompt_tokens_details": {
+        "cached_tokens": 1792
+      },
+      "prompt_cache_hit_tokens": 1792,
+      "prompt_cache_miss_tokens": 3021
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  }
+]
