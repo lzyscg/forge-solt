@@ -519,10 +519,21 @@ TypeScript 会在编译期揪出来；剩下 3 处不会，必须靠人和测试
 | 上一轮提交的正文 | `slots.content_text`（返修前的值） | 回 pending 时**不清空**内容列，否则上一稿就丢了 |
 | 通过校验的 findings | `slot_reviews.findings_json` | 带判据 ID + 引文 + 问题说明 |
 
-> **一个容易写错的地方**：现有 `cancel`（running → pending）的语义是
-> 「本次尝试作废，内容与 producer 都不写」（AC-011）。
-> 返修走的是 `review_revise`（reviewing → pending），**语义相反——上一稿必须留着**。
-> 两条路径都通向 `pending`，但对内容列的处理完全不同，实现时不要复用同一个函数。
+> **一个容易写错的地方（已核对代码，修正了本文档的早期说法）**：
+> `SlotRepo.resetToPending` 的 SQL 里带 `AND status = 'running'`。
+> 因此它**不能**被复用来做 `reviewing → pending`——复用的话它会静默地
+> 一行都不改（`changes = 0`），槽位卡在 `reviewing`。
+> 好在它是**安全失败**：不会误删内容，只会不动。
+>
+> 两条路径的真实差别不是「清不清内容」，而是**有没有内容**：
+> `running` 的槽位从来没有内容（内容由 `commitContent` 写入，同时置为完成），
+> 所以 `resetToPending` 根本不需要清；而 `reviewing` 的槽位**有上一稿**，
+> 返修必须原样留着它。
+>
+> 实现要点：新增一个独立的仓储方法，WHERE 里带 `AND status = 'reviewing'`，
+> **不触碰 `content_text` 与 producer 列**。不要给 `resetToPending` 放宽状态条件——
+> 那条 `AND status = 'running'` 同时还在保护「已完成的槽位内容永不被重置」
+> （FR-LIFE-004 / AC-012）。
 
 > **不要给工具结果做副本**（改权威文档时从 FR-CTX-005 学到的）。
 > `read_slot` 的返回本来就是库里的槽位内容——存副本既会与权威内容漂移，
@@ -561,8 +572,10 @@ TypeScript 会在编译期揪出来；剩下 3 处不会，必须靠人和测试
   从库里读出该 execution 即可完整复现它的输入，**不依赖任何进程内状态**。
 - **AC-R-014**（D-31 / REQ §13）返修上下文中不得出现 `reasoning_content`。
   断言必须先用一条**带隐藏推理的真实响应**看着它失败，再看它通过。
-- **AC-R-015**（D-31）`review_revise`（reviewing → pending）**不得清空** `content_text`；
-  与 `cancel`（running → pending）**必须清空**形成对照，两条都要有断言。
+- **AC-R-015**（D-31）`review_revise`（reviewing → pending）后，`content_text` 与
+  producer 各列必须**原样保留**——下一轮上下文要用它。
+  同时断言 `resetToPending` 对 `reviewing` 槽位返回 `changes = 0`（它带
+  `AND status = 'running'` 守卫），确认两条路径没有被实现者合并。
 - **AC-R-016**（D-32）`review_slot` 的 prompt 中不得包含任何往轮审核记录或往轮 verdict。
 - **AC-R-017** 返修不得增加 `attempt_number` 的消耗：连续两轮返修后，
   该槽位仍有完整的 `maxRetries` 故障重试预算。
