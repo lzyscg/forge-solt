@@ -380,6 +380,7 @@ function buildStructureTexts(input: StructureContextInput): {
 const SLOT_STATUS_LABEL: Record<Slot['status'], string> = {
   pending: '等待',
   running: '生成中',
+  reviewing: '审核中',
   completed: '已完成',
   failed: '失败',
 };

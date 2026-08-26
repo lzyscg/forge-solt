@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { SlotStatus, TaskStatus } from '@shared/contracts.ts';
+import type { TaskStatus } from '@shared/contracts.ts';
 import { ForgeError } from '@shared/errors.ts';
 import {
   allowedSlotActions,
@@ -10,10 +10,11 @@ import {
   canTransition,
   nextSlotStatus,
   nextTaskStatus,
+  SLOT_ACTIONS,
+  SLOT_STATUSES,
 } from './state-machine.ts';
 
 const TASK_STATUSES: TaskStatus[] = ['ready', 'running', 'stopped', 'completed', 'failed'];
-const SLOT_STATUSES: SlotStatus[] = ['pending', 'running', 'completed', 'failed'];
 
 describe('任务状态机（文档 §6.4）', () => {
   it.each([
@@ -82,6 +83,31 @@ describe('槽位状态机（文档 §6.4）', () => {
     expect(nextSlotStatus(from, action)).toBe(to);
   });
 
+  it('running --commit_for_review--> reviewing（绑定审核 Skill 的槽位提交后进入审核）', () => {
+    expect(canSlotTransition('running', 'commit_for_review')).toBe(true);
+    expect(nextSlotStatus('running', 'commit_for_review')).toBe('reviewing');
+  });
+
+  it('reviewing --review_clear--> completed（未检出问题或预算耗尽按现状完成）', () => {
+    expect(canSlotTransition('reviewing', 'review_clear')).toBe(true);
+    expect(nextSlotStatus('reviewing', 'review_clear')).toBe('completed');
+  });
+
+  it('reviewing --review_revise--> pending（检出问题，回 pending 返修）', () => {
+    expect(canSlotTransition('reviewing', 'review_revise')).toBe(true);
+    expect(nextSlotStatus('reviewing', 'review_revise')).toBe('pending');
+  });
+
+  it('reviewing --cancel--> pending（审核期用户 stop 与孤儿恢复同样有效，AC-011）', () => {
+    expect(canSlotTransition('reviewing', 'cancel')).toBe(true);
+    expect(nextSlotStatus('reviewing', 'cancel')).toBe('pending');
+  });
+
+  it('commit 对未绑定槽位仍是 running --> completed（原行为一字不改）', () => {
+    expect(canSlotTransition('running', 'commit')).toBe(true);
+    expect(nextSlotStatus('running', 'commit')).toBe('completed');
+  });
+
   it('completed 是终态', () => {
     expect(allowedSlotActions('completed')).toEqual([]);
   });
@@ -102,9 +128,9 @@ describe('槽位状态机（文档 §6.4）', () => {
     }
   });
 
-  it('全部 状态 × 动作 组合都有确定答案', () => {
+  it('全部 状态 × 动作 组合都有确定答案（从导出常量推导，无本地硬编码清单）', () => {
     for (const from of SLOT_STATUSES) {
-      for (const action of ['schedule', 'commit', 'exhaust', 'cancel', 'reset'] as const) {
+      for (const action of SLOT_ACTIONS) {
         expect(typeof canSlotTransition(from, action)).toBe('boolean');
       }
     }

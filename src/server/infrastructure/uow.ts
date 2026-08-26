@@ -96,7 +96,7 @@ export function runInTransaction<T>(db: ForgeDb, fn: (db: ForgeDb) => NotPromise
 // ---------------------------------------------------------------------------
 
 /**
- * §5.4 逐字列出的六个仓储。
+ * §5.4 逐字列出的七个仓储（R0 新增 slotReviews）。
  *
  * 这是 Application 层唯一该认识的持久化面：它不该知道有几张表、
  * 更不该知道 D-10 的条件 UPDATE 长什么样——那条 SQL 的正确性由 SlotRepo 独自负责，

@@ -18,6 +18,7 @@ import type { ToolsetContext } from './context.ts';
 const STATUS_LABEL: Record<OutlineSlot['status'], string> = {
   pending: '等待',
   running: '进行中',
+  reviewing: '审核中',
   completed: '已完成',
   failed: '失败',
 };

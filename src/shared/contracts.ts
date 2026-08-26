@@ -24,11 +24,11 @@ export type TaskStatus = z.infer<typeof TaskStatusSchema>;
 export const TaskPhaseSchema = z.enum(['structure', 'slots', 'assembly', 'done']);
 export type TaskPhase = z.infer<typeof TaskPhaseSchema>;
 
-export const SlotStatusSchema = z.enum(['pending', 'running', 'completed', 'failed']);
+export const SlotStatusSchema = z.enum(['pending', 'running', 'reviewing', 'completed', 'failed']);
 export type SlotStatus = z.infer<typeof SlotStatusSchema>;
 
-/** Assignment 的两种操作。系统只有这两条生产路径（REQ §5.4：只有一套生产协议） */
-export const OperationSchema = z.enum(['create_structure', 'fill_slot']);
+/** Assignment 的操作。系统只有这几条生产路径（REQ §5.4：只有一套生产协议） */
+export const OperationSchema = z.enum(['create_structure', 'fill_slot', 'review_slot']);
 export type Operation = z.infer<typeof OperationSchema>;
 
 export const ExecutionStatusSchema = z.enum([

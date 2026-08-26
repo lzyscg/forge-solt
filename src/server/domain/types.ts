@@ -58,6 +58,10 @@ export interface Slot extends FailureInfo {
    */
   includeInArtifact: boolean;
   status: SlotStatus;
+  /** 审核返修轮次，从 0 起（003_review.sql 新增列 revision_round） */
+  revisionRound: number;
+  /** 返修预算耗尽后按现状完成（003_review.sql 新增列 review_exhausted） */
+  reviewExhausted: boolean;
   contentText: string | null;
   producer: SlotProducer | null;
   createdAt: string;

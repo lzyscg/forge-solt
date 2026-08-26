@@ -21,6 +21,8 @@ function slot(partial: Partial<Slot> & Pick<Slot, 'slotId'>): Slot {
     contentBearing: true,
     includeInArtifact: true,
     status: 'pending',
+    revisionRound: 0,
+    reviewExhausted: false,
     contentText: null,
     producer: null,
     errorCode: null,

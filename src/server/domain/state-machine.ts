@@ -133,7 +133,15 @@ const TASK_ACTION_LABEL: Record<TaskAction, string> = {
 
 // ---------- 槽位级 ----------
 
-export type SlotAction = 'schedule' | 'commit' | 'exhaust' | 'cancel' | 'reset';
+export type SlotAction =
+  | 'schedule'
+  | 'commit'
+  | 'exhaust'
+  | 'cancel'
+  | 'reset'
+  | 'commit_for_review'
+  | 'review_clear'
+  | 'review_revise';
 
 export const SLOT_ACTIONS = [
   'schedule',
@@ -141,7 +149,22 @@ export const SLOT_ACTIONS = [
   'exhaust',
   'cancel',
   'reset',
+  'commit_for_review',
+  'review_clear',
+  'review_revise',
 ] as const satisfies readonly SlotAction[];
+
+/**
+ * 状态清单导出，供测试穷举推导（§2.3.1）。
+ * 与 SLOT_ACTIONS 一起用于「状态 × 动作」的完整遍历，避免本地硬编码清单。
+ */
+export const SLOT_STATUSES = [
+  'pending',
+  'running',
+  'reviewing',
+  'completed',
+  'failed',
+] as const satisfies readonly SlotStatus[];
 
 /**
  * 槽位迁移表（文档 §6.4）。
@@ -149,12 +172,66 @@ export const SLOT_ACTIONS = [
  * `running → cancel → pending` 覆盖两条路径：用户 stop，以及 §8.6 的重启恢复
  * 扫到孤儿 execution 后把槽位放回 pending。两者语义相同——本次尝试作废，
  * 槽位回到未开始，内容与 producer 都不写（AC-011）。
+ *
+ * 审核返修新增三条迁移与 reviewing 一行（§2.3）：
+ * - `running → commit_for_review → reviewing`：绑定了审核 Skill 的槽位走这条；
+ * - `reviewing → review_clear → completed`：未检出问题，或预算耗尽按现状完成；
+ * - `reviewing → review_revise → pending`：回去返修（内容保留）；
+ * - `reviewing → cancel → pending`：用户 stop 与孤儿恢复在审核期同样有效（AC-011）。
+ *
+ * `commit` 的现有行为一个字不改——未绑定审核的槽位仍走 `running → completed`。
  */
 const SLOT_TRANSITIONS: Record<SlotStatus, Record<SlotAction, SlotStatus | null>> = {
-  pending: { schedule: 'running', commit: null, exhaust: null, cancel: null, reset: null },
-  running: { schedule: null, commit: 'completed', exhaust: 'failed', cancel: 'pending', reset: null },
-  failed: { schedule: null, commit: null, exhaust: null, cancel: null, reset: 'pending' },
-  completed: { schedule: null, commit: null, exhaust: null, cancel: null, reset: null },
+  pending: {
+    schedule: 'running',
+    commit: null,
+    exhaust: null,
+    cancel: null,
+    reset: null,
+    commit_for_review: null,
+    review_clear: null,
+    review_revise: null,
+  },
+  running: {
+    schedule: null,
+    commit: 'completed',
+    exhaust: 'failed',
+    cancel: 'pending',
+    reset: null,
+    commit_for_review: 'reviewing',
+    review_clear: null,
+    review_revise: null,
+  },
+  reviewing: {
+    schedule: null,
+    commit: null,
+    exhaust: null,
+    cancel: 'pending',
+    reset: null,
+    commit_for_review: null,
+    review_clear: 'completed',
+    review_revise: 'pending',
+  },
+  failed: {
+    schedule: null,
+    commit: null,
+    exhaust: null,
+    cancel: null,
+    reset: 'pending',
+    commit_for_review: null,
+    review_clear: null,
+    review_revise: null,
+  },
+  completed: {
+    schedule: null,
+    commit: null,
+    exhaust: null,
+    cancel: null,
+    reset: null,
+    commit_for_review: null,
+    review_clear: null,
+    review_revise: null,
+  },
 };
 
 export function canSlotTransition(from: SlotStatus, action: SlotAction): boolean {
@@ -187,6 +264,7 @@ function slotTransitionError(from: SlotStatus, action: SlotAction, slotId?: stri
 const SLOT_STATUS_LABEL: Record<SlotStatus, string> = {
   pending: '未填充',
   running: '正在填充',
+  reviewing: '审核中',
   completed: '已完成',
   failed: '生产失败',
 };
@@ -197,4 +275,7 @@ const SLOT_ACTION_LABEL: Record<SlotAction, string> = {
   exhaust: '重试耗尽',
   cancel: '取消',
   reset: '重置',
+  commit_for_review: '提交审核',
+  review_clear: '审核结算',
+  review_revise: '返修',
 };

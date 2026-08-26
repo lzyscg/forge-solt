@@ -26,6 +26,8 @@ interface SlotRow {
   content_bearing: number;
   include_in_artifact: number;
   status: string;
+  revision_round: number;
+  review_exhausted: number;
   content_text: string | null;
   producer_agent_id: string | null;
   producer_skill_id: string | null;
@@ -103,6 +105,8 @@ function toDomain(row: SlotRow): Slot {
     contentBearing: fromSqlBool(row.content_bearing),
     includeInArtifact: fromSqlBool(row.include_in_artifact),
     status: row.status as SlotStatus,
+    revisionRound: row.revision_round,
+    reviewExhausted: fromSqlBool(row.review_exhausted),
     contentText: row.content_text,
     producer: toProducer(row),
     errorCode: row.error_code as ErrorCode | null,
@@ -122,6 +126,12 @@ export interface SlotRepo {
   markRunning(taskId: string, slotId: string): void;
   /** §5.5「提交 Slot Content」：D-10 的条件 UPDATE */
   commitContent(input: CommitSlotContentInput): void;
+  /** running → reviewing，同时写入内容与 producer。与 commitContent 同一条 D-10 条件 UPDATE */
+  commitContentForReview(input: CommitSlotContentInput): void;
+  /** reviewing → pending，返修。同一条 UPDATE 递增 revision_round，不触碰内容与 producer */
+  markForRevision(taskId: string, slotId: string): number;
+  /** reviewing → completed。exhausted 为 true 时同时置 review_exhausted = 1 */
+  clearReview(taskId: string, slotId: string, exhausted: boolean): number;
   markFailed(taskId: string, slotId: string, errorCode: ErrorCode, errorMessage: string): void;
   /** §5.5 Stop / 启动恢复：running → pending，清 error */
   resetToPending(taskId: string, slotId: string): number;
@@ -136,10 +146,11 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
   const insertStmt = db.prepare(
     `INSERT INTO slots
        (task_id, slot_id, type, parent_id, sort_order, instruction, depends_on_json,
-        content_bearing, include_in_artifact, status, content_text,
+        content_bearing, include_in_artifact, status, revision_round, review_exhausted,
+        content_text,
         producer_agent_id, producer_skill_id, producer_skill_version, producer_execution_id,
         error_code, error_message, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?)`,
   );
   const getStmt = db.prepare('SELECT * FROM slots WHERE task_id = ? AND slot_id = ?');
   // 排序用 (parent_id, sort_order) 只是给出一个稳定顺序；真正的文档序由
@@ -175,6 +186,43 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
            AND t.active_execution_id = e.id
            AND t.status = 'running'
        )`,
+  );
+
+  // commitContentForReview 与 commitContent 唯一的差别：status 置 'reviewing' 而非 'completed'。
+  // 同一条 D-10 条件 UPDATE，迟到结果走完全相同的拒绝路径。
+  const commitForReviewStmt = db.prepare(
+    `UPDATE slots SET
+       content_text = ?, status = 'reviewing',
+       producer_agent_id = ?, producer_skill_id = ?,
+       producer_skill_version = ?, producer_execution_id = ?,
+       error_code = NULL, error_message = NULL,
+       updated_at = ?
+     WHERE task_id = ? AND slot_id = ? AND status = 'running'
+       AND EXISTS (
+         SELECT 1 FROM executions e
+         JOIN tasks t ON t.id = e.task_id
+         WHERE e.id = ? AND e.token_hash = ?
+           AND e.status = 'running'
+           AND e.task_id = slots.task_id
+           AND e.target_slot_id = slots.slot_id
+           AND t.active_execution_id = e.id
+           AND t.status = 'running'
+       )`,
+  );
+
+  const markForRevisionStmt = db.prepare(
+    // reviewing → pending，同一条 UPDATE 递增 revision_round。
+    // 绝不触碰 content_text 与 producer 各列——下一轮上下文要用上一稿。
+    // WHERE 带 AND status = 'reviewing'：只在审核期回退，不误伤其他状态。
+    // 不拆成两步（拆开会留「状态回了 pending 但计数没加」的死循环路径，见 §2.4）。
+    `UPDATE slots SET status = 'pending', revision_round = revision_round + 1, updated_at = ?
+     WHERE task_id = ? AND slot_id = ? AND status = 'reviewing'`,
+  );
+
+  const clearReviewStmt = db.prepare(
+    // reviewing → completed。exhausted 为 true 时同时置 review_exhausted = 1。
+    `UPDATE slots SET status = 'completed', review_exhausted = ?, updated_at = ?
+     WHERE task_id = ? AND slot_id = ? AND status = 'reviewing'`,
   );
 
   return {
@@ -260,6 +308,43 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
       }
     },
 
+    commitContentForReview(input) {
+      const info = commitForReviewStmt.run(
+        input.content,
+        input.producer.agentId,
+        input.producer.skillId,
+        input.producer.skillVersion,
+        input.producer.executionId,
+        clock(),
+        input.taskId,
+        input.slotId,
+        input.producer.executionId,
+        input.tokenHash,
+      );
+
+      if (info.changes !== 1) {
+        const reason = diagnoseStaleReason(db, {
+          executionId: input.producer.executionId,
+          tokenHash: input.tokenHash,
+          taskId: input.taskId,
+          slotId: input.slotId,
+        });
+        throw new ForgeError(
+          'EXECUTION_STALE',
+          `槽位 ${input.slotId} 的审核提交被拒绝：${reason}`,
+          `slot:${input.slotId}`,
+        );
+      }
+    },
+
+    markForRevision(taskId, slotId) {
+      return markForRevisionStmt.run(clock(), taskId, slotId).changes;
+    },
+
+    clearReview(taskId, slotId, exhausted) {
+      return clearReviewStmt.run(toSqlBool(exhausted), clock(), taskId, slotId).changes;
+    },
+
     markFailed(taskId, slotId, errorCode, errorMessage) {
       db.prepare(
         `UPDATE slots SET status = 'failed', error_code = ?, error_message = ?, updated_at = ?
@@ -293,7 +378,7 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
     },
 
     countByStatus(taskId) {
-      const counts: Record<SlotStatus, number> = { pending: 0, running: 0, completed: 0, failed: 0 };
+      const counts: Record<SlotStatus, number> = { pending: 0, running: 0, reviewing: 0, completed: 0, failed: 0 };
       const rows = db
         .prepare('SELECT status, COUNT(*) AS n FROM slots WHERE task_id = ? GROUP BY status')
         .all(taskId) as Array<{ status: SlotStatus; n: number }>;
