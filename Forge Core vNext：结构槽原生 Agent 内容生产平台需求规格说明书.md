@@ -747,6 +747,19 @@ fill_slot
 → Skill
 ```
 
+**语义审核为可选绑定**（FR-REVIEW-001）：
+
+```text
+review_slot
++ Slot Type
+→ Agent
+→ Skill          # 未绑定 ⇒ 该 Slot Type 不进行任何语义审核
+```
+
+与 `fill_slot` 的关键差别：`fill_slot` **必须**覆盖所有 `contentBearing: true`
+的槽位类型（FR-TPL-003），`review_slot` **不作此要求**——不绑定是完全合法的，
+且是新槽位类型的默认状态。
+
 系统不得让 Agent 在运行时自行决定使用哪个 Skill。
 
 ---
@@ -765,6 +778,16 @@ fill_slot
 - Skill 的适用槽位类型包含对应 Slot Type；
 - 输出文件名合法；
 - Limits 合法。
+
+绑定了 Review Skill 的槽位类型，还须校验：
+
+- 该 Skill 的 Operation 为 `review_slot`；
+- 该 Skill 至少声明一条判据，且判据 ID 在该 Skill 内唯一
+  （判据 ID 是审核结果的主键组成部分，重复会让结果互相覆盖）；
+- 该槽位类型的返修轮次上限为非负整数。
+
+**不校验判据的内容或数量上限**——判据是 Skill 层的事，模板校验不介入
+（FR-REVIEW-001）。
 
 无效模板不得用于创建任务。
 
