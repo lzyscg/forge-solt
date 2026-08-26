@@ -378,6 +378,23 @@ ALTER TABLE slots ADD COLUMN review_exhausted INTEGER NOT NULL DEFAULT 0
 --   ('create_structure','fill_slot','review_slot')
 ```
 
+#### 顺手加固 AC-009 的 CHECK
+
+现有约束是单向蕴含，`reviewing` 带内容**不会**违反它：
+
+```sql
+NOT (status = 'completed' AND content_bearing = 1) OR (content 与 producer 齐备)
+```
+
+但它也因此**没有约束 `reviewing`**——而按 D-22，`reviewing` 的含义正是
+「内容已提交、等待审核」，同一条不变量本就该成立。改为：
+
+```sql
+NOT (status IN ('completed','reviewing') AND content_bearing = 1) OR (...)
+```
+
+零成本，且能挡住「进了 reviewing 却没有内容」这类实现错误。
+
 #### ⚠️ 现有 UNIQUE 约束会直接撞车（本版必须一并改）
 
 `executions` 上有：
@@ -497,7 +514,8 @@ TypeScript 会在编译期揪出来；剩下 3 处不会，必须靠人和测试
 
 | 追加项 | 来源 | 备注 |
 |---|---|---|
-| 上一轮 Agent 的对话轮次 | 上一次 execution 的 `context_json` + 该 execution 的可见输出与工具调用/结果 | **必须先剥掉 `reasoning_content`**（REQ §13） |
+| 上一轮 Agent 的可见输出 | 上一次 execution 的记录 | **必须先剥掉 `reasoning_content`**（NFR-005 / FR-AGT-005） |
+| 上一轮读过哪些依赖槽位 | 只存**槽位 ID**，内容在装配时从库里现取 | 见下方 |
 | 上一轮提交的正文 | `slots.content_text`（返修前的值） | 回 pending 时**不清空**内容列，否则上一稿就丢了 |
 | 通过校验的 findings | `slot_reviews.findings_json` | 带判据 ID + 引文 + 问题说明 |
 
@@ -506,8 +524,15 @@ TypeScript 会在编译期揪出来；剩下 3 处不会，必须靠人和测试
 > 返修走的是 `review_revise`（reviewing → pending），**语义相反——上一稿必须留着**。
 > 两条路径都通向 `pending`，但对内容列的处理完全不同，实现时不要复用同一个函数。
 
-装配本身是纯函数：给定上一次 execution 记录 + 本轮 `slot_reviews` 行 → 新的上下文。
-剥离 `reasoning_content` 也在这一步，且**必须有一条反证过的断言守住**。
+> **不要给工具结果做副本**（改权威文档时从 FR-CTX-005 学到的）。
+> `read_slot` 的返回本来就是库里的槽位内容——存副本既会与权威内容漂移，
+> 又白白撑大 `context_json`。**只记「读过哪些槽位」，内容装配时现取。**
+> FR-CTX-005 的判定标准是「清空进程内存后，只凭数据库与冻结快照能重建出
+> 逐字相同的上下文」——现取满足它，副本反而制造了第二个真相来源。
+
+装配本身是纯函数：给定上一次 execution 记录 + 本轮 `slot_reviews` 行 + 当前槽位内容
+→ 新的上下文。剥离 `reasoning_content` 也在这一步，
+且**必须有一条反证过的断言守住**（AC-R-014）。
 
 ---
 
