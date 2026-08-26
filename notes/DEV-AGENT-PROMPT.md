@@ -192,3 +192,91 @@ npm run test:coverage
 R0 特别注意：**除了 `state-machine.test.ts` 那两份清单是有意扩充的，
 其余现有断言一条都不该变红。** 红了说明改动语义超出预期——
 停下来报告，不要改测试去迁就实现。
+
+---
+
+# R3 开发提示词（上下文连续性）
+
+> 状态：R0/R1/R2 已提交（`de3386b` / `69a2359` / `e522257`），工作区干净。
+> 用法：整份发给开发 Agent。完成后再开一个独立审查 Agent，最后由主会话验收。
+
+---
+
+你在 `/Users/lzy/Desktop/forge-solt` 仓库实施「审核返修」功能的 **R3 阶段：上下文连续性**。
+
+## 第一步：读
+
+1. `notes/REVIEW-IMPLEMENTATION-PLAN-R0-R4.md` —— **§5 是本阶段主要依据**，§0 纪律，§8 速查坑
+2. `notes/AUTOMATED-REVIEW-REVISION-DESIGN-V0.2.md` —— D-31、D-32、§6.1
+3. `src/server/domain/revision-context.ts` —— R1 已交付的纯函数，你要接的就是它
+4. `src/server/application/context-builder.ts`、`src/server/application/production-engine.ts` —— 接线现场
+
+## 已确认的现状（不用再查）
+
+- `renderRevisionContext` 与 `stripReasoning` 已存在于 `src/server/domain/revision-context.ts`，**全库零调用方**。R3 的核心就是把它们接进生产路径。
+- `FillSlotContextInput`（`context-builder.ts:102` 附近）**只有 `retry` 字段**（内容校验失败重试），**没有任何返修字段**。槽位被审核打回、回到 `pending` 重新生产时，Agent **不知道上一轮写了什么、被指出什么问题**——等于白打回一次。这是 R3 要补的洞。
+- `production-engine.ts:526` 附近已有结算路径，会 `listByRound` 读出本轮 `slot_reviews`。
+
+## R3 要达成的
+
+**D-31 槽位内上下文连续、跨槽位不连续。** 返修轮的 `DeterministicContext` 追加：上一轮 Agent 的公开输出、上一轮读过哪些依赖槽位（**只记槽位 ID，内容装配时从库现取，不存副本**）、上一轮提交的正文、通过引文校验的 findings。
+
+**硬约束**：连续性必须**完全由重建产生**，不是跨 execution 存活的会话对象。判定标准（REQ FR-CTX-005）：**清空进程内存后，只凭数据库与冻结快照，能重建出逐字相同的上下文**。
+
+**D-32 审核 Agent 每轮全新**：`review_slot` 的 prompt 不得携带任何往轮审核记录或 verdict。
+
+AC-R-013…017：
+- **013** 返修轮 `context_json` 含上一轮对话轮次与上一稿正文；从库读出该 execution 即可完整复现输入，不依赖进程内状态
+- **014** 返修上下文中不得出现 `reasoning_content`
+- **015** `review_revise` 后 `content_text` 与 producer 各列原样保留；并断言 `resetToPending` 对 `reviewing` 槽位返回 `changes = 0`
+- **016** `review_slot` prompt 不含任何往轮审核记录或 verdict
+- **017** 返修不消耗 `attempt_number`：连续两轮返修后该槽位仍有完整 `maxRetries` 预算
+
+## 纪律
+
+**1. 每条断言先看着它失败。** 写完 `expect` 就去把产品代码改坏，确认变红，再改回来。没红过的断言是装饰品。
+
+**AC-R-014 是本阶段最容易被糊弄的一条**：必须构造一条**真实带隐藏推理字段**的 Provider 响应喂进去，先看着断言失败，再实现剥离。用手工构造的干净对象去「测」它等于什么都没测。
+
+R2 的反证记录因开发中断而缺失，所以本阶段的反证记录会被重点核。**如实报告**：哪条断言、改坏了什么、红色输出是什么。做不到就说做不到，不要编。
+
+**2. 不要顺手重构。** `countByStatus` 全库零调用方——不要碰。三处枚举重复——不要消除。
+
+**3. 不要改需求文档**（REQ / 术语表 / 技术方案 / UI Spec / notes 下设计文档）。实现与文档冲突时**停下来报告，不要自行决定采信哪边**。文档已过多轮核对但仍出过两次硬错误。
+
+**4. 不要扩大范围。** 只做 R3，R4 的东西（审核 Skill、模板绑定、端到端回归）不要碰。看到不相关的 bug 记下来报告，不要修。
+
+**5. 分层由 ESLint 强制**，`src/server/domain/**` 强制 100% 分支/函数/行/语句覆盖。
+
+**6. 措辞铁律（D-30）**：任何输出（含**代码注释**）不得出现「审核通过」「质量合格」「已校验」，统一用「未检出问题」。
+
+## 不要做的事
+
+- 不要 commit，也不要 `git add`，改动留在工作区
+- 不要碰 `data/*.sqlite` 原件（无备份，`m4-*`/`m7-*` 是实测数据唯一副本），要验就复制到 `/tmp`
+- 不要碰 `probe/`（R4 回归基线）
+- 不要写入 API Key 或密钥值
+
+## 完成的定义
+
+四条命令跑过且全绿，交付时**粘贴实际输出**：
+
+```
+npm run typecheck
+npm run lint
+npm run test
+npm run test:coverage
+```
+
+基线：R2 结束时 **786 测试全绿**，`src/server/domain` 覆盖率 **100/100/100/100**。
+**现有断言一条都不该变红**——红了说明改动语义超预期，停下来报告，不要改测试迁就实现。
+
+## 交付报告
+
+1. 四条命令实际输出
+2. **每条关键断言的反证记录**：断言名、改坏了什么、失败信息
+3. 改了哪些文件、各自改了什么
+4. 偏离实施文档的地方及原因
+5. 发现但没修的问题
+
+遇到文档与代码矛盾、或需要拍板的设计选择，**停下来报告**，不要自行决定。
