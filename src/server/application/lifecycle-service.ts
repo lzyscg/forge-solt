@@ -165,7 +165,15 @@ export function createLifecycleService(options: LifecycleServiceOptions): Lifecy
       if (execution !== null && (execution.status === 'running' || execution.status === 'created')) {
         repos.executions.markCancelled(execution.id, CANCEL_REASON.userStop);
         if (execution.targetSlotId !== null) {
-          repos.slots.resetToPending(taskId, execution.targetSlotId);
+          // R2 AC-R-012：审核期 stop 与 running 期同样有效，但走不同仓储方法。
+          // reviewing 槽位用 cancelReview（不递增 revision_round，保留内容/producer）。
+          // running 槽位用 resetToPending（它带 AND status='running' 守卫，reviewing 不会误伤）。
+          const slot = repos.slots.get(taskId, execution.targetSlotId);
+          if (slot !== null && slot.status === 'reviewing') {
+            repos.slots.cancelReview(taskId, execution.targetSlotId);
+          } else {
+            repos.slots.resetToPending(taskId, execution.targetSlotId);
+          }
         }
       }
       repos.tasks.update(taskId, { status: 'stopped', activeExecutionId: null });
@@ -208,7 +216,13 @@ export function createLifecycleService(options: LifecycleServiceOptions): Lifecy
         ) {
           repos.executions.markCancelled(execution.id, CANCEL_REASON.serviceRestart);
           if (execution.targetSlotId !== null) {
-            repos.slots.resetToPending(task.id, execution.targetSlotId);
+            // R2 AC-R-012：审核期恢复与 running 期同语义，但 reviewing 用 cancelReview。
+            const slot = repos.slots.get(task.id, execution.targetSlotId);
+            if (slot !== null && slot.status === 'reviewing') {
+              repos.slots.cancelReview(task.id, execution.targetSlotId);
+            } else {
+              repos.slots.resetToPending(task.id, execution.targetSlotId);
+            }
           }
         }
         repos.tasks.update(task.id, { status: 'stopped', activeExecutionId: null });

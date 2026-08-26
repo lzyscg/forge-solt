@@ -92,9 +92,14 @@ export function TaskWorkbench() {
 
   const onStepperFocus = (key: StepperKey) => {
     if (key === 'slots') {
-      const running = task.activeExecution?.targetSlotId ?? null;
+      // R2：返修期间 lastDone 会前后跳——审核中的槽位从 completed 回到 pending/revise，
+      // 取「最后一个 completed」就会指向审核槽位的前一个。
+      // 确定性行为：优先选 running/reviewing 槽位，其次选返修中（revisionRound>0 的 pending），
+      // 最后才退回最后一个 completed。
+      const active = task.slots.find((s) => s.status === 'running' || s.status === 'reviewing')?.id ?? null;
+      const inRevision = task.slots.find((s) => s.status === 'pending' && s.revisionRound > 0)?.id ?? null;
       const lastDone = [...task.slots].reverse().find((s) => s.status === 'completed')?.id ?? null;
-      setSelectedSlotId(running ?? lastDone);
+      setSelectedSlotId(active ?? inRevision ?? lastDone);
       setStepperFocus(null);
     } else {
       setStepperFocus(key);

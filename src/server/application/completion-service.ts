@@ -39,6 +39,7 @@ import type { ErrorCode } from '@shared/errors.ts';
 import { ForgeError } from '@shared/errors.ts';
 import { sha256Hex } from '@server/domain/canonical.ts';
 import type { Slot, SlotProducer } from '@server/domain/types.ts';
+import { verifyFindings, type RawFinding } from '@server/domain/review-evidence.ts';
 import type { UnitOfWork, UnitOfWorkHandle } from '@server/infrastructure/uow.ts';
 import type { CompiledSlotValidation } from './template-loader.ts';
 import type { SnapshotService } from './snapshot-service.ts';
@@ -122,6 +123,12 @@ export interface SubmitSlotContentInput {
   producer: Omit<SlotProducer, 'executionId'>;
   /** Provider 报的用量，没有就传 null */
   usage?: { inputTokens: number | null; outputTokens: number | null } | null;
+  /**
+   * R2：为 true 时走 commitContentForReview（status → 'reviewing'），
+   * 为 false 时走 commitContent（status → 'completed'）。
+   * 由 CompletionPort 按冻结快照里该槽位类型是否绑定了 reviewSlotByType 决定。
+   */
+  forReview?: boolean;
 }
 
 export interface SlotContentAccepted {
@@ -188,6 +195,18 @@ export interface CompletionService {
    * 因此本方法**完全不碰 executions**，只落任务级失败与槽位失败标记。
    */
   markSlotExhausted(input: ExhaustSlotInput): void;
+
+  /**
+   * R2：提交审核结果（D-21/D-25/AC-R-003/AC-R-006）。
+   *
+   * 提交事务内：
+   * 1. D-10 token 闸门（与 fill_slot 同一条路径，AC-R-006）
+   * 2. verifyFindings 校验引文（AC-R-003）
+   * 3. 全部 findings 被丢弃 → verdict 降级为 discarded（AC-R-004）
+   * 4. 插入 slot_reviews 行
+   * 5. 写 trace
+   */
+  submitReviewResult(input: ReviewResultInput): ReviewResultOutcome;
 }
 
 export interface ExhaustSlotInput {
@@ -196,6 +215,29 @@ export interface ExhaustSlotInput {
   errorCode: ErrorCode;
   /** 已成文的完整中文（D-19），直接进 `slots.error_message` 与 `tasks.error_message` */
   reason: string;
+}
+
+// R2：审核结果提交（D-21/D-25/AC-R-003/AC-R-004/AC-R-006/AC-R-011）
+
+export interface ReviewResultInput {
+  taskId: string;
+  executionId: string;
+  token: string;
+  slotId: string;
+  criterionId: string;
+  /** 模型返回的原始 verdict（未校验前） */
+  verdict: 'no_finding' | 'revise';
+  /** 模型返回的原始 findings（未校验前） */
+  findings: readonly RawFinding[];
+}
+
+export interface ReviewResultOutcome {
+  /** 最终 verdict（可能从 revise 降级为 discarded） */
+  verdict: 'no_finding' | 'revise' | 'discarded';
+  /** 通过引文校验的 findings */
+  keptFindings: readonly RawFinding[];
+  /** 被丢弃的 findings 数量 */
+  discardedCount: number;
 }
 
 export interface CompletionServiceOptions {
@@ -305,13 +347,24 @@ export function createCompletionService(options: CompletionServiceOptions): Comp
             );
           }
 
-          repos.slots.commitContent({
-            taskId: input.taskId,
-            slotId: input.slotId,
-            content: input.content,
-            producer,
-            tokenHash,
-          });
+          const forReview = input.forReview === true;
+          if (forReview) {
+            repos.slots.commitContentForReview({
+              taskId: input.taskId,
+              slotId: input.slotId,
+              content: input.content,
+              producer,
+              tokenHash,
+            });
+          } else {
+            repos.slots.commitContent({
+              taskId: input.taskId,
+              slotId: input.slotId,
+              content: input.content,
+              producer,
+              tokenHash,
+            });
+          }
           repos.executions.markSucceeded(input.executionId, {
             inputTokens: input.usage?.inputTokens ?? null,
             outputTokens: input.usage?.outputTokens ?? null,
@@ -320,12 +373,12 @@ export function createCompletionService(options: CompletionServiceOptions): Comp
 
           const stored = repos.slots.getOrThrow(input.taskId, input.slotId);
           // §8.8 的断言：AC-009 由 DDL 的 CHECK 兜底，但那条 CHECK 只在写入时生效，
-          // 这里再确认一次是为了让「已完成但没有正文」在最早的时刻炸掉，
+          // 这里再确认一次是为了让「已提交但没有正文」在最早的时刻炸掉，
           // 而不是等到组装出一份缺段的产物才被用户发现。
           if (stored.contentText === null) {
             throw new ForgeError(
               'SLOT_CONTENT_INVALID',
-              `槽位 ${input.slotId} 已标记完成但没有正文（违反 AC-009）`,
+              `槽位 ${input.slotId} 已提交但没有正文（违反 AC-009）`,
               `slot:${input.slotId}`,
             );
           }
@@ -343,9 +396,9 @@ export function createCompletionService(options: CompletionServiceOptions): Comp
             taskId: input.taskId,
             executionId: input.executionId,
             actor: 'system',
-            kind: 'assignment_completed',
-            title: '槽位已完成',
-            summary: `${input.slotId} 已保存`,
+            kind: forReview ? 'review_started' : 'assignment_completed',
+            title: forReview ? '槽位已提交，进入审核' : '槽位已完成',
+            summary: forReview ? `${input.slotId} 进入审核` : `${input.slotId} 已保存`,
             payload: {
               slotId: input.slotId,
               agentId: producer.agentId,
@@ -423,6 +476,117 @@ export function createCompletionService(options: CompletionServiceOptions): Comp
           payload: { slotId: input.slotId, errorCode: input.errorCode, exhausted: true },
         });
       });
+    },
+
+    submitReviewResult(input) {
+      const tokenHash = sha256Hex(input.token);
+      const slot = uow.repositories.slots.getOrThrow(input.taskId, input.slotId);
+
+      try {
+        return traces.runWithTraces((repos, trace) => {
+          // AC-R-006：D-10 token 闸门——迟到审核结果走与 fill_slot 相同的拒绝路径。
+          // 检查 execution 是否仍是活动执行，token 是否匹配。
+          const execution = repos.executions.getOrThrow(input.executionId);
+          if (execution.tokenHash !== tokenHash) {
+            throw new ForgeError(
+              'EXECUTION_STALE',
+              `审核提交的 token 不匹配：槽位 ${input.slotId} 判据 ${input.criterionId}`,
+              `slot:${input.slotId}`,
+            );
+          }
+          const task = repos.tasks.getOrThrow(input.taskId);
+          if (task.activeExecutionId !== input.executionId || execution.status !== 'running') {
+            throw new ForgeError(
+              'EXECUTION_STALE',
+              `审核提交被拒：execution ${input.executionId} 已不再活动`,
+              `slot:${input.slotId}`,
+            );
+          }
+
+          // AC-R-003：引文校验。content 是 slot 的正文（commitContentForReview 写入的）。
+          // verdict 为 no_finding 时无 findings 需要校验，传空数组即可。
+          const verified = verifyFindings(
+            slot.contentText ?? '',
+            input.verdict === 'revise' ? input.findings : [],
+          );
+
+          // AC-R-004：全部 findings 被丢弃 → verdict 降级为 discarded
+          let finalVerdict: 'no_finding' | 'revise' | 'discarded' = input.verdict;
+          if (input.verdict === 'revise' && verified.kept.length === 0 && input.findings.length > 0) {
+            finalVerdict = 'discarded';
+          } else if (input.verdict === 'revise' && verified.kept.length === 0) {
+            // findings 为空数组但 verdict 是 revise → 也降级
+            finalVerdict = 'discarded';
+          }
+
+          // 标记 execution 成功
+          repos.executions.markSucceeded(input.executionId, {
+            inputTokens: null,
+            outputTokens: null,
+          });
+          repos.tasks.update(input.taskId, { activeExecutionId: null });
+
+          // 插入 slot_reviews 行（findings_json 只存存活 findings）
+          repos.slotReviews.insert({
+            taskId: input.taskId,
+            slotId: input.slotId,
+            round: slot.revisionRound,
+            criterionId: input.criterionId,
+            executionId: input.executionId,
+            verdict: finalVerdict,
+            findingsJson: JSON.stringify(verified.kept),
+          });
+
+          // 写 trace（措辞受 D-30 约束）
+          const traceKind =
+            finalVerdict === 'no_finding' ? 'review_no_finding' : finalVerdict === 'revise' ? 'review_revise' : 'review_no_finding';
+          const traceTitle =
+            finalVerdict === 'no_finding'
+              ? '审核未检出问题'
+              : finalVerdict === 'revise'
+                ? '审核检出问题'
+                : '审核结果未通过引文校验';
+          trace.record({
+            taskId: input.taskId,
+            executionId: input.executionId,
+            actor: 'system',
+            kind: traceKind,
+            title: traceTitle,
+            summary: `判据 ${input.criterionId} · 槽位 ${input.slotId}`,
+            payload: {
+              slotId: input.slotId,
+              criterionId: input.criterionId,
+              verdict: finalVerdict,
+              discardedCount: verified.discardedCount,
+              findings: verified.kept.map((f) => ({ criterionId: f.criterionId, quote: f.quote, problem: f.problem })),
+            },
+          });
+
+          // 审核失败 trace（discarded 且是因为引文全灭）
+          if (finalVerdict === 'discarded') {
+            trace.record({
+              taskId: input.taskId,
+              executionId: input.executionId,
+              actor: 'system',
+              kind: 'review_no_finding',
+              title: '审核失败',
+              summary: `判据 ${input.criterionId} 的审核结果未通过引文校验，按未检出处理`,
+              payload: { slotId: input.slotId, criterionId: input.criterionId, discardedCount: verified.discardedCount },
+            });
+          }
+
+          return {
+            verdict: finalVerdict,
+            keptFindings: verified.kept,
+            discardedCount: verified.discardedCount,
+          };
+        });
+      } catch (error) {
+        if (error instanceof ForgeError && error.code === 'EXECUTION_STALE') {
+          recordLateRejection(input.taskId, input.executionId, input.slotId, error.message);
+        }
+        throw error;
+      }
     },
   };
 

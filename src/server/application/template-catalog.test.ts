@@ -16,7 +16,7 @@ describe('TemplateCatalog', () => {
   it('枚举全部模板，顺序确定', async () => {
     const list = await catalog().list();
     // 文件系统的目录序在 APFS 与 ext4 上不同；这里断言的是排序后的确定序
-    expect(list.map((t) => t.compiled.id)).toEqual(['archived-chapter', 'draft-chapter', 'zhihu-chapter']);
+    expect(list.map((t) => t.compiled.id)).toEqual(['archived-chapter', 'draft-chapter', 'review-chapter', 'zhihu-chapter']);
   });
 
   it('坏模板不让列表空白，但必须显式可见', async () => {
@@ -41,7 +41,7 @@ describe('TemplateCatalog', () => {
 
   it('按 status 过滤（D-08）', async () => {
     const instance = catalog();
-    expect((await instance.list({ status: 'published' })).map((t) => t.compiled.id)).toEqual(['zhihu-chapter']);
+    expect((await instance.list({ status: 'published' })).map((t) => t.compiled.id)).toEqual(['review-chapter', 'zhihu-chapter']);
     expect((await instance.list({ status: ['draft', 'archived'] })).map((t) => t.compiled.id)).toEqual([
       'archived-chapter',
       'draft-chapter',

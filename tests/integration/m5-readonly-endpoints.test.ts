@@ -108,10 +108,11 @@ describe('GET /api/templates', () => {
     expect(body.templates.map((t) => t.id)).toEqual([
       'archived-chapter',
       'draft-chapter',
+      'review-chapter',
       'zhihu-chapter',
     ]);
     // D-08：不可用 ≠ 不可见。列表页要能显示它们并打状态 chip
-    expect(body.templates.map((t) => t.status)).toEqual(['archived', 'draft', 'published']);
+    expect(body.templates.map((t) => t.status)).toEqual(['archived', 'draft', 'published', 'published']);
 
     // 坏模板必须显式可见，而不是「我明明建了模板，列表里没有」。
     // 两种坏法都要在：broken-chapter 坏在**编译期**（status 取值非法），
@@ -254,7 +255,7 @@ describe('GET /api/templates/:id', () => {
 describe('GET /api/templates/:id/tasks', () => {
   it('只返回引用该模板的任务，按 updatedAt 倒序', async () => {
     const h = open();
-    // 夹具里只有 zhihu-chapter 是 published，而 D-08 禁止用 draft / archived 建新任务，
+    // 夹具里 zhihu-chapter 和 review-chapter 都是 published，D-08 禁止用 draft / archived 建新任务，
     // 所以「别的模板的任务不许混进来」只能反过来验：库里明明有三个任务，
     // archived-chapter 名下必须一个都查不到。查询要是漏了 template_id 条件，
     // 下面那条会拿到三个。

@@ -255,6 +255,16 @@ export function deriveSlotPresentation(input: SlotPresentationInput): SlotPresen
 
   // B.2 第 4 行
   if (slot.status === 'pending') {
+    // R2：返修中（第 N 次）——revisionRound > 0 时显示返修轮次
+    if (slot.revisionRound > 0) {
+      return {
+        tone: 'warn',
+        state: '返修中',
+        detail: `第 ${slot.revisionRound} 次返修`,
+        blockedBy: blocked,
+        charCount,
+      };
+    }
     return { tone: 'idle', state: '未填充', detail: '等待执行', blockedBy: blocked, charCount };
   }
 
@@ -282,6 +292,17 @@ export function deriveSlotPresentation(input: SlotPresentationInput): SlotPresen
     };
   }
 
+  // R2 B.2 第 6' 行：reviewing → run/审核中
+  if (slot.status === 'reviewing') {
+    return {
+      tone: 'run',
+      state: '审核中',
+      detail: '内容已提交，正在按判据审核',
+      blockedBy: blocked,
+      charCount,
+    };
+  }
+
   // B.2 第 7 / 7' 行（D-19）：两个分支各自成句，**不叠加**。
   // 「校验通过」对工作槽位是句废话——它本来就不进产物，用户关心的正是这件事；
   // 两句都堆上去只会稀释信息。
@@ -299,6 +320,17 @@ export function deriveSlotPresentation(input: SlotPresentationInput): SlotPresen
       };
     }
     const count = formatThousands(charCount);
+    // R2：返修预算耗尽 → 「已完成（返修次数用尽）」，不得用警示/失败色调（D-26/D-30）。
+    // 它产出了内容、进产物了，只是系统停止了尝试。与「失败」（产不出内容）有本质区别。
+    if (slot.reviewExhausted) {
+      return {
+        tone: 'ok',
+        state: '已完成',
+        detail: `${count} 字 · 返修次数用尽，按现状完成`,
+        blockedBy: blocked,
+        charCount,
+      };
+    }
     return {
       tone: 'ok',
       state: '已完成',

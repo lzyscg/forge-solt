@@ -43,6 +43,12 @@ export interface FakeProviderScript {
   readonly callTools?: readonly FakeToolCall[];
   readonly submitStructure?: { rootSlotId: string; slots: readonly unknown[] };
   readonly submitContent?: { slotId: string; content: string };
+  /** R2：提交审核结果（complete_assignment kind=review_result） */
+  readonly submitReview?: {
+    slotId: string;
+    verdict: 'no_finding' | 'revise';
+    findings?: readonly { criterionId: string; quote: string; problem: string }[];
+  };
 
   // ---- 异常模拟 ----
   /** 挂起，用于测超时。等待可被 abort 打断 */
@@ -207,6 +213,18 @@ export class FakeProvider implements ProviderAdapter {
       );
     } else if (script.submitContent !== undefined) {
       calls.push(this.#call('complete_assignment', { kind: 'slot_content', ...script.submitContent }));
+    }
+
+    // R2：审核结果提交
+    if (script.submitReview !== undefined) {
+      calls.push(
+        this.#call('complete_assignment', {
+          kind: 'review_result',
+          slotId: script.submitReview.slotId,
+          verdict: script.submitReview.verdict,
+          findings: script.submitReview.findings ?? [],
+        }),
+      );
     }
 
     return calls;

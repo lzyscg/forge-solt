@@ -67,6 +67,18 @@ export const ToolSchemas = {
       slotId: z.string(),
       content: z.string(),
     }),
+    z.object({
+      kind: z.literal('review_result'),
+      slotId: z.string(),
+      verdict: z.enum(['no_finding', 'revise']),
+      findings: z.array(
+        z.object({
+          criterionId: z.string(),
+          quote: z.string(),
+          problem: z.string(),
+        }),
+      ),
+    }),
   ]),
 } as const;
 

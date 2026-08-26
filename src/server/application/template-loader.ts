@@ -66,6 +66,8 @@ export interface CompiledSlotType {
   includeInArtifact: boolean;
   validation: CompiledSlotValidation;
   guidance: readonly string[];
+  /** R2：返修上限，默认 2（D-26） */
+  maxRevisionRounds: number;
 }
 
 export interface CompiledAgent {
@@ -123,6 +125,8 @@ export interface CompiledTemplate {
     createStructure: CompiledBinding;
     /** key 是槽位类型 ID，覆盖全部 contentBearing 类型 */
     fillSlotByType: Readonly<Record<string, CompiledBinding>>;
+    /** R2：审核绑定，可选（D-27）。不覆盖全部 contentBearing 类型是合法默认 */
+    reviewSlotByType: Readonly<Record<string, CompiledBinding>>;
   };
   limits: CompiledLimits;
   output: { fileName: string; mediaType: string; assembler: 'markdown_concat_v1' };
@@ -367,6 +371,7 @@ export async function compileTemplate(
         forbidPatternMessage: s.validation?.forbidPatternMessage ?? null,
       },
       guidance: s.guidance ?? [],
+      maxRevisionRounds: s.maxRevisionRounds ?? 2,
     };
   });
   const slotTypeById = new Map(slotTypes.map((s) => [s.id, s]));
@@ -410,7 +415,7 @@ export async function compileTemplate(
     executionTimeoutMs: raw.limits.executionTimeoutMs,
   };
 
-  const resolveOne = (rawBinding: RawBinding, where: string, expected: 'create_structure' | 'fill_slot', slotTypeId: string | null): CompiledBinding => {
+  const resolveOne = (rawBinding: RawBinding, where: string, expected: 'create_structure' | 'fill_slot' | 'review_slot', slotTypeId: string | null): CompiledBinding => {
     const agent = agentById.get(rawBinding.agentId);
     if (agent === undefined) {
       throw invalid(templateRef, `绑定 ${where} 引用了不存在的 agentId：${rawBinding.agentId}`);
@@ -472,6 +477,25 @@ export async function compileTemplate(
       templateRef,
       `bindings.fillSlotByType 未覆盖全部 contentBearing 槽位类型，缺少：${uncovered.join(', ')}`,
     );
+  }
+
+  // R2：审核绑定编译（D-27）。reviewSlotByType 是可选的——不绑定是合法默认。
+  // 不套用 fillSlotByType 的「必须覆盖全部 contentBearing 类型」校验（FR-REVIEW-001/D-27）。
+  // operation 校验用同型 resolveOne（不匹配自动拒）。
+  // FR-TPL-003 的判据唯一性等校验归 R4，不做。
+  const reviewSlotByType: Record<string, CompiledBinding> = {};
+  for (const [slotTypeId, rawBinding] of Object.entries(raw.bindings.reviewSlotByType ?? {})) {
+    const slotType = slotTypeById.get(slotTypeId);
+    if (slotType === undefined) {
+      throw invalid(templateRef, `bindings.reviewSlotByType 声明了不存在的槽位类型：${slotTypeId}`);
+    }
+    if (!slotType.contentBearing) {
+      throw invalid(
+        templateRef,
+        `bindings.reviewSlotByType 给容器类型 ${slotTypeId} 配了绑定，但容器槽位没有内容可审`,
+      );
+    }
+    reviewSlotByType[slotTypeId] = resolveOne(rawBinding, `reviewSlotByType.${slotTypeId}`, 'review_slot', slotTypeId);
   }
 
   // --- 6. forbidPattern：先查语法，再查时间预算 ---
@@ -550,7 +574,7 @@ export async function compileTemplate(
       // 只记 id+version 会让「版本号没动但内容改了」悄悄溜过去。
       contentHash: skills[ref.id]?.contentHash ?? '',
     })),
-    bindings: { createStructure, fillSlotByType },
+    bindings: { createStructure, fillSlotByType, reviewSlotByType },
     limits: {
       maxSlots: raw.limits.maxSlots,
       maxStructureDepth: raw.limits.maxStructureDepth,

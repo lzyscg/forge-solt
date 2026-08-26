@@ -444,6 +444,38 @@ describe('附录 B.2 deriveSlotPresentation', () => {
     });
   });
 
+  // R2 B.2 第 4' 行：pending 且 revisionRound > 0 → warn/返修中（第 N 次）
+  it("R2 B.2 第 4' 行：pending 且 revisionRound>0 → warn/返修中", () => {
+    const out = deriveSlotPresentation(
+      slotInput({
+        slot: slot({ slotId: 'scene_01', status: 'pending', revisionRound: 2, contentText: '上一稿正文' }),
+      }),
+    );
+    expect(out).toEqual({
+      tone: 'warn',
+      state: '返修中',
+      detail: '第 2 次返修',
+      blockedBy: [],
+      charCount: 5,
+    });
+  });
+
+  // R2 B.2 第 6' 行：reviewing → run/审核中
+  it("R2 B.2 第 6' 行：reviewing → run/审核中", () => {
+    const out = deriveSlotPresentation(
+      slotInput({
+        slot: slot({ slotId: 'scene_01', status: 'reviewing', contentText: '待审正文' }),
+      }),
+    );
+    expect(out).toEqual({
+      tone: 'run',
+      state: '审核中',
+      detail: '内容已提交，正在按判据审核',
+      blockedBy: [],
+      charCount: 4,
+    });
+  });
+
   it('B.2 第 5 行：running 且 activeAttempt>1 → warn/超时重试，含重试计数与上次原因', () => {
     const out = deriveSlotPresentation(
       slotInput({
@@ -506,6 +538,24 @@ describe('附录 B.2 deriveSlotPresentation', () => {
       blockedBy: [],
       charCount: 1486,
     });
+  });
+
+  // R2 B.2 第 7 修订行：completed 且 reviewExhausted → ok/已完成（返修次数用尽）
+  it('R2 B.2 第 7 修订行：completed 且 reviewExhausted → 不用警示色', () => {
+    const out = deriveSlotPresentation(
+      slotInput({
+        slot: slot({
+          slotId: 'scene_01',
+          status: 'completed',
+          reviewExhausted: true,
+          contentText: '字'.repeat(1200),
+        }),
+      }),
+    );
+    expect(out.tone).toBe('ok');
+    expect(out.state).toBe('已完成');
+    expect(out.detail).toContain('返修次数用尽');
+    expect(out.detail).not.toContain('失败');
   });
 
   it("B.2 第 7' 行：工作槽位是「{charCount} 字 · 不进正文」，不叠加「校验通过」", () => {

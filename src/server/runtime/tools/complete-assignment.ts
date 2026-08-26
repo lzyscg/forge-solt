@@ -64,6 +64,15 @@ export function createCompleteAssignment(ctx: ToolsetContext): ToolDefinition {
           ),
         );
       }
+      if (ctx.operation === 'review_slot' && payload.kind !== 'review_result') {
+        reject(
+          new ForgeError(
+            'ASSIGNMENT_OUTPUT_INVALID',
+            `本次工作是审核槽位「${ctx.targetSlotId ?? ''}」，必须提交 kind 为 "review_result" 的审核结果，` +
+              '不能提交结构或槽位正文。',
+          ),
+        );
+      }
       if (payload.kind === 'slot_content' && payload.slotId !== ctx.targetSlotId) {
         reject(
           new ForgeError(
@@ -83,13 +92,17 @@ export function createCompleteAssignment(ctx: ToolsetContext): ToolDefinition {
         summary:
           payload.kind === 'structure'
             ? `提交结构提案：${payload.slots.length} 个槽位，根槽位 ${payload.rootSlotId}`
-            : `提交槽位「${payload.slotId}」正文，共 ${payload.content.length} 字`,
+            : payload.kind === 'slot_content'
+              ? `提交槽位「${payload.slotId}」正文，共 ${payload.content.length} 字`
+              : `提交槽位「${payload.slotId}」审核结果：${payload.verdict}`,
         // 正文与完整提案都不进 payload：前者可能上万字，后者会在校验失败时
         // 由 validation_failed 带上；trace 的 payload 是展开区不是仓库
         payload:
           payload.kind === 'structure'
             ? { kind: payload.kind, slotCount: payload.slots.length, rootSlotId: payload.rootSlotId }
-            : { kind: payload.kind, slotId: payload.slotId, contentLength: payload.content.length },
+            : payload.kind === 'slot_content'
+              ? { kind: payload.kind, slotId: payload.slotId, contentLength: payload.content.length }
+              : { kind: payload.kind, slotId: payload.slotId, verdict: payload.verdict, findingCount: payload.findings.length },
       });
 
       const outcome = await ctx.completion.submit({

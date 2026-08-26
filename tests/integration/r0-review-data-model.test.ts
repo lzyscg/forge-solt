@@ -302,7 +302,29 @@ describe('R0：新 UNIQUE 允许跨 operation 并存', () => {
     expect(rows.map((r) => r.operation)).toEqual(['fill_slot', 'review_slot']);
   });
 
-  it('同 operation 同 attempt 重复仍被拒', () => {
+  it('fill_slot 同 task/slot/attempt 重复仍被部分唯一索引拒（004 重建后）', () => {
+    const db = freshMigratedDb();
+    db.transaction(() => {
+      db.exec(`
+        INSERT INTO task_snapshots (id, task_id, template_id, template_version, compiled_json, snapshot_hash, created_at)
+          VALUES ('snap-1', 'task-1', 'tpl', '1', '{}', 'h', '2026-01-01T00:00:00.000Z');
+        INSERT INTO tasks (id, name, snapshot_id, input_json, status, phase, created_at, updated_at)
+          VALUES ('task-1', 'T', 'snap-1', '{}', 'running', 'slots', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z');
+        INSERT INTO executions (id, task_id, operation, target_slot_id, agent_id, skill_id, skill_version, token_hash, context_json, context_hash, prompt_hash, model_alias, provider, model, attempt_number, status, created_at)
+          VALUES ('e1', 'task-1', 'fill_slot', 's1', 'a', 'sk', '1', 'th', '{}', 'ch', 'ph', 'alias', 'p', 'm', 1, 'created', '2026-01-01T00:00:00.000Z');
+      `);
+    })();
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO executions (id, task_id, operation, target_slot_id, agent_id, skill_id, skill_version, token_hash, context_json, context_hash, prompt_hash, model_alias, provider, model, attempt_number, status, created_at)
+            VALUES ('e2', 'task-1', 'fill_slot', 's1', 'a', 'sk', '1', 'th', '{}', 'ch', 'ph', 'alias', 'p', 'm', 1, 'created', '2026-01-01T00:00:00.000Z')`,
+        )
+        .run(),
+    ).toThrow(/UNIQUE constraint failed/i);
+  });
+
+  it('004 后 review_slot 同 task/slot/attempt 允许并存（部分唯一索引只管 fill_slot）', () => {
     const db = freshMigratedDb();
     db.transaction(() => {
       db.exec(`
@@ -314,6 +336,7 @@ describe('R0：新 UNIQUE 允许跨 operation 并存', () => {
           VALUES ('e1', 'task-1', 'review_slot', 's1', 'a', 'sk', '1', 'th', '{}', 'ch', 'ph', 'alias', 'p', 'm', 1, 'created', '2026-01-01T00:00:00.000Z');
       `);
     })();
+    // 不应抛错——review_slot 不受部分唯一索引约束，唯一性由 slot_reviews 主键保证
     expect(() =>
       db
         .prepare(
@@ -321,7 +344,7 @@ describe('R0：新 UNIQUE 允许跨 operation 并存', () => {
             VALUES ('e2', 'task-1', 'review_slot', 's1', 'a', 'sk', '1', 'th', '{}', 'ch', 'ph', 'alias', 'p', 'm', 1, 'created', '2026-01-01T00:00:00.000Z')`,
         )
         .run(),
-    ).toThrow(/UNIQUE constraint failed/i);
+    ).not.toThrow();
   });
 });
 

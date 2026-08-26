@@ -82,6 +82,8 @@ export const RawSlotTypeSchema = z
     includeInArtifact: z.boolean().optional(),
     validation: SlotValidationSchema.optional(),
     guidance: z.array(z.string().min(1)).optional(),
+    /** R2：返修上限，默认 2（D-26）。编译进 SlotTypeDefinition */
+    maxRevisionRounds: z.number().int().min(0).optional(),
   })
   .strict();
 
@@ -197,6 +199,13 @@ export const RawTemplateSchema = z
         createStructure: RawBindingSchema,
         /** key 是槽位类型 ID。编译期校验它覆盖了全部 contentBearing 类型 */
         fillSlotByType: z.record(RawBindingSchema),
+        /**
+         * R2：审核 Skill 按 Slot Type 可选绑定（D-27 / FR-REVIEW-001）。
+         * 不绑定是合法且默认的状态——不覆盖全部 contentBearing 类型。
+         * 结构与 fillSlotByType 相同（RawBindingSchema）。
+         * operation 校验在编译期用 resolveOne 同型校验（R2 落，R4 只加规则）。
+         */
+        reviewSlotByType: z.record(RawBindingSchema).optional(),
       })
       .strict(),
     limits: RawLimitsSchema,

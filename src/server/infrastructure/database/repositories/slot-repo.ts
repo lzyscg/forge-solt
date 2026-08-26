@@ -132,6 +132,12 @@ export interface SlotRepo {
   markForRevision(taskId: string, slotId: string): number;
   /** reviewing → completed。exhausted 为 true 时同时置 review_exhausted = 1 */
   clearReview(taskId: string, slotId: string, exhausted: boolean): number;
+  /**
+   * R2 AC-R-012：reviewing → pending，用于 stop / 孤儿恢复。
+   * 与 markForRevision 的差别：不递增 revision_round（停止不是审核驱动的返修，不吃 D-26 预算）。
+   * 不触碰 content_text 与 producer 各列——内容与 producer 原样保留。
+   */
+  cancelReview(taskId: string, slotId: string): number;
   markFailed(taskId: string, slotId: string, errorCode: ErrorCode, errorMessage: string): void;
   /** §5.5 Stop / 启动恢复：running → pending，清 error */
   resetToPending(taskId: string, slotId: string): number;
@@ -222,6 +228,14 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
   const clearReviewStmt = db.prepare(
     // reviewing → completed。exhausted 为 true 时同时置 review_exhausted = 1。
     `UPDATE slots SET status = 'completed', review_exhausted = ?, updated_at = ?
+     WHERE task_id = ? AND slot_id = ? AND status = 'reviewing'`,
+  );
+
+  // R2 AC-R-012：reviewing → pending，用于 stop / 孤儿恢复。
+  // 不递增 revision_round（停止不是审核驱动的返修，不吃 D-26 预算）。
+  // 不触碰 content_text 与 producer 各列——内容与 producer 原样保留。
+  const cancelReviewStmt = db.prepare(
+    `UPDATE slots SET status = 'pending', updated_at = ?
      WHERE task_id = ? AND slot_id = ? AND status = 'reviewing'`,
   );
 
@@ -343,6 +357,10 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
 
     clearReview(taskId, slotId, exhausted) {
       return clearReviewStmt.run(toSqlBool(exhausted), clock(), taskId, slotId).changes;
+    },
+
+    cancelReview(taskId, slotId) {
+      return cancelReviewStmt.run(clock(), taskId, slotId).changes;
     },
 
     markFailed(taskId, slotId, errorCode, errorMessage) {

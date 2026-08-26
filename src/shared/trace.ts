@@ -46,6 +46,11 @@ export const TRACE_KINDS = [
   'artifact_created',
   'provider_retry', // ← 新增，UX §18.6 要求展示 Attempt 变化
   'task_queued', // ← 新增，D-14
+  // R2 审核返修（§4.1）。措辞受 D-30 约束：不得出现「审核通过/质量合格/已校验」。
+  'review_started', // 一条判据的审核 execution 建立
+  'review_no_finding', // 该判据未检出问题（不是 review_passed，D-30）
+  'review_revise', // 检出问题，payload 带通过校验的 findings 与丢弃条数
+  'revision_budget_exhausted', // 返修轮次用尽，按现状完成
 ] as const;
 export const TraceKindSchema = z.enum(TRACE_KINDS);
 export type TraceKind = (typeof TRACE_KINDS)[number];
@@ -116,6 +121,11 @@ export const TRACE_FILTER_GROUPS = {
     'artifact_created',
     'provider_retry',
     'task_queued',
+    // R2 审核返修：不加进过滤组 = 审核期间界面看起来卡死
+    'review_started',
+    'review_no_finding',
+    'review_revise',
+    'revision_budget_exhausted',
   ],
 } as const satisfies Record<string, readonly TraceKind[]>;
 

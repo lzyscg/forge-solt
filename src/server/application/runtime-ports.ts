@@ -115,10 +115,18 @@ export function createStructurePort(uow: UnitOfWorkHandle<UnitOfWork>): Structur
 export interface SubmissionRecord {
   proposalJson: string | null;
   reasons: readonly string[];
+  /**
+   * R2：审核 attempt 的判据 ID。
+   *
+   * 引擎在跑 review_slot 前把判据 ID 写进这里，CompletionPort 的 `dispatch`
+   * 在收到 `review_result` 时读它——模型回传的 findings 里虽然也有 criterionId，
+   * 但 verdict 为 no_finding 时 findings 为空，那时判据 ID 只能从这里拿。
+   */
+  criterionId: string | null;
 }
 
 export function emptySubmissionRecord(): SubmissionRecord {
-  return { proposalJson: null, reasons: [] };
+  return { proposalJson: null, reasons: [], criterionId: null };
 }
 
 export interface CompletionPortOptions {
@@ -169,8 +177,45 @@ export function createCompletionPort(options: CompletionPortOptions): Completion
       };
     }
 
+    // R2：review_result 的分派。
+    //
+    // criterionId 从 SubmissionRecord 拿而不是从 payload 的 findings 拿：
+    // verdict 为 no_finding 时 findings 为空数组，那时判据 ID 只能从引擎设置的侧信道取。
+    if (request.payload.kind === 'review_result') {
+      const criterionId = record.criterionId;
+      if (criterionId === null) {
+        // 引擎没设 criterionId 就跑了 review_slot = 内部错误
+        throw new ForgeError(
+          'STORAGE_ERROR',
+          `审核提交缺少判据 ID：execution ${request.executionId} 对槽位 ${request.payload.slotId}`,
+          `slot:${request.payload.slotId}`,
+        );
+      }
+      completion.submitReviewResult({
+        taskId: request.taskId,
+        executionId: request.executionId,
+        token: request.executionToken,
+        slotId: request.payload.slotId,
+        criterionId,
+        verdict: request.payload.verdict,
+        findings: request.payload.findings,
+      });
+      return { ok: true };
+    }
+
     // slot_content：producer 三件套只有冻结快照知道，Runtime 不该也不能提供
     const binding = resolveSlotBinding(snapshots, uow, request.taskId, request.payload.slotId);
+    // R2：该槽位类型绑定了审核 → 提交后进 reviewing 而非 completed
+    const slot = uow.repositories.slots.get(request.taskId, request.payload.slotId);
+    if (slot === null) {
+      throw new ForgeError(
+        'SLOT_NOT_FOUND',
+        `任务 ${request.taskId} 里没有槽位「${request.payload.slotId}」`,
+        `task:${request.taskId}/slot:${request.payload.slotId}`,
+      );
+    }
+    const hasReviewBinding =
+      snapshots.readSnapshot(request.taskId).compiled.bindings.reviewSlotByType[slot.type] !== undefined;
     const result = completion.submitSlotContent({
       taskId: request.taskId,
       executionId: request.executionId,
@@ -178,6 +223,7 @@ export function createCompletionPort(options: CompletionPortOptions): Completion
       slotId: request.payload.slotId,
       content: request.payload.content,
       producer: binding,
+      forReview: hasReviewBinding,
     });
     if (result.ok) return { ok: true };
     record.reasons = result.reasons;
@@ -299,8 +345,9 @@ export function reasonOf(error: unknown, fallback: string): string {
   return fallback;
 }
 
-/** `create_structure` 与 `fill_slot` 的字面量，避免各处手写字符串 */
+/** `create_structure`、 `fill_slot` 与 `review_slot` 的字面量，避免各处手写字符串 */
 export const OPERATIONS = {
   structure: 'create_structure',
   fillSlot: 'fill_slot',
+  reviewSlot: 'review_slot',
 } as const satisfies Record<string, Operation>;

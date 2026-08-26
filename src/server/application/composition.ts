@@ -110,7 +110,7 @@ export function buildApp(options: BuildAppOptions): ForgeApp {
   const assignments = createAssignmentService({ uow, traces });
   const structure = createStructureService({ snapshots, traces });
   const completion = createCompletionService({ uow, snapshots, traces });
-  const scheduler = createSlotScheduler({ uow });
+  const scheduler = createSlotScheduler({ uow, snapshots });
   const assembly = createAssemblyService({ uow, snapshots, traces });
 
   /**

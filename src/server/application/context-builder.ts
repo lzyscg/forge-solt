@@ -43,6 +43,7 @@
 import type { Operation } from '@shared/contracts.ts';
 import type { StructureViolation } from '@server/domain/structure-validation.ts';
 import { canonicalJson, sha256Hex } from '@server/domain/canonical.ts';
+import { ForgeError } from '@shared/errors.ts';
 import type { Slot } from '@server/domain/types.ts';
 import { compareSiblings, documentOrder } from '@server/domain/readiness.ts';
 import type { FrozenSkill, FrozenTaskSnapshot } from './snapshot-service.ts';
@@ -110,7 +111,23 @@ export interface FillSlotContextInput extends ContextBuilderCommonInput {
   retry: FillSlotRetryInput | null;
 }
 
-export type ContextBuilderInput = StructureContextInput | FillSlotContextInput;
+/** R2：审核上下文输入（D-23/D-32） */
+export interface ReviewSlotContextInput extends ContextBuilderCommonInput {
+  operation: 'review_slot';
+  /** 被审槽位 */
+  targetSlot: Slot;
+  /** 被审槽位类型定义 */
+  slotType: CompiledSlotType;
+  /** 全部槽位，用于渲染【结构概要】 */
+  slots: readonly Slot[];
+  dependencies: readonly DependencyContent[];
+  /** 本条判据的 ID（= 审核 Skill 的 section ID） */
+  criterionId: string;
+  /** 待审正文（= 槽位 contentText） */
+  contentUnderReview: string;
+}
+
+export type ContextBuilderInput = StructureContextInput | FillSlotContextInput | ReviewSlotContextInput;
 
 export interface BuiltAssignmentContext {
   operation: Operation;
@@ -538,8 +555,97 @@ function buildFillSlotTexts(input: FillSlotContextInput): {
 }
 
 // ---------------------------------------------------------------------------
-// 入口
+// Review Slot Context（R2：§4.3/D-23/D-32）
 // ---------------------------------------------------------------------------
+
+/**
+ * R2：审核上下文输出契约（D-23：一条判据一次 execution）。
+ *
+ * 模型返回 JSON：{ verdict: "no_finding" | "revise", findings: [{ criterionId, quote, problem }] }
+ * verdict 含义：no_finding = 未检出问题；revise = 检出问题（需带 findings）。
+ * 措辞约束（D-30）：不得出现「审核通过」「质量合格」「已校验」。
+ */
+const REVIEW_OUTPUT_CONTRACT = [
+  '【输出契约】review_result_v1',
+  '调用 complete_assignment：',
+  '{',
+  '  "kind": "review_result",',
+  '  "slotId": "<被审槽位ID>",',
+  '  "verdict": "no_finding" | "revise",',
+  '  "findings": [',
+  '    { "criterionId": "<判据ID>", "quote": "<逐字引文>", "problem": "<问题说明>" }',
+  '  ]',
+  '}',
+  '',
+  '字段说明：',
+  '- verdict: no_finding = 未检出问题；revise = 检出问题',
+  '- findings: verdict 为 revise 时必填，每条带一条逐字出自待审正文的引文',
+  '- quote 必须逐字出自待审正文，标点允许归一化',
+].join('\n');
+
+/**
+ * R2：审核上下文渲染（D-23/D-32）。
+ *
+ * 与 fill_slot 的关键差别：
+ * - system prompt 只注入这一条判据的章节文本，不提示还有别的判据（AC-R-002）；
+ * - user message 注入待审正文；
+ * - 审核 Agent 每轮全新，不携带任何往轮审核记录（D-32）。
+ */
+function buildReviewSlotTexts(input: ReviewSlotContextInput): {
+  systemText: string;
+  userText: string;
+  injectedSectionIds: string[];
+} {
+  const { targetSlot, slotType, criterionId, contentUnderReview } = input;
+
+  // AC-R-002：system prompt 只注入这一条判据的章节文本。
+  // renderSkillBlock 注入了 requiredSections 的全文 + 其余章节目录。
+  // 审核 Skill 的 requiredSections 应只包含本条判据对应的 section（R4 配置）。
+  // 但为确保 prompt 绝对不含其他判据文本，这里用 sectionIndex 直接取本条判据的文本，
+  // 而不是依赖 requiredSections 的正确配置。
+  const criterionSection = input.skill.sectionIndex[criterionId];
+  if (criterionSection === undefined) {
+    throw new ForgeError(
+      'STORAGE_ERROR',
+      `审核 Skill「${input.skill.id}」中没有判据（section）「${criterionId}」`,
+      `slot:${targetSlot.slotId}`,
+    );
+  }
+
+  const criterionBlock = `## ${criterionSection.id}${criterionSection.title === '' ? '' : `. ${criterionSection.title}`}\n${criterionSection.content}`;
+
+  const systemText = joinBlocks([
+    PLATFORM_BOUNDARY,
+    renderIdentity(input.agent),
+    [
+      '【当前工作】',
+      'Operation: review_slot',
+      `目标槽位: ${targetSlot.slotId}（${slotType.name}）`,
+      `判据: ${criterionId}`,
+      '你只需按上述判据审核本槽位正文，不审其他判据。',
+    ].join('\n'),
+    // 只注入本条判据文本 + Skill 概览（不含其他判据的 section 全文）
+    `【工作方法】${input.skill.id} v${input.skill.version}`,
+    input.skill.summary,
+    input.skill.preamble === '' ? null : input.skill.preamble,
+    criterionBlock,
+    FILL_SLOT_TOOLS, // 审核用同一套工具（read_slot 读依赖、read_structure_outline 看结构）
+    SUBMIT_RULES,
+    REVIEW_OUTPUT_CONTRACT,
+  ]);
+
+  const userText = joinBlocks([
+    renderTaskInput(input.snapshot),
+    renderStructureOutline(input.slots, targetSlot.slotId),
+    ['【本槽位目标】', targetSlot.instruction].join('\n'),
+    renderDependencies(input.dependencies),
+    '【待审正文】',
+    contentUnderReview,
+  ]);
+
+  // 只记本条判据的 section ID 进 injectedSectionIds
+  return { systemText, userText, injectedSectionIds: [criterionId] };
+}
 
 function structuredInputOf(
   input: ContextBuilderInput,
@@ -571,8 +677,9 @@ function structuredInputOf(
     };
   }
 
+  // fill_slot 与 review_slot 共享同一套语义输入形状
   return {
-    operation: 'fill_slot',
+    operation: input.operation,
     snapshotHash: input.snapshot.snapshotHash,
     taskInput,
     targetSlotId: input.targetSlot.slotId,
@@ -598,7 +705,11 @@ function structuredInputOf(
  */
 export function buildContext(input: ContextBuilderInput): BuiltAssignmentContext {
   const rendered =
-    input.operation === 'create_structure' ? buildStructureTexts(input) : buildFillSlotTexts(input);
+    input.operation === 'create_structure'
+      ? buildStructureTexts(input)
+      : input.operation === 'fill_slot'
+        ? buildFillSlotTexts(input)
+        : buildReviewSlotTexts(input);
 
   const contextJson = canonicalJson(structuredInputOf(input, rendered.injectedSectionIds));
 

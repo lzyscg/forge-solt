@@ -297,6 +297,8 @@ export function createTaskService(options: TaskServiceOptions): TaskService {
       contentBearing: slot.contentBearing,
       includeInArtifact: slot.includeInArtifact,
       status: slot.status,
+      revisionRound: slot.revisionRound,
+      reviewExhausted: slot.reviewExhausted,
       presentation: {
         tone: presentation.tone,
         state: presentation.state,

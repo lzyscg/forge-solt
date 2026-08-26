@@ -21,6 +21,7 @@ import type { Operation, TaskStatus } from '@shared/contracts.ts';
 import { ForgeError, type ErrorCode } from '@shared/errors.ts';
 import type { Slot, Task } from '@server/domain/types.ts';
 import type { StructureViolation } from '@server/domain/structure-validation.ts';
+import { settleReview } from '@server/domain/review-settlement.ts';
 import type { AssignmentOutcome, RateLimitBackoffConfig } from '@server/runtime/assignment-runner.ts';
 import { AssignmentRunner } from '@server/runtime/assignment-runner.ts';
 import type { ProviderRegistry } from '@server/runtime/provider/provider-registry.ts';
@@ -329,6 +330,7 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
       budget: new RetryBudget((key) => maxRetriesFor(snapshot, key)),
       structure: new Map(),
       slots: new Map(),
+      reviews: new Map(),
     };
 
     for (;;) {
@@ -460,6 +462,117 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
       return false;
     }
 
+    // R2：审核中——本轮判据尚未审完，跑一条 review_slot execution（AC-R-002）。
+    if (work.kind === 'review') {
+      const slot = work.slot;
+      const criterionId = work.criterionId;
+      const slotType = slotTypeOf(snapshot, slot);
+      const reviewBinding = snapshot.compiled.bindings.reviewSlotByType[slot.type];
+      if (reviewBinding === undefined) {
+        throw new ForgeError(
+          'STORAGE_ERROR',
+          `任务 ${taskId} 的快照里没有槽位类型「${slot.type}」的审核绑定`,
+          `task:${taskId}/slot:${slot.slotId}`,
+        );
+      }
+
+      // 审核重试配额独立分桶：key = review:<slotId>:<criterionId>
+      // D-32：审核 Agent 每轮全新，不携带往轮审核记录——retry 不回灌
+      const reviewKey = `review:${slot.slotId}:${criterionId}`;
+      const previous = reviewRetryOf(round, reviewKey);
+      previous.record.criterionId = criterionId;
+
+      const deps = scheduler.dependenciesOf(taskId, slot);
+
+      const outcome = await runAssignment({
+        taskId,
+        snapshot,
+        binding: reviewBinding,
+        operation: 'review_slot',
+        targetSlotId: slot.slotId,
+        slotType,
+        slots: uow.repositories.slots.listByTask(taskId),
+        targetSlot: slot,
+        dependencies: deps.contents,
+        allowedDependencySlotIds: deps.slotIds,
+        contextRetry: null,
+        record: previous.record,
+        state: previous,
+      });
+
+      if (outcome.kind === 'succeeded') return true;
+      if (outcome.kind === 'cancelled') return false;
+
+      const exhausted = round.budget.consume(reviewKey, outcome.consumesRetry);
+      previous.remember(outcome);
+
+      completion.failSlot({
+        taskId,
+        slotId: slot.slotId,
+        executionId: previous.executionId,
+        errorCode: outcome.code,
+        reason: exhausted
+          ? `${outcome.message}（已尝试 ${round.budget.attempts(reviewKey)} 次）`
+          : outcome.message,
+        exhausted,
+      });
+      return !exhausted;
+    }
+
+    // R2：本轮判据全审完 → 结算（D-21/D-26）。
+    if (work.kind === 'review_settle') {
+      const slot = work.slot;
+      const slotType = slotTypeOf(snapshot, slot);
+      const reviews = uow.repositories.slotReviews.listByRound(taskId, slot.slotId, slot.revisionRound);
+      const verdicts = reviews.map((r) => r.verdict);
+
+      const settlement = settleReview({
+        verdicts,
+        revisionRound: slot.revisionRound,
+        maxRevisionRounds: slotType.maxRevisionRounds,
+      });
+
+      traces.runWithTraces((repos, trace) => {
+        if (settlement.action === 'revise') {
+          repos.slots.markForRevision(taskId, slot.slotId);
+          trace.record({
+            taskId,
+            executionId: null,
+            actor: 'system',
+            kind: 'review_revise',
+            title: '审核检出问题，进入返修',
+            summary: `槽位 ${slot.slotId} 第 ${slot.revisionRound + 1} 次返修`,
+            payload: {
+              slotId: slot.slotId,
+              revisionRound: slot.revisionRound,
+              nextRound: settlement.nextRound,
+              verdicts: [...verdicts],
+            },
+          });
+        } else {
+          // complete（含 exhausted）
+          repos.slots.clearReview(taskId, slot.slotId, settlement.exhausted);
+          trace.record({
+            taskId,
+            executionId: null,
+            actor: 'system',
+            kind: settlement.exhausted ? 'revision_budget_exhausted' : 'review_no_finding',
+            title: settlement.exhausted
+              ? '返修次数用尽，按现状完成'
+              : '审核未检出问题，槽位完成',
+            summary: `槽位 ${slot.slotId}${settlement.exhausted ? ' · 返修次数用尽' : ''}`,
+            payload: {
+              slotId: slot.slotId,
+              revisionRound: slot.revisionRound,
+              exhausted: settlement.exhausted,
+              verdicts: [...verdicts],
+            },
+          });
+        }
+      });
+      return true;
+    }
+
     const slot = work.slot;
     const slotType = slotTypeOf(snapshot, slot);
     const binding = snapshot.compiled.bindings.fillSlotByType[slot.type];
@@ -575,19 +688,34 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
             maxAttempts: binding.maxRetries + 1,
             retry: input.contextRetry as StructureRetryInput | null,
           })
-        : buildContext({
-            operation: 'fill_slot',
-            snapshot,
-            agent,
-            skill,
-            attemptNumber,
-            maxAttempts: binding.maxRetries + 1,
-            slots: input.slots ?? [],
-            targetSlot: mustHave(input.targetSlot, 'targetSlot'),
-            slotType: mustHave(input.slotType, 'slotType'),
-            dependencies: input.dependencies ?? [],
-            retry: input.contextRetry as FillSlotRetryInput | null,
-          });
+        : operation === 'fill_slot'
+          ? buildContext({
+              operation: 'fill_slot',
+              snapshot,
+              agent,
+              skill,
+              attemptNumber,
+              maxAttempts: binding.maxRetries + 1,
+              slots: input.slots ?? [],
+              targetSlot: mustHave(input.targetSlot, 'targetSlot'),
+              slotType: mustHave(input.slotType, 'slotType'),
+              dependencies: input.dependencies ?? [],
+              retry: input.contextRetry as FillSlotRetryInput | null,
+            })
+          : buildContext({
+              operation: 'review_slot',
+              snapshot,
+              agent,
+              skill,
+              attemptNumber,
+              maxAttempts: binding.maxRetries + 1,
+              slots: input.slots ?? [],
+              targetSlot: mustHave(input.targetSlot, 'targetSlot'),
+              slotType: mustHave(input.slotType, 'slotType'),
+              dependencies: input.dependencies ?? [],
+              criterionId: mustHave(record.criterionId, 'criterionId'),
+              contentUnderReview: mustHave(input.targetSlot, 'targetSlot').contentText ?? '',
+            });
 
     /**
      * D-03：**每次 attempt 重新解析**别名，不缓存。
@@ -629,6 +757,8 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
     });
     record.proposalJson = null;
     record.reasons = [];
+    // R2：非 review_slot 操作不保留 criterionId（防止上一次审核的 criterionId 残留）
+    if (operation !== 'review_slot') record.criterionId = null;
     input.state.executionId = created.id;
 
     // §8.3：controller 由调用方创建并登记，stop 提交后才能同步拿到它 abort
@@ -691,6 +821,8 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
     budget: RetryBudget;
     structure: Map<string, RetryState<StructureRetryInput>>;
     slots: Map<string, RetryState<FillSlotRetryInput>>;
+    /** R2：审核重试状态。key = `review:<slotId>:<criterionId>` */
+    reviews: Map<string, ReviewRetryState>;
   }
 
   function structureRetryOf(round: RoundState, key: string): RetryState<StructureRetryInput> {
@@ -732,8 +864,45 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
     return state;
   }
 
+  /**
+   * R2：审核重试状态。D-32：审核 Agent 每轮全新，不携带往轮审核记录——retry 为 null。
+   * 唯一需要记的是 executionId（失败收尾用）和 record（criterionId 侧信道）。
+   */
+  interface ReviewRetryState {
+    retry: null;
+    record: SubmissionRecord;
+    executionId: string;
+    remember(outcome: Extract<AssignmentOutcome, { kind: 'failed' }>): void;
+  }
+
+  function reviewRetryOf(round: RoundState, key: string): ReviewRetryState {
+    const existing = round.reviews.get(key);
+    if (existing !== undefined) return existing;
+    const state: ReviewRetryState = {
+      retry: null,
+      record: emptySubmissionRecord(),
+      executionId: '',
+      remember() {
+        // D-32：审核 Agent 每轮全新，不回灌 retry 上下文
+      },
+    };
+    round.reviews.set(key, state);
+    return state;
+  }
+
   function maxRetriesFor(snapshot: FrozenTaskSnapshot, key: string): number {
     if (key === 'create_structure') return snapshot.compiled.bindings.createStructure.maxRetries;
+    if (key.startsWith('review:')) {
+      // review:<slotId>:<criterionId> → 用审核绑定的 maxRetries
+      const rest = key.slice('review:'.length);
+      const slotId = rest.includes(':') ? rest.slice(0, rest.indexOf(':')) : rest;
+      const slot = uow.repositories.slots.get(snapshot.taskId, slotId);
+      if (slot !== null) {
+        const reviewBinding = snapshot.compiled.bindings.reviewSlotByType[slot.type];
+        if (reviewBinding !== undefined) return reviewBinding.maxRetries;
+      }
+      return snapshot.compiled.limits.maxExecutionRetries;
+    }
     const slot = uow.repositories.slots.get(snapshot.taskId, key);
     if (slot === null) return snapshot.compiled.limits.maxExecutionRetries;
     return (

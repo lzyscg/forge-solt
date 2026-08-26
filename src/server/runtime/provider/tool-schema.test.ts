@@ -50,14 +50,14 @@ describe('toJsonSchema', () => {
     expect(order?.['minimum']).toBe(0);
   });
 
-  it('discriminatedUnion 展开成 anyOf，两个分支都在', () => {
+  it('discriminatedUnion 展开成 anyOf，三个分支都在', () => {
     const schema = toJsonSchema(ToolSchemas.complete_assignment);
     const anyOf = schema['anyOf'] as Record<string, unknown>[];
-    expect(anyOf).toHaveLength(2);
+    expect(anyOf).toHaveLength(3);
     const kinds = anyOf.map(
       (branch) => ((branch['properties'] as Record<string, Record<string, unknown>>)['kind'])?.['const'],
     );
-    expect(kinds).toEqual(['structure', 'slot_content']);
+    expect(kinds).toEqual(['structure', 'slot_content', 'review_result']);
   });
 
   /**

@@ -34,6 +34,8 @@ function makeSlot(o: Partial<SlotView> = {}): SlotView {
     contentBearing: true,
     includeInArtifact: true,
     status: 'pending',
+    revisionRound: 0,
+    reviewExhausted: false,
     presentation: { tone: 'idle', state: '可生产', detail: '' },
     blockedBy: [],
     charCount: null,

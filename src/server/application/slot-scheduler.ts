@@ -32,6 +32,7 @@ import {
 import type { Slot } from '@server/domain/types.ts';
 import type { UnitOfWork, UnitOfWorkHandle } from '@server/infrastructure/uow.ts';
 import type { DependencyContent } from './context-builder.ts';
+import type { SnapshotService } from './snapshot-service.ts';
 
 /** 「下一步该干什么」。每个分支都带上依据的槽位，调用方不必再查一次库 */
 export type NextWork =
@@ -39,6 +40,16 @@ export type NextWork =
   | { kind: 'running'; slot: Slot }
   /** 有槽位处于失败态。按失败处理，不进入死锁判定 */
   | { kind: 'failed'; slot: Slot }
+  /**
+   * R2：有槽位处于审核中，且该轮尚有未审判据。
+   * 引擎应跑一条 review_slot execution（AC-R-002）。
+   */
+  | { kind: 'review'; slot: Slot; criterionId: string }
+  /**
+   * R2：该槽位本轮判据已全部审完，引擎应结算（D-21/D-26）。
+   * 结算事务内调 settleReview → markForRevision / clearReview。
+   */
+  | { kind: 'review_settle'; slot: Slot }
   /** 全部内容承载槽位已完成，可以组装（FR-SCH-004 第 1 条） */
   | { kind: 'assembly' }
   /** 下一个要生产的槽位（文档序中第一个 ready 的） */
@@ -63,6 +74,8 @@ export interface SlotScheduler {
 
 export interface SlotSchedulerOptions {
   uow: UnitOfWorkHandle<UnitOfWork>;
+  /** R2：读冻结快照以枚举判据（AC-R-008） */
+  snapshots: SnapshotService;
 }
 
 /**
@@ -79,8 +92,53 @@ function composeDeadlockReason(slotIds: readonly string[], blockedBy: readonly s
   );
 }
 
+/**
+ * R2：从冻结快照枚举判据 ID（= 审核 Skill 的 section_index 章节按索引顺序），
+ * 找出该轮在 slot_reviews 里尚无记录的第一条判据（§6.2「沿用 SECTION_ID_PATTERN 风格」）。
+ *
+ * 判据 ID = 冻结快照审核 Skill 的 section ID（S1、S2…，按 sections 数组顺序）。
+ * 调度器从任务冻结的审核 Skill 快照枚举判据（AC-R-008）。
+ *
+ * 返回 null 表示本轮判据已全部审完。
+ */
+function findNextCriterion(
+  snapshots: SnapshotService,
+  slotReviewsRepo: { listByRound: (taskId: string, slotId: string, round: number) => readonly { criterionId: string }[] },
+  slot: Slot,
+): string | null {
+  const snapshot = snapshots.readSnapshot(slot.taskId);
+  const binding = snapshot.compiled.bindings.reviewSlotByType[slot.type];
+  if (binding === undefined) {
+    // 调度器给了 review 工作但没有审核绑定 = 内部错误
+    throw new ForgeError(
+      'STORAGE_ERROR',
+      `槽位 ${slot.slotId}（类型 ${slot.type}）处于 reviewing 但快照无审核绑定`,
+      `slot:${slot.slotId}`,
+    );
+  }
+  const skill = snapshot.skills[binding.skillId];
+  if (skill === undefined) {
+    throw new ForgeError(
+      'STORAGE_ERROR',
+      `任务 ${slot.taskId} 的快照里没有审核 Skill「${binding.skillId}」`,
+      `slot:${slot.slotId}`,
+    );
+  }
+  // 判据 ID = section ID，按 sections 数组顺序（不是 requiredSections 顺序）
+  const allCriteria = skill.sections.map((s) => s.id);
+  if (allCriteria.length === 0) return null;
+
+  const reviewed = slotReviewsRepo.listByRound(slot.taskId, slot.slotId, slot.revisionRound);
+  const reviewedIds = new Set(reviewed.map((r) => r.criterionId));
+  for (const criterionId of allCriteria) {
+    if (!reviewedIds.has(criterionId)) return criterionId;
+  }
+  return null;
+}
+
 export function createSlotScheduler(options: SlotSchedulerOptions): SlotScheduler {
-  const { slots: slotRepo } = options.uow.repositories;
+  const { slots: slotRepo, slotReviews: slotReviewsRepo } = options.uow.repositories;
+  const { snapshots } = options;
 
   return {
     selectNext(taskId) {
@@ -104,6 +162,20 @@ export function createSlotScheduler(options: SlotSchedulerOptions): SlotSchedule
       const failed = ordered.find((slot) => slot.status === 'failed');
       if (failed !== undefined) return { kind: 'failed', slot: failed };
 
+      // R2：reviewing 必须排在 assembly 之前。否则 reviewing 的槽位会被
+      // allContentSlotsCompleted 判为「没完成」而落到第 5 步去找新槽位——
+      // 那会绕过审核直接开下一个（AC-R-007 必须反证）。
+      const reviewing = ordered.find((slot) => slot.status === 'reviewing');
+      if (reviewing !== undefined) {
+        // 从冻结快照枚举判据 ID（section_index 的章节 ID，按索引顺序）。
+        const reviewWork = findNextCriterion(snapshots, slotReviewsRepo, reviewing);
+        if (reviewWork !== null) {
+          return { kind: 'review', slot: reviewing, criterionId: reviewWork };
+        }
+        // 本轮判据全审完 → 触发结算
+        return { kind: 'review_settle', slot: reviewing };
+      }
+
       if (allContentSlotsCompleted(slots)) return { kind: 'assembly' };
 
       const next = selectNextReadySlot(slots);
@@ -119,7 +191,8 @@ export function createSlotScheduler(options: SlotSchedulerOptions): SlotSchedule
         );
       }
 
-      // 走不到：内容槽位只有四种状态，前四条判定已穷举。
+      // 走不到：内容槽位有五种状态（pending/running/reviewing/completed/failed），
+      // 前五条判定已穷举（running/failed/reviewing/assembly/slot）。
       // 仍然显式报错而不是静默返回 assembly——静默的结果是产出一份缺段的产物。
       throw new ForgeError(
         'STORAGE_ERROR',

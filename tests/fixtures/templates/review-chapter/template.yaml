@@ -1,0 +1,135 @@
+# R2 审核返修测试模板：在 zhihu-chapter 基础上加 reviewSlotByType 绑定。
+# scene 类型绑定审核 Skill，审核 Skill 有两个判据（S1、S2）。
+id: review-chapter
+version: 1.0.0
+name: 带审核返修的章节模板
+description: 在 zhihu-chapter 基础上为 scene 类型绑定审核 Agent，用于测试 R2 审核/返修流程。
+status: published
+
+presentation:
+  outputKind: 单章正文
+  tags: [审核返修]
+  exampleStructure:
+    - { name: chapter, typeId: chapter, kind: container, depth: 0 }
+    - { name: outline, typeId: chapter_outline, kind: content, depth: 1 }
+    - { name: title, typeId: title, kind: content, depth: 1 }
+    - { name: scene_01, typeId: scene, kind: content, depth: 1 }
+
+inputFields:
+  - id: chapter_packet
+    label: 章节执行包
+    type: textarea
+    required: true
+    hint: 本章的素材、人物状态与情节目标
+
+slotTypes:
+  - id: chapter
+    name: 章节容器
+    description: 承载完整章节结构，不产出正文
+    contentBearing: false
+
+  - id: chapter_outline
+    name: 章节骨架
+    description: 各场景的目标、冲突与出场人物。
+    contentBearing: true
+    includeInArtifact: false
+    validation:
+      minChars: 100
+      maxChars: 3000
+
+  - id: title
+    name: 章节标题
+    description: 单章标题
+    contentBearing: true
+    validation:
+      minChars: 4
+      maxChars: 40
+
+  - id: scene
+    name: 场景段
+    description: 通过行动、冲突或信息变化推进正文
+    contentBearing: true
+    validation:
+      minChars: 300
+      maxChars: 8000
+      forbidPattern: '(?m)^#{1,6}\s'
+      forbidPatternMessage: 场景正文不得包含 Markdown 小标题
+    maxRevisionRounds: 2
+
+agents:
+  - id: structure_designer
+    name: 章节结构设计 Agent
+    role: 根据章节执行包设计具体章节结构
+    model: structure
+    systemInstruction: |
+      你负责设计章节的内容结构，不负责撰写正文。
+
+  - id: chapter_writer
+    name: 章节写作 Agent
+    role: 根据结构槽目标生产章节正文
+    model: main
+    systemInstruction: |
+      你负责撰写单个结构槽的正文，不负责修改结构或其他槽位。
+
+  - id: scene_reviewer
+    name: 场景审核 Agent
+    role: 按判据审核场景正文
+    model: main
+    systemInstruction: |
+      你负责按判据审核场景槽位的正文，只审被指定的判据。
+
+skills:
+  - id: chapter-structure-design
+    version: 1.0.0
+    source: skills/chapter-structure-design/SKILL.md
+  - id: outline-writing
+    version: 1.0.0
+    source: skills/outline-writing/SKILL.md
+  - id: title-writing
+    version: 1.0.0
+    source: skills/title-writing/SKILL.md
+  - id: scene-writing
+    version: 1.0.0
+    source: skills/scene-writing/SKILL.md
+  - id: scene-review
+    version: 1.0.0
+    source: skills/scene-review/SKILL.md
+
+bindings:
+  createStructure:
+    agentId: structure_designer
+    skillId: chapter-structure-design
+    timeoutMs: 90000
+    maxRetries: 2
+
+  fillSlotByType:
+    chapter_outline:
+      agentId: chapter_writer
+      skillId: outline-writing
+      maxRetries: 2
+    title:
+      agentId: chapter_writer
+      skillId: title-writing
+    scene:
+      agentId: chapter_writer
+      skillId: scene-writing
+      timeoutMs: 180000
+      maxRetries: 1
+
+  reviewSlotByType:
+    scene:
+      agentId: scene_reviewer
+      skillId: scene-review
+      maxRetries: 1
+
+limits:
+  maxSlots: 32
+  maxStructureDepth: 4
+  maxExecutionRetries: 2
+  executionTimeoutMs: 120000
+  maxToolCallsPerAssignment: 24
+
+output:
+  fileName: chapter.md
+  mediaType: text/markdown
+  assembler: markdown_concat_v1

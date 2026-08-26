@@ -215,6 +215,10 @@ export const SlotViewSchema = z.object({
    */
   includeInArtifact: z.boolean(),
   status: SlotStatusSchema,
+  /** R2：返修轮次，从 0 起 */
+  revisionRound: z.number().int().min(0),
+  /** R2：返修预算耗尽后按现状完成 */
+  reviewExhausted: z.boolean(),
   presentation: PresentationSchema, // D-07：8 态词表
   blockedBy: z.array(z.string()), // pending 且依赖未完成时，点名在等谁
   charCount: z.number().nullable(), // 「1,486 字 · 校验通过」子行用

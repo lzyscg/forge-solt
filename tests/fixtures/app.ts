@@ -107,7 +107,7 @@ export async function createAppEnv(): Promise<AppEnv> {
     assignments,
     completions,
     assembly,
-    scheduler: createSlotScheduler({ uow: base.uow }),
+    scheduler: createSlotScheduler({ uow: base.uow, snapshots }),
     taskService: createTaskService({ uow: base.uow, now: () => Date.UTC(2026, 0, 1, 0, 5, 0) }),
     published,
     deltas,
