@@ -188,28 +188,64 @@ describe('R2 审核返修', () => {
     expect(JSON.parse(s1Review!.findingsJson)).toHaveLength(0);
   });
 
-  // AC-R-007：审核中的槽位阻止 assembly
+  /**
+   * AC-R-007：审核中的槽位阻止 assembly。
+   *
+   * ## 为什么 hang 的是 scene_02 而不是 scene_01（2026-08-27 反证记录）
+   *
+   * 这条用例原先 hang 的是 scene_01，那样**根本证不到命题**。
+   * `VALID_STRUCTURE` 里 scene_02 `dependsOn: ['scene_01']`，
+   * scene_01 一停在 reviewing，scene_02 就永远是 pending，于是
+   * `allContentSlotsCompleted` 因为 scene_02 而返回 false——
+   * **assembly 的条件压根不成立，跟 reviewing 拦没拦住无关。**
+   *
+   * 实测：把 slot-scheduler 的 reviewing 拦截拆掉、并让
+   * `allContentSlotsCompleted` 把 reviewing 也算作已完成（把 AC-R-007
+   * 要防的缺陷原样重现）之后，任务不是进 assembly，而是失败于
+   * `DEPENDENCY_DEADLOCK`（「scene_02 在等待 scene_01」）。
+   * 用例当时确实变红了，但红在收尾处 `stop` 抛的「任务处于失败状态」，
+   * **与本条验收的命题无关**——那是一条没红对地方的装饰性断言。
+   *
+   * 改 hang scene_02（文档序最后一个槽位）之后，其余槽位全部 completed，
+   * 「能不能组装」就**只**取决于这个 reviewing 槽位，命题才真正被隔离出来。
+   *
+   * ## 为什么断言产物而不是只看 phase
+   *
+   * `phase` 是点时刻采样，会和 assembly 赛跑。assembly 唯一不可逆的
+   * 可观测后果是**产出 artifact**——落了库就不会变回去，没有采样窗口。
+   * 持续采样一小段时间、断言它一直为空，才是「审核期间没有触发 assembly」。
+   */
   it('AC-R-007：reviewing 槽位不触发 assembly', async () => {
     const h = createReviewHarness(
       scriptToSceneReview([
-        // S1 审核完成
+        // scene_01 两条判据都审完 → completed，放行 scene_02
         { submitReview: { slotId: 'scene_01', verdict: 'no_finding' } },
-        // S2 审核 hang：让槽位停在 reviewing
+        { submitReview: { slotId: 'scene_01', verdict: 'no_finding' } },
+        // scene_02 产出内容 → 进入 reviewing
+        { submitContent: { slotId: 'scene_02', content: sceneText('第二场') } },
+        { submitReview: { slotId: 'scene_02', verdict: 'no_finding' } },
+        // 最后一条判据 hang：scene_02 停在 reviewing，其余槽位全部 completed
         { hangMs: 60000 },
       ]),
     );
     const taskId = await createAndStart(h);
 
-    // 等 scene_01 进入 reviewing 状态（S2 hang 期间）
-    await waitFor(() =>
-      h.uow.repositories.slots.get(taskId, 'scene_01')?.status === 'reviewing',
-    );
+    // 等 scene_02 进入 reviewing（此时它是唯一未完成的内容槽位）
+    await waitFor(() => h.uow.repositories.slots.get(taskId, 'scene_02')?.status === 'reviewing');
 
-    // 槽位处于 reviewing（S2 未审完）
-    const slot = h.uow.repositories.slots.getOrThrow(taskId, 'scene_01');
-    expect(slot.status).toBe('reviewing');
+    // 前提核对：除 scene_02 外的内容槽位都已完成，否则命题没被隔离出来
+    const others = h.uow.repositories.slots
+      .listByTask(taskId)
+      .filter((s) => s.contentBearing && s.slotId !== 'scene_02');
+    expect(others.length).toBeGreaterThan(0);
+    expect(others.every((s) => s.status === 'completed')).toBe(true);
 
-    // 任务不应进入 assembly
+    for (let i = 0; i < 20; i += 1) {
+      expect(h.uow.repositories.slots.getOrThrow(taskId, 'scene_02').status).toBe('reviewing');
+      expect(h.uow.repositories.artifacts.getByTask(taskId)).toBeNull();
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+
     const task = h.uow.repositories.tasks.getOrThrow(taskId);
     expect(task.phase).not.toBe('assembly');
     expect(task.phase).not.toBe('done');

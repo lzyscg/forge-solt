@@ -93,6 +93,19 @@ export interface PriorRound {
  * （FR-CTX-005：只记 ID，内容装配时现取，不存副本）。
  *
  * readSlotIds 里的 ID 若不在 dependencyContents 里则跳过（确定性的缺失处理）。
+ *
+ * ## `dependencyContents` 在生产环境恒为空 Map —— 覆盖率里的这块是虚的
+ *
+ * 全仓库唯一的调用点是 `context-builder.ts` 的 `renderFillSlotRevision`，
+ * 它传的是模块级常量 `NO_DEPENDENCY_CONTENTS`（永远是空的）。理由在那边写着：
+ * 依赖正文已经由 `renderDependencies` 在同一条 User Message 里渲染过一遍，
+ * 那一份是调度时从库里现取的、唯一的真相来源；再印一遍既撑大 prompt，
+ * 又制造出两个看起来平级的版本。
+ *
+ * 于是本函数里「取到了内容 → 渲染依赖段」那条分支**生产环境永远走不到**，
+ * 只有测试会走。`src/server/domain/**` 那个 100% 覆盖率里，这一块因此是
+ * **空转的**：数字是满的，但它描述的不是真实运行路径。留着这个参数是有意的
+ * （它是预留能力，不是遗漏），但**不要把这里的 100% 当成「这条路被验证过」**。
  */
 export function renderRevisionContext(
   prior: PriorRound,

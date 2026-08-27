@@ -145,7 +145,6 @@ export interface SlotRepo {
   resetFailedToPending(taskId: string): number;
   /** §8.7 结构阶段 retry：整棵结构树作废重来 */
   deleteAll(taskId: string): number;
-  countByStatus(taskId: string): Record<SlotStatus, number>;
 }
 
 export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
@@ -393,15 +392,6 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
 
     deleteAll(taskId) {
       return db.prepare('DELETE FROM slots WHERE task_id = ?').run(taskId).changes;
-    },
-
-    countByStatus(taskId) {
-      const counts: Record<SlotStatus, number> = { pending: 0, running: 0, reviewing: 0, completed: 0, failed: 0 };
-      const rows = db
-        .prepare('SELECT status, COUNT(*) AS n FROM slots WHERE task_id = ? GROUP BY status')
-        .all(taskId) as Array<{ status: SlotStatus; n: number }>;
-      for (const row of rows) counts[row.status] = row.n;
-      return counts;
     },
   };
 }
