@@ -108,6 +108,46 @@ describe('M3 主路径：结构 → 槽位 → 组装', () => {
     expect(traces.filter((t) => t.kind === 'assignment_completed')).toHaveLength(executionCount);
   });
 
+  /**
+   * token 记账必须**由引擎驱动整轮之后**落库。
+   *
+   * ## 这条断言为什么必须在引擎层，不能在仓储层
+   *
+   * 2026-08-27 的实测：`executions.input_tokens / output_tokens` 在生产中
+   * **恒为 NULL**——`m4-measure`（121 条）与 `m7-accept10`（68 条）里一条都没有。
+   * 链路上每一环都是好的：适配器发了 `stream_options.include_usage`、
+   * 解析了 usage，`agent-runtime` 跨轮累加，`assignment-runner` 也带出来了，
+   * **然后 `production-engine` 把它丢在地上**，没有任何一处写回 execution。
+   *
+   * 既有测试没抓到，是因为它们都**直接调**仓储或完成服务并把 usage 递进去
+   * （`m2-transaction-boundaries` 的 markSucceeded、`m3-application-boundaries`
+   * 的 usage 入参），验的是那个接缝本身。**每一层都测了，层与层之间那根线没测。**
+   * 所以这条用例的关键不是断言内容，而是它的**入口必须是引擎跑完一整轮**。
+   *
+   * 附带钉住一个容易被「顺手简化」掉的设计：`complete_assignment` 是工具调用，
+   * 它在循环**进行中**就把 execution 标成 succeeded 了，而 usage 要等
+   * Provider 发回最后一帧才知道——两件事天然不同时，因此记账不能塞进
+   * `markSucceeded`，必须是循环收尾时独立写一次。
+   */
+  it('引擎跑完一整轮后，每条 execution 的 token 用量都落了库', async () => {
+    harness = createEngineHarness({ provider: happyPathProvider() });
+    const taskId = await createAndStart(harness);
+
+    const executions = harness.uow.repositories.executions.listByTask(taskId);
+    expect(executions.length).toBeGreaterThan(0);
+
+    for (const execution of executions) {
+      expect(execution.inputTokens, `${execution.operation} 的 input_tokens 没落库`).not.toBeNull();
+      expect(execution.outputTokens, `${execution.operation} 的 output_tokens 没落库`).not.toBeNull();
+      // FakeProvider 每轮回 {100, 50}；一次 Assignment 可能跑多轮，
+      // 所以只断言「是正数且成比例」，不钉死具体数字——钉死会把
+      // 「多跑了一轮工具调用」误报成记账错误。
+      expect(execution.inputTokens).toBeGreaterThan(0);
+      expect(execution.outputTokens).toBeGreaterThan(0);
+      expect(execution.inputTokens).toBe((execution.outputTokens ?? 0) * 2);
+    }
+  });
+
   it('每次 attempt 都重新解析别名（D-03 的晚绑定不被缓存）', async () => {
     harness = createEngineHarness({ provider: happyPathProvider() });
     const taskId = await createAndStart(harness);

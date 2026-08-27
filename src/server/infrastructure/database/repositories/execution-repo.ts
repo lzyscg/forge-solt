@@ -111,6 +111,19 @@ export interface ExecutionRepo {
   latestAttempt(taskId: string, targetSlotId: string | null): number;
   markRunning(id: string): void;
   markSucceeded(id: string, usage?: { inputTokens: number | null; outputTokens: number | null }): void;
+  /**
+   * 只写 token 用量，**不动 status / finished_at**。
+   *
+   * 为什么需要一个独立方法，而不是让 `markSucceeded` 顺手带上：
+   * `complete_assignment` 是**工具调用**，它在 Agent 循环**进行中**就把 execution
+   * 标成了 succeeded；而 usage 要等整个循环跑完、Provider 把最后一帧
+   * （`stream_options.include_usage`）发回来才知道。两件事天然不同时，
+   * 硬塞进 markSucceeded 只会永远拿到 null——这正是 M4 以来 token 列全空的原因。
+   *
+   * 失败与取消的 execution 同样要记：那些 token 一样是花掉的，
+   * 只记成功的会让「这次任务花了多少」系统性偏低。
+   */
+  recordUsage(id: string, usage: { inputTokens: number; outputTokens: number }): void;
   markFailed(id: string, errorCode: ErrorCode, errorMessage: string): void;
   /** §8.3 Stop / §8.6 启动恢复。reason 会写进 error_message 供事后排查 */
   markCancelled(id: string, reason?: string): void;
@@ -150,6 +163,10 @@ export function createExecutionRepo(db: ForgeDb, clock: Clock): ExecutionRepo {
             output_tokens = COALESCE(?, output_tokens),
             finished_at = ?
       WHERE id = ?`,
+  );
+
+  const usageStmt = db.prepare(
+    'UPDATE executions SET input_tokens = ?, output_tokens = ? WHERE id = ?',
   );
 
   const finish = (
@@ -255,6 +272,10 @@ export function createExecutionRepo(db: ForgeDb, clock: Clock): ExecutionRepo {
 
     markSucceeded(id, usage) {
       finish(id, 'succeeded', null, null, usage?.inputTokens ?? null, usage?.outputTokens ?? null);
+    },
+
+    recordUsage(id, usage) {
+      usageStmt.run(usage.inputTokens, usage.outputTokens, id);
     },
 
     markFailed(id, errorCode, errorMessage) {

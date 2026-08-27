@@ -809,7 +809,7 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
     });
 
     try {
-      return await runner.run({
+      const outcome = await runner.run({
         taskId,
         executionId: created.id,
         executionToken: created.token,
@@ -826,6 +826,27 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
         taskInput: snapshot.input,
         controller,
       });
+
+      /*
+       * token 记账的**唯一**落库点（三个调用点都经过这里，谁也漏不掉）。
+       *
+       * 必须在循环结束之后写：`complete_assignment` 是工具调用，它在循环
+       * **进行中**就把 execution 标成 succeeded 了，而 usage 要等 Provider
+       * 发回最后一帧（`stream_options.include_usage`）才知道。两件事天然不同时。
+       * 适配器解析了 usage、agent-runtime 跨轮累加了、runner 也带出来了，
+       * 却一直没有人写回去——`executions.input_tokens/output_tokens` 于是
+       * **从 M4 起在生产中恒为 NULL**（m4-measure 121 条、m7-accept10 68 条，全空）。
+       *
+       * 不区分 outcome.kind：失败与取消的 execution 同样烧了 token，
+       * 只记成功的会让「这次任务花了多少」系统性偏低。
+       */
+      const usage = outcome.usage;
+      if (usage !== null) {
+        traces.runWithTraces((repos) => {
+          repos.executions.recordUsage(created.id, usage);
+        });
+      }
+      return outcome;
     } finally {
       // 只删自己登记的那一个：stop 可能已经把它换掉了，删错会让下一次 stop 无处可 abort
       if (activeControllers.get(taskId) === controller) activeControllers.delete(taskId);
