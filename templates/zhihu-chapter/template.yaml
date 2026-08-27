@@ -61,6 +61,9 @@ slotTypes:
     guidance:
       - 首段需衔接前一场景的结尾状态
       - 通过可见行动推进，不用心理解释代替事件
+    # R4 / D-26：返修上限。省略也是 2，这里显式写出来是因为它决定了最坏情况的
+    # token 开销（每轮 4 条判据各一次调用 + 一次重写），值得摆在模板里被看见。
+    maxRevisionRounds: 2
 
 agents:
   - id: structure_designer
@@ -77,6 +80,16 @@ agents:
     systemInstruction: |
       你负责撰写单个结构槽的正文，不负责修改结构或其他槽位。
 
+  # R4 / D-27：审核 Agent 与写作 Agent 分开。同一个 Agent 既写又审，
+  # 它的 systemInstruction 里会同时装着「你负责写」和「你负责挑错」，
+  # 而审核已经有极强的放行先验（R0.5 附录 §3），不该再往同一个方向加码。
+  - id: scene_reviewer
+    name: 场景审核 Agent
+    role: 按判据检查场景正文是否违反写作规范
+    model: main
+    systemInstruction: |
+      你负责按指定判据检查场景槽位的正文，不负责改写正文，也不负责修改结构。
+
 skills:
   - id: chapter-structure-design
     version: 1.0.0
@@ -90,6 +103,9 @@ skills:
   - id: scene-writing
     version: 1.0.0
     source: skills/scene-writing/SKILL.md
+  - id: scene-review
+    version: 1.0.0
+    source: skills/scene-review/SKILL.md
 
 bindings:
   createStructure:
@@ -117,6 +133,16 @@ bindings:
       skillId: scene-writing
       # 曾于 2026-08-25 抬到 420000 适配 OpenCode Go，当天改回（见 Q-27）。
       timeoutMs: 180000
+      maxRetries: 1
+
+  # R4 / D-27：审核按 Slot Type 可选绑定。**只给 scene 绑**——
+  # R0.5 的实测只覆盖场景正文，给 chapter_outline / title 开审核没有任何证据支持，
+  # 而「默认全开」意味着为没测过的场景付 token 并承担未知误报。
+  # 这里不写 timeoutMs：审核一次调用约 1s（R0.5 实测），走 limits 的 120s 绰绰有余。
+  reviewSlotByType:
+    scene:
+      agentId: scene_reviewer
+      skillId: scene-review
       maxRetries: 1
 
 limits:

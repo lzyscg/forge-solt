@@ -1,0 +1,2875 @@
+[
+  {
+    "caseId": "pos-22",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #20",
+    "slotId": "scene3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 942,
+    "usage": {
+      "prompt_tokens": 3083,
+      "completion_tokens": 12,
+      "total_tokens": 3095,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3083
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-20",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "REVISE",
+    "defectKind": "D4-停错地方",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 947,
+    "usage": {
+      "prompt_tokens": 3105,
+      "completion_tokens": 12,
+      "total_tokens": 3117,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3105
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-28",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "REVISE",
+    "defectKind": "D2-心理解释",
+    "story": "深夜来电",
+    "taskName": "《深夜来电》第三章",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1163,
+    "usage": {
+      "prompt_tokens": 3000,
+      "completion_tokens": 12,
+      "total_tokens": 3012,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3000
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-01",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_2",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1455,
+    "usage": {
+      "prompt_tokens": 2959,
+      "completion_tokens": 12,
+      "total_tokens": 2971,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 2959
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-06",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "测试1",
+    "slotId": "scene_4",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1541,
+    "usage": {
+      "prompt_tokens": 3340,
+      "completion_tokens": 12,
+      "total_tokens": 3352,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3340
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-06",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "测试1",
+    "slotId": "scene_4",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 938,
+    "usage": {
+      "prompt_tokens": 3359,
+      "completion_tokens": 12,
+      "total_tokens": 3371,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3359
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-05",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "测试1",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1290,
+    "usage": {
+      "prompt_tokens": 3243,
+      "completion_tokens": 12,
+      "total_tokens": 3255,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3243
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-23",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #19",
+    "slotId": "scene3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 892,
+    "usage": {
+      "prompt_tokens": 3523,
+      "completion_tokens": 12,
+      "total_tokens": 3535,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3523
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-04",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1430,
+    "usage": {
+      "prompt_tokens": 3413,
+      "completion_tokens": 12,
+      "total_tokens": 3425,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3413
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-24",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #2",
+    "slotId": "scene_will",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1058,
+    "usage": {
+      "prompt_tokens": 4562,
+      "completion_tokens": 12,
+      "total_tokens": 4574,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 4562
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-13",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "REVISE",
+    "defectKind": "D1-承接断裂",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_3",
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "quote": "林越脑子里转了一下，\"上月十八。\"",
+        "problem": "这句话是心理解释（'脑子里转了一下'），摄像机拍不到，属于用解释代替事件。"
+      },
+      {
+        "quote": "林越的后背贴住椅背，那一下贴得有点实。他张了张嘴，话到嘴边又咽回去，改口得有些生硬：\"老姚记岔了，我是分了两批……\"",
+        "problem": "'那一下贴得有点实'和'改口得有些生硬'是心理解释，摄像机拍不到，属于用解释代替事件。"
+      },
+      {
+        "quote": "林越觉得自己手心里那层汗又起来了，黏在贴身那件衬衫的后腰上，凉得像贴了块冰。",
+        "problem": "'觉得自己手心里那层汗又起来了'是心理解释，摄像机拍不到，属于用解释代替事件。"
+      },
+      {
+        "quote": "他该开口的。他预备了一路的话就卡在喉咙那个位置，可他忽然发现自己不知道该从哪一句说起——老周根本没提凭证的真伪，他提的是数目对不上。数对不上，是比章印更无从辩解的东西，因为它不靠看，靠的是账。",
+        "problem": "整段是心理解释，摄像机拍不到，属于用解释代替事件。"
+      },
+      {
+        "quote": "林越的声音发干，\"我……\"",
+        "problem": "'声音发干'是心理解释，摄像机拍不到，属于用解释代替事件。"
+      },
+      {
+        "quote": "林越盯着桌上那只信封。他知道这句话是什么意思——一个数目对不上的凭证，留在他手里是烫的，留在这里却是空的。老周没掀桌，没喊人，甚至没让他难堪，可那张纸已经废了，废得干干净净。",
+        "problem": "'他知道这句话是什么意思'和'可那张纸已经废了，废得干干净净'是心理解释，摄像机拍不到，属于用解释代替事件。"
+      }
+    ],
+    "elapsedMs": 2921,
+    "usage": {
+      "prompt_tokens": 3218,
+      "completion_tokens": 415,
+      "total_tokens": 3633,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3218
+    },
+    "raw": "{\"verdict\":\"REVISE\",\"findings\":[{\"quote\":\"林越脑子里转了一下，\\\"上月十八。\\\"\",\"problem\":\"这句话是心理解释（'脑子里转了一下'），摄像机拍不到，属于用解释代替事件。\"},{\"quote\":\"林越的后背贴住椅背，那一下贴得有点实。他张了张嘴，话到嘴边又咽回去，改口得有些生硬：\\\"老姚记岔了，我是分了两批……\\\"\",\"problem\":\"'那一下贴得有点实'和'改口得有些生硬'是心理解释，摄像机拍不到，属于用解释代替事件。\"},{\"quote\":\"林越觉得自己手心里那层汗又起来了，黏在贴身那件衬衫的后腰上，凉得像贴了块冰。\",\"problem\":\"'觉得自己手心里那层汗又起来了'是心理解释，摄像机拍不到，属于用解释代替事件。\"},{\"quote\":\"他该开口的。他预备了一路的话就卡在喉咙那个位置，可他忽然发现自己不知道该从哪一句说起——老周根本没提凭证的真伪，他提的是数目对不上。数对不上，是比章印更无从辩解的东西，因为它不靠看，靠的是账。\",\"problem\":\"整段是心理解释，摄像机拍不到，属于用解释代替事件。\"},{\"quote\":\"林越的声音发干，\\\"我……\\\"\",\"problem\":\"'声音发干'是心理解释，摄像机拍不到，属于用解释代替事件。\"},{\"quote\":\"林越盯着桌上那只信封。他知道这句话是什么意思——一个数目对不上的凭证，留在他手里是烫的，留在这里却是空的。老周没掀桌，没喊人，甚至没让他难堪，可那张纸已经废了，废得干干净净。\",\"problem\":\"'他知道这句话是什么意思'和'可那张纸已经废了，废得干干净净'是心理解释，摄像机拍不到，属于用解释代替事件。\"}]}"
+  },
+  {
+    "caseId": "neg-18",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "REVISE",
+    "defectKind": "D3-事实矛盾",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #13",
+    "slotId": "scene_reveal",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 988,
+    "usage": {
+      "prompt_tokens": 3670,
+      "completion_tokens": 12,
+      "total_tokens": 3682,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3670
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-12",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #3",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 770,
+    "usage": {
+      "prompt_tokens": 4483,
+      "completion_tokens": 12,
+      "total_tokens": 4495,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 4483
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-05",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "测试1",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 986,
+    "usage": {
+      "prompt_tokens": 3293,
+      "completion_tokens": 12,
+      "total_tokens": 3305,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3293
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-15",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "REVISE",
+    "defectKind": "D1-承接断裂",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #12",
+    "slotId": "scene_deal",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 823,
+    "usage": {
+      "prompt_tokens": 3064,
+      "completion_tokens": 12,
+      "total_tokens": 3076,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3064
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-01",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_2",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 803,
+    "usage": {
+      "prompt_tokens": 2928,
+      "completion_tokens": 12,
+      "total_tokens": 2940,
+      "prompt_tokens_details": {
+        "cached_tokens": 256
+      },
+      "prompt_cache_hit_tokens": 256,
+      "prompt_cache_miss_tokens": 2672
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-25",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "深夜来电",
+    "taskName": "《深夜来电》第三章",
+    "slotId": "scene_4",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 698,
+    "usage": {
+      "prompt_tokens": 2964,
+      "completion_tokens": 12,
+      "total_tokens": 2976,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 2964
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-15",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "REVISE",
+    "defectKind": "D1-承接断裂",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #12",
+    "slotId": "scene_deal",
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "quote": "雨是从傍晚开始下的，先是一阵一阵地洒，等林越出门时已经成了斜斜的帘子。他没有伞。他把那件洗旧了的外套拉链拉到顶，压低压紧，左臂弯起来护住胸口那一块——那里有一张纸，隔着布料和一个内袋，正贴着他的肋骨。",
+        "problem": "首段没有衔接上一场景的结尾状态。上一场景结尾是林越坐在老周对面，老周已识破凭证但未翻脸，正等着老周说出条件。本段却重新描写林越在雨夜出门赴约的过程，属于重述上一场之前的事，而非从上一场结尾状态接着往下走。"
+      }
+    ],
+    "elapsedMs": 1651,
+    "usage": {
+      "prompt_tokens": 3172,
+      "completion_tokens": 163,
+      "total_tokens": 3335,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3172
+    },
+    "raw": "{\"verdict\":\"REVISE\",\"findings\":[{\"quote\":\"雨是从傍晚开始下的，先是一阵一阵地洒，等林越出门时已经成了斜斜的帘子。他没有伞。他把那件洗旧了的外套拉链拉到顶，压低压紧，左臂弯起来护住胸口那一块——那里有一张纸，隔着布料和一个内袋，正贴着他的肋骨。\",\"problem\":\"首段没有衔接上一场景的结尾状态。上一场景结尾是林越坐在老周对面，老周已识破凭证但未翻脸，正等着老周说出条件。本段却重新描写林越在雨夜出门赴约的过程，属于重述上一场之前的事，而非从上一场结尾状态接着往下走。\"}]}"
+  },
+  {
+    "caseId": "neg-18",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "REVISE",
+    "defectKind": "D3-事实矛盾",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #13",
+    "slotId": "scene_reveal",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 681,
+    "usage": {
+      "prompt_tokens": 3620,
+      "completion_tokens": 12,
+      "total_tokens": 3632,
+      "prompt_tokens_details": {
+        "cached_tokens": 256
+      },
+      "prompt_cache_hit_tokens": 256,
+      "prompt_cache_miss_tokens": 3364
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-15",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "REVISE",
+    "defectKind": "D1-承接断裂",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #12",
+    "slotId": "scene_deal",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 654,
+    "usage": {
+      "prompt_tokens": 3122,
+      "completion_tokens": 12,
+      "total_tokens": 3134,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2738
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-04",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 925,
+    "usage": {
+      "prompt_tokens": 3432,
+      "completion_tokens": 12,
+      "total_tokens": 3444,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2920
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-27",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "REVISE",
+    "defectKind": "D2-心理解释",
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 384,
+    "usage": {
+      "prompt_tokens": 4576,
+      "completion_tokens": 12,
+      "total_tokens": 4588,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      },
+      "prompt_cache_hit_tokens": 640,
+      "prompt_cache_miss_tokens": 3936
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-12",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #3",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 713,
+    "usage": {
+      "prompt_tokens": 4591,
+      "completion_tokens": 12,
+      "total_tokens": 4603,
+      "prompt_tokens_details": {
+        "cached_tokens": 256
+      },
+      "prompt_cache_hit_tokens": 256,
+      "prompt_cache_miss_tokens": 4335
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-06",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "测试1",
+    "slotId": "scene_4",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 512,
+    "usage": {
+      "prompt_tokens": 3309,
+      "completion_tokens": 12,
+      "total_tokens": 3321,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2925
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-17",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "REVISE",
+    "defectKind": "D3-事实矛盾",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 690,
+    "usage": {
+      "prompt_tokens": 3436,
+      "completion_tokens": 12,
+      "total_tokens": 3448,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2924
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-04",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 713,
+    "usage": {
+      "prompt_tokens": 3382,
+      "completion_tokens": 12,
+      "total_tokens": 3394,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2998
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-16",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "REVISE",
+    "defectKind": "D3-事实矛盾",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1255,
+    "usage": {
+      "prompt_tokens": 3221,
+      "completion_tokens": 12,
+      "total_tokens": 3233,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2709
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-10",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #4",
+    "slotId": "scene_zhou_speaks",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 906,
+    "usage": {
+      "prompt_tokens": 4821,
+      "completion_tokens": 12,
+      "total_tokens": 4833,
+      "prompt_tokens_details": {
+        "cached_tokens": 256
+      },
+      "prompt_cache_hit_tokens": 256,
+      "prompt_cache_miss_tokens": 4565
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-06",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "测试1",
+    "slotId": "scene_4",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1007,
+    "usage": {
+      "prompt_tokens": 3251,
+      "completion_tokens": 12,
+      "total_tokens": 3263,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 3251
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "ctl-29",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "CONTROL",
+    "defectKind": "CONTROL-句序倒置",
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 828,
+    "usage": {
+      "prompt_tokens": 4562,
+      "completion_tokens": 12,
+      "total_tokens": 4574,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      },
+      "prompt_cache_hit_tokens": 640,
+      "prompt_cache_miss_tokens": 3922
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-11",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #3",
+    "slotId": "scene_2",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1145,
+    "usage": {
+      "prompt_tokens": 4316,
+      "completion_tokens": 12,
+      "total_tokens": 4328,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 4316
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-24",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #2",
+    "slotId": "scene_will",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1391,
+    "usage": {
+      "prompt_tokens": 4454,
+      "completion_tokens": 12,
+      "total_tokens": 4466,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 4454
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-12",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #3",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1454,
+    "usage": {
+      "prompt_tokens": 4572,
+      "completion_tokens": 12,
+      "total_tokens": 4584,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 4572
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-08",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_4",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 527,
+    "usage": {
+      "prompt_tokens": 4347,
+      "completion_tokens": 12,
+      "total_tokens": 4359,
+      "prompt_tokens_details": {
+        "cached_tokens": 256
+      },
+      "prompt_cache_hit_tokens": 256,
+      "prompt_cache_miss_tokens": 4091
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-03",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_2",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 868,
+    "usage": {
+      "prompt_tokens": 3070,
+      "completion_tokens": 12,
+      "total_tokens": 3082,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2558
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-10",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #4",
+    "slotId": "scene_zhou_speaks",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 777,
+    "usage": {
+      "prompt_tokens": 4763,
+      "completion_tokens": 12,
+      "total_tokens": 4775,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 4251
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-17",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "REVISE",
+    "defectKind": "D3-事实矛盾",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1314,
+    "usage": {
+      "prompt_tokens": 3386,
+      "completion_tokens": 12,
+      "total_tokens": 3398,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 3002
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-05",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "测试1",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 775,
+    "usage": {
+      "prompt_tokens": 3185,
+      "completion_tokens": 12,
+      "total_tokens": 3197,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2801
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-18",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "REVISE",
+    "defectKind": "D3-事实矛盾",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #13",
+    "slotId": "scene_reveal",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 898,
+    "usage": {
+      "prompt_tokens": 3651,
+      "completion_tokens": 12,
+      "total_tokens": 3663,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 3139
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-15",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "REVISE",
+    "defectKind": "D1-承接断裂",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #12",
+    "slotId": "scene_deal",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 476,
+    "usage": {
+      "prompt_tokens": 3153,
+      "completion_tokens": 12,
+      "total_tokens": 3165,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2641
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-10",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #4",
+    "slotId": "scene_zhou_speaks",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1174,
+    "usage": {
+      "prompt_tokens": 4852,
+      "completion_tokens": 17,
+      "total_tokens": 4869,
+      "prompt_tokens_details": {
+        "cached_tokens": 256
+      },
+      "prompt_cache_hit_tokens": 256,
+      "prompt_cache_miss_tokens": 4596
+    },
+    "raw": "{\n  \"verdict\": \"PASS\",\n  \"findings\": []\n}"
+  },
+  {
+    "caseId": "pos-24",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #2",
+    "slotId": "scene_will",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 690,
+    "usage": {
+      "prompt_tokens": 4512,
+      "completion_tokens": 12,
+      "total_tokens": 4524,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      },
+      "prompt_cache_hit_tokens": 640,
+      "prompt_cache_miss_tokens": 3872
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-08",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_4",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 781,
+    "usage": {
+      "prompt_tokens": 4289,
+      "completion_tokens": 12,
+      "total_tokens": 4301,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 3777
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-09",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #4",
+    "slotId": "scene_lawyer_private",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 922,
+    "usage": {
+      "prompt_tokens": 4228,
+      "completion_tokens": 12,
+      "total_tokens": 4240,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 3716
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-25",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "深夜来电",
+    "taskName": "《深夜来电》第三章",
+    "slotId": "scene_4",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 775,
+    "usage": {
+      "prompt_tokens": 2945,
+      "completion_tokens": 17,
+      "total_tokens": 2962,
+      "prompt_tokens_details": {
+        "cached_tokens": 256
+      },
+      "prompt_cache_hit_tokens": 256,
+      "prompt_cache_miss_tokens": 2689
+    },
+    "raw": "{\n  \"verdict\": \"PASS\",\n  \"findings\": []\n}"
+  },
+  {
+    "caseId": "neg-14",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "REVISE",
+    "defectKind": "D1-承接断裂",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 629,
+    "usage": {
+      "prompt_tokens": 3466,
+      "completion_tokens": 12,
+      "total_tokens": 3478,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2954
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-10",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #4",
+    "slotId": "scene_zhou_speaks",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 557,
+    "usage": {
+      "prompt_tokens": 4871,
+      "completion_tokens": 12,
+      "total_tokens": 4883,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      },
+      "prompt_cache_hit_tokens": 640,
+      "prompt_cache_miss_tokens": 4231
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-14",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "REVISE",
+    "defectKind": "D1-承接断裂",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 982,
+    "usage": {
+      "prompt_tokens": 3377,
+      "completion_tokens": 12,
+      "total_tokens": 3389,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2993
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-23",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #19",
+    "slotId": "scene3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 675,
+    "usage": {
+      "prompt_tokens": 3415,
+      "completion_tokens": 12,
+      "total_tokens": 3427,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 3031
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-24",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #2",
+    "slotId": "scene_will",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 834,
+    "usage": {
+      "prompt_tokens": 4543,
+      "completion_tokens": 12,
+      "total_tokens": 4555,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      },
+      "prompt_cache_hit_tokens": 640,
+      "prompt_cache_miss_tokens": 3903
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-19",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "REVISE",
+    "defectKind": "D4-停错地方",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1003,
+    "usage": {
+      "prompt_tokens": 3271,
+      "completion_tokens": 12,
+      "total_tokens": 3283,
+      "prompt_tokens_details": {
+        "cached_tokens": 896
+      },
+      "prompt_cache_hit_tokens": 896,
+      "prompt_cache_miss_tokens": 2375
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-02",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 677,
+    "usage": {
+      "prompt_tokens": 3124,
+      "completion_tokens": 12,
+      "total_tokens": 3136,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2740
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-04",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 878,
+    "usage": {
+      "prompt_tokens": 3324,
+      "completion_tokens": 12,
+      "total_tokens": 3336,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2940
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-26",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "REVISE",
+    "defectKind": "D2-心理解释",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #20",
+    "slotId": "scene3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 543,
+    "usage": {
+      "prompt_tokens": 3094,
+      "completion_tokens": 12,
+      "total_tokens": 3106,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2582
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-17",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "REVISE",
+    "defectKind": "D3-事实矛盾",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 936,
+    "usage": {
+      "prompt_tokens": 3417,
+      "completion_tokens": 12,
+      "total_tokens": 3429,
+      "prompt_tokens_details": {
+        "cached_tokens": 2176
+      },
+      "prompt_cache_hit_tokens": 2176,
+      "prompt_cache_miss_tokens": 1241
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-09",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #4",
+    "slotId": "scene_lawyer_private",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1064,
+    "usage": {
+      "prompt_tokens": 4286,
+      "completion_tokens": 12,
+      "total_tokens": 4298,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      },
+      "prompt_cache_hit_tokens": 640,
+      "prompt_cache_miss_tokens": 3646
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-03",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_2",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1002,
+    "usage": {
+      "prompt_tokens": 3051,
+      "completion_tokens": 12,
+      "total_tokens": 3063,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2539
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-20",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "REVISE",
+    "defectKind": "D4-停错地方",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 875,
+    "usage": {
+      "prompt_tokens": 3124,
+      "completion_tokens": 12,
+      "total_tokens": 3136,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2612
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-07",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 762,
+    "usage": {
+      "prompt_tokens": 4454,
+      "completion_tokens": 12,
+      "total_tokens": 4466,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 3942
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-09",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #4",
+    "slotId": "scene_lawyer_private",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 823,
+    "usage": {
+      "prompt_tokens": 4336,
+      "completion_tokens": 12,
+      "total_tokens": 4348,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      },
+      "prompt_cache_hit_tokens": 640,
+      "prompt_cache_miss_tokens": 3696
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "ctl-29",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "CONTROL",
+    "defectKind": "CONTROL-句序倒置",
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1066,
+    "usage": {
+      "prompt_tokens": 4454,
+      "completion_tokens": 12,
+      "total_tokens": 4466,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 3942
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-20",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "REVISE",
+    "defectKind": "D4-停错地方",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 399,
+    "usage": {
+      "prompt_tokens": 3074,
+      "completion_tokens": 12,
+      "total_tokens": 3086,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2690
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "ctl-29",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "CONTROL",
+    "defectKind": "CONTROL-句序倒置",
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1152,
+    "usage": {
+      "prompt_tokens": 4543,
+      "completion_tokens": 12,
+      "total_tokens": 4555,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      },
+      "prompt_cache_hit_tokens": 640,
+      "prompt_cache_miss_tokens": 3903
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-11",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #3",
+    "slotId": "scene_2",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 539,
+    "usage": {
+      "prompt_tokens": 4285,
+      "completion_tokens": 12,
+      "total_tokens": 4297,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      },
+      "prompt_cache_hit_tokens": 640,
+      "prompt_cache_miss_tokens": 3645
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-03",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_2",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 884,
+    "usage": {
+      "prompt_tokens": 2962,
+      "completion_tokens": 12,
+      "total_tokens": 2974,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2578
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-23",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #19",
+    "slotId": "scene3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 708,
+    "usage": {
+      "prompt_tokens": 3473,
+      "completion_tokens": 12,
+      "total_tokens": 3485,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 3089
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-14",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "REVISE",
+    "defectKind": "D1-承接断裂",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "quote": "雨是从下午就开始下的，入夜也没歇，反而越落越密，把整条巷子压成一层灰蒙蒙的水雾。路灯隔着水帘，昏黄的一点光只够照亮脚下三块砖。林越没打伞。",
+        "problem": "首段没有衔接上一场景的结尾状态。上一场景结尾是林越和老周在屋内对峙，老周刚说完“这个日期，这墨，今天下午的雨……”，而本段却重新描写林越在雨夜街头的场景，与上一场景的结尾状态（屋内、对峙、老周刚开口）完全脱节，没有接着往下走。"
+      }
+    ],
+    "elapsedMs": 2024,
+    "usage": {
+      "prompt_tokens": 3485,
+      "completion_tokens": 151,
+      "total_tokens": 3636,
+      "prompt_tokens_details": {
+        "cached_tokens": 896
+      },
+      "prompt_cache_hit_tokens": 896,
+      "prompt_cache_miss_tokens": 2589
+    },
+    "raw": "{\"verdict\":\"REVISE\",\"findings\":[{\"quote\":\"雨是从下午就开始下的，入夜也没歇，反而越落越密，把整条巷子压成一层灰蒙蒙的水雾。路灯隔着水帘，昏黄的一点光只够照亮脚下三块砖。林越没打伞。\",\"problem\":\"首段没有衔接上一场景的结尾状态。上一场景结尾是林越和老周在屋内对峙，老周刚说完“这个日期，这墨，今天下午的雨……”，而本段却重新描写林越在雨夜街头的场景，与上一场景的结尾状态（屋内、对峙、老周刚开口）完全脱节，没有接着往下走。\"}]}"
+  },
+  {
+    "caseId": "neg-27",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "REVISE",
+    "defectKind": "D2-心理解释",
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 685,
+    "usage": {
+      "prompt_tokens": 4526,
+      "completion_tokens": 12,
+      "total_tokens": 4538,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      },
+      "prompt_cache_hit_tokens": 640,
+      "prompt_cache_miss_tokens": 3886
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-08",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_4",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1193,
+    "usage": {
+      "prompt_tokens": 4378,
+      "completion_tokens": 12,
+      "total_tokens": 4390,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      },
+      "prompt_cache_hit_tokens": 640,
+      "prompt_cache_miss_tokens": 3738
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-28",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "REVISE",
+    "defectKind": "D2-心理解释",
+    "story": "深夜来电",
+    "taskName": "《深夜来电》第三章",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 764,
+    "usage": {
+      "prompt_tokens": 2942,
+      "completion_tokens": 12,
+      "total_tokens": 2954,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 2942
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-28",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "REVISE",
+    "defectKind": "D2-心理解释",
+    "story": "深夜来电",
+    "taskName": "《深夜来电》第三章",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 823,
+    "usage": {
+      "prompt_tokens": 3050,
+      "completion_tokens": 12,
+      "total_tokens": 3062,
+      "prompt_tokens_details": {
+        "cached_tokens": 256
+      },
+      "prompt_cache_hit_tokens": 256,
+      "prompt_cache_miss_tokens": 2794
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-02",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 914,
+    "usage": {
+      "prompt_tokens": 3213,
+      "completion_tokens": 12,
+      "total_tokens": 3225,
+      "prompt_tokens_details": {
+        "cached_tokens": 2048
+      },
+      "prompt_cache_hit_tokens": 2048,
+      "prompt_cache_miss_tokens": 1165
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-27",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "REVISE",
+    "defectKind": "D2-心理解释",
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "quote": "他心里乱极了：一方面愿意相信这份遗嘱是真的，另一方面那行日期又像一根刺扎在眼前，让他没法踏实。他明白自己一旦开口追问，就再也没有回头的余地，于是只好把那份怀疑硬压下去，不敢让它露出分毫。",
+        "problem": "这段直接描写沈明远的内心活动（‘心里乱极了’、‘愿意相信’、‘没法踏实’、‘明白’、‘只好把怀疑硬压下去’），摄像机拍不到这些心理状态，属于心理解释代替事件。应改为通过可见行动（如他反复摩挲遗嘱复印件、指尖在日期上停顿、喉结滚动等）来表现他的疑虑。"
+      },
+      {
+        "quote": "他忽然觉得这座老宅的每一件东西都不太经看了。自己屁股底下那把主位，方才还觉得是稳的，此刻却像悬着，底下空空的，踩不着实。",
+        "problem": "‘觉得’、‘像悬着’、‘踩不着实’是主观心理感受，摄像机无法捕捉，属于心理解释。应通过可见动作（如他下意识扶了一下椅背、脚步顿了一下、目光扫过主位等）来暗示这种不安。"
+      },
+      {
+        "quote": "他忽然想起那晚录老太太遗言时，自己也在这间老宅里，坐在同一把椅子上。那时老太太精神尚好，交代得条理分明，他以为那录音就是最后一道保险。如今他才知道，那道保险上，原来早被人凿了一道口子。",
+        "problem": "‘想起’、‘以为’、‘才知道’是内心回忆与认知变化，摄像机拍不到，属于心理解释。应通过可见细节（如他掏出手机看了一眼、手指在屏幕上摩挲、或突然抬头环顾房间）来触发并表现这种联想。"
+      },
+      {
+        "quote": "他忽然发现，自己主持了半日分家，此刻竟连一个能作准的判断都拿不出来。",
+        "problem": "‘发现’、‘竟连……都拿不出来’是内心判断，摄像机无法拍摄，属于心理解释。应通过可见行动（如他沉默良久、手指在遗嘱上反复摩挲、或最终没有立即回答而是转身走向门口）来体现他的犹豫。"
+      },
+      {
+        "quote": "他还没决定，自己到底该不该跨进去。",
+        "problem": "‘还没决定’是内心状态，摄像机拍不到，属于心理解释。应通过可见动作（如他抬起的脚悬在半空、手扶住门框、或回头看了一眼陈律师）来表现他的迟疑。"
+      }
+    ],
+    "elapsedMs": 4926,
+    "usage": {
+      "prompt_tokens": 4557,
+      "completion_tokens": 543,
+      "total_tokens": 5100,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      },
+      "prompt_cache_hit_tokens": 640,
+      "prompt_cache_miss_tokens": 3917
+    },
+    "raw": "{\"verdict\":\"REVISE\",\"findings\":[{\"quote\":\"他心里乱极了：一方面愿意相信这份遗嘱是真的，另一方面那行日期又像一根刺扎在眼前，让他没法踏实。他明白自己一旦开口追问，就再也没有回头的余地，于是只好把那份怀疑硬压下去，不敢让它露出分毫。\",\"problem\":\"这段直接描写沈明远的内心活动（‘心里乱极了’、‘愿意相信’、‘没法踏实’、‘明白’、‘只好把怀疑硬压下去’），摄像机拍不到这些心理状态，属于心理解释代替事件。应改为通过可见行动（如他反复摩挲遗嘱复印件、指尖在日期上停顿、喉结滚动等）来表现他的疑虑。\"},{\"quote\":\"他忽然觉得这座老宅的每一件东西都不太经看了。自己屁股底下那把主位，方才还觉得是稳的，此刻却像悬着，底下空空的，踩不着实。\",\"problem\":\"‘觉得’、‘像悬着’、‘踩不着实’是主观心理感受，摄像机无法捕捉，属于心理解释。应通过可见动作（如他下意识扶了一下椅背、脚步顿了一下、目光扫过主位等）来暗示这种不安。\"},{\"quote\":\"他忽然想起那晚录老太太遗言时，自己也在这间老宅里，坐在同一把椅子上。那时老太太精神尚好，交代得条理分明，他以为那录音就是最后一道保险。如今他才知道，那道保险上，原来早被人凿了一道口子。\",\"problem\":\"‘想起’、‘以为’、‘才知道’是内心回忆与认知变化，摄像机拍不到，属于心理解释。应通过可见细节（如他掏出手机看了一眼、手指在屏幕上摩挲、或突然抬头环顾房间）来触发并表现这种联想。\"},{\"quote\":\"他忽然发现，自己主持了半日分家，此刻竟连一个能作准的判断都拿不出来。\",\"problem\":\"‘发现’、‘竟连……都拿不出来’是内心判断，摄像机无法拍摄，属于心理解释。应通过可见行动（如他沉默良久、手指在遗嘱上反复摩挲、或最终没有立即回答而是转身走向门口）来体现他的犹豫。\"},{\"quote\":\"他还没决定，自己到底该不该跨进去。\",\"problem\":\"‘还没决定’是内心状态，摄像机拍不到，属于心理解释。应通过可见动作（如他抬起的脚悬在半空、手扶住门框、或回头看了一眼陈律师）来表现他的迟疑。\"}]}"
+  },
+  {
+    "caseId": "neg-21",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "REVISE",
+    "defectKind": "D4-停错地方",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #4",
+    "slotId": "scene_revelation",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1102,
+    "usage": {
+      "prompt_tokens": 2843,
+      "completion_tokens": 12,
+      "total_tokens": 2855,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2331
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-02",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1237,
+    "usage": {
+      "prompt_tokens": 3182,
+      "completion_tokens": 12,
+      "total_tokens": 3194,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2798
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-21",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "REVISE",
+    "defectKind": "D4-停错地方",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #4",
+    "slotId": "scene_revelation",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 403,
+    "usage": {
+      "prompt_tokens": 2754,
+      "completion_tokens": 12,
+      "total_tokens": 2766,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2370
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-07",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 650,
+    "usage": {
+      "prompt_tokens": 4512,
+      "completion_tokens": 12,
+      "total_tokens": 4524,
+      "prompt_tokens_details": {
+        "cached_tokens": 1408
+      },
+      "prompt_cache_hit_tokens": 1408,
+      "prompt_cache_miss_tokens": 3104
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-12",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #3",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1046,
+    "usage": {
+      "prompt_tokens": 4541,
+      "completion_tokens": 12,
+      "total_tokens": 4553,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      },
+      "prompt_cache_hit_tokens": 640,
+      "prompt_cache_miss_tokens": 3901
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-01",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_2",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 619,
+    "usage": {
+      "prompt_tokens": 2870,
+      "completion_tokens": 12,
+      "total_tokens": 2882,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2486
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-07",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 831,
+    "usage": {
+      "prompt_tokens": 4543,
+      "completion_tokens": 12,
+      "total_tokens": 4555,
+      "prompt_tokens_details": {
+        "cached_tokens": 3456
+      },
+      "prompt_cache_hit_tokens": 3456,
+      "prompt_cache_miss_tokens": 1087
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-20",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "REVISE",
+    "defectKind": "D4-停错地方",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1494,
+    "usage": {
+      "prompt_tokens": 3016,
+      "completion_tokens": 12,
+      "total_tokens": 3028,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2632
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "ctl-29",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "CONTROL",
+    "defectKind": "CONTROL-句序倒置",
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1069,
+    "usage": {
+      "prompt_tokens": 4512,
+      "completion_tokens": 12,
+      "total_tokens": 4524,
+      "prompt_tokens_details": {
+        "cached_tokens": 1408
+      },
+      "prompt_cache_hit_tokens": 1408,
+      "prompt_cache_miss_tokens": 3104
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-13",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "REVISE",
+    "defectKind": "D1-承接断裂",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_3",
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "quote": "雨是从傍晚五点开始下的，到七点已经压得路灯抬不起头。林越站在公交站台的檐下，把外套领子竖起来，手没有伸进口袋——那件东西在怀里，攥在手里反而踏实些。",
+        "problem": "本槽位目标要求首段衔接上一场结尾（老周看向/接过凭证的那一拍），但待审正文首段却跳回雨夜赴约的场景，与上一场景结尾完全脱节，没有兑现'停在哪里'。"
+      },
+      {
+        "quote": "他又隔着衣料按了一次，隔着两层布摸到那道折痕，指腹顺着折线滑过去。凭证不大，对折之后严严实实，边角藏在胸前的内袋里。他数着那道折痕，像数一个念了太久的数。",
+        "problem": "本槽位目标要求首段衔接上一场结尾（老周看向/接过凭证的那一拍），但待审正文首段却跳回雨夜赴约的场景，与上一场景结尾完全脱节，没有兑现'停在哪里'。"
+      }
+    ],
+    "elapsedMs": 2236,
+    "usage": {
+      "prompt_tokens": 3187,
+      "completion_tokens": 240,
+      "total_tokens": 3427,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2803
+    },
+    "raw": "{\"verdict\":\"REVISE\",\"findings\":[{\"quote\":\"雨是从傍晚五点开始下的，到七点已经压得路灯抬不起头。林越站在公交站台的檐下，把外套领子竖起来，手没有伸进口袋——那件东西在怀里，攥在手里反而踏实些。\",\"problem\":\"本槽位目标要求首段衔接上一场结尾（老周看向/接过凭证的那一拍），但待审正文首段却跳回雨夜赴约的场景，与上一场景结尾完全脱节，没有兑现'停在哪里'。\"},{\"quote\":\"他又隔着衣料按了一次，隔着两层布摸到那道折痕，指腹顺着折线滑过去。凭证不大，对折之后严严实实，边角藏在胸前的内袋里。他数着那道折痕，像数一个念了太久的数。\",\"problem\":\"本槽位目标要求首段衔接上一场结尾（老周看向/接过凭证的那一拍），但待审正文首段却跳回雨夜赴约的场景，与上一场景结尾完全脱节，没有兑现'停在哪里'。\"}]}"
+  },
+  {
+    "caseId": "pos-22",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #20",
+    "slotId": "scene3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 862,
+    "usage": {
+      "prompt_tokens": 3102,
+      "completion_tokens": 12,
+      "total_tokens": 3114,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2590
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-14",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "REVISE",
+    "defectKind": "D1-承接断裂",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1213,
+    "usage": {
+      "prompt_tokens": 3435,
+      "completion_tokens": 12,
+      "total_tokens": 3447,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 3051
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-11",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #3",
+    "slotId": "scene_2",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1287,
+    "usage": {
+      "prompt_tokens": 4227,
+      "completion_tokens": 12,
+      "total_tokens": 4239,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 3715
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-26",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "REVISE",
+    "defectKind": "D2-心理解释",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #20",
+    "slotId": "scene3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1059,
+    "usage": {
+      "prompt_tokens": 2986,
+      "completion_tokens": 12,
+      "total_tokens": 2998,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2602
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-11",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #3",
+    "slotId": "scene_2",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 490,
+    "usage": {
+      "prompt_tokens": 4335,
+      "completion_tokens": 12,
+      "total_tokens": 4347,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      },
+      "prompt_cache_hit_tokens": 640,
+      "prompt_cache_miss_tokens": 3695
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-13",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "REVISE",
+    "defectKind": "D1-承接断裂",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_3",
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "quote": "雨是从傍晚五点开始下的，到七点已经压得路灯抬不起头。林越站在公交站台的檐下，把外套领子竖起来，手没有伸进口袋——那件东西在怀里，攥在手里反而踏实些。",
+        "problem": "首段没有衔接上一场景的结尾状态。上一场景结尾是林越和老周在包间内，老周的目光停在信封上，林越的喉结动了一下，窗外雨还在下。而待审正文首段却跳回雨夜赴约的途中，重述了林越冒雨赶路的过程，这属于重述上一场已发生的事，且时间、地点、人物状态均与上一场结尾不符，违反了S1判据。"
+      }
+    ],
+    "elapsedMs": 2071,
+    "usage": {
+      "prompt_tokens": 3237,
+      "completion_tokens": 172,
+      "total_tokens": 3409,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2725
+    },
+    "raw": "{\"verdict\":\"REVISE\",\"findings\":[{\"quote\":\"雨是从傍晚五点开始下的，到七点已经压得路灯抬不起头。林越站在公交站台的檐下，把外套领子竖起来，手没有伸进口袋——那件东西在怀里，攥在手里反而踏实些。\",\"problem\":\"首段没有衔接上一场景的结尾状态。上一场景结尾是林越和老周在包间内，老周的目光停在信封上，林越的喉结动了一下，窗外雨还在下。而待审正文首段却跳回雨夜赴约的途中，重述了林越冒雨赶路的过程，这属于重述上一场已发生的事，且时间、地点、人物状态均与上一场结尾不符，违反了S1判据。\"}]}"
+  },
+  {
+    "caseId": "pos-25",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "深夜来电",
+    "taskName": "《深夜来电》第三章",
+    "slotId": "scene_4",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1612,
+    "usage": {
+      "prompt_tokens": 2856,
+      "completion_tokens": 12,
+      "total_tokens": 2868,
+      "prompt_tokens_details": {
+        "cached_tokens": 0
+      },
+      "prompt_cache_hit_tokens": 0,
+      "prompt_cache_miss_tokens": 2856
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-07",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1054,
+    "usage": {
+      "prompt_tokens": 4562,
+      "completion_tokens": 12,
+      "total_tokens": 4574,
+      "prompt_tokens_details": {
+        "cached_tokens": 3456
+      },
+      "prompt_cache_hit_tokens": 3456,
+      "prompt_cache_miss_tokens": 1106
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-19",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "REVISE",
+    "defectKind": "D4-停错地方",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1123,
+    "usage": {
+      "prompt_tokens": 3252,
+      "completion_tokens": 12,
+      "total_tokens": 3264,
+      "prompt_tokens_details": {
+        "cached_tokens": 2816
+      },
+      "prompt_cache_hit_tokens": 2816,
+      "prompt_cache_miss_tokens": 436
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-01",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_2",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 979,
+    "usage": {
+      "prompt_tokens": 2978,
+      "completion_tokens": 12,
+      "total_tokens": 2990,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2466
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-17",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "REVISE",
+    "defectKind": "D3-事实矛盾",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 666,
+    "usage": {
+      "prompt_tokens": 3328,
+      "completion_tokens": 12,
+      "total_tokens": 3340,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "prompt_cache_hit_tokens": 768,
+      "prompt_cache_miss_tokens": 2560
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-16",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "REVISE",
+    "defectKind": "D3-事实矛盾",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1014,
+    "usage": {
+      "prompt_tokens": 3190,
+      "completion_tokens": 12,
+      "total_tokens": 3202,
+      "prompt_tokens_details": {
+        "cached_tokens": 896
+      },
+      "prompt_cache_hit_tokens": 896,
+      "prompt_cache_miss_tokens": 2294
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-28",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "REVISE",
+    "defectKind": "D2-心理解释",
+    "story": "深夜来电",
+    "taskName": "《深夜来电》第三章",
+    "slotId": "scene_3",
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "quote": "林昭心里乱成一团。周砚和他朝夕共事这些年，他不愿意怀疑对方，可「早就清走了」「从来没见过」那几句话，此刻越想越刺耳。信任与怀疑在他心里来回拉扯，谁也没能压倒谁，他只觉这夜太长了，长得让他害怕听到答案。",
+        "problem": "这段直接描述了林昭的内心活动（‘心里乱成一团’、‘不愿意怀疑’、‘信任与怀疑拉扯’、‘害怕听到答案’），属于心理解释，摄像机无法拍到。判据要求通过可见行动推进，心理解释只能作为调味，且需先有事件支撑。此处前文已有证据核对的事件，但这段解释冗长且替代了行动，应改为可见的动作或细节来暗示其心理状态。"
+      }
+    ],
+    "elapsedMs": 2103,
+    "usage": {
+      "prompt_tokens": 3031,
+      "completion_tokens": 179,
+      "total_tokens": 3210,
+      "prompt_tokens_details": {
+        "cached_tokens": 256
+      },
+      "prompt_cache_hit_tokens": 256,
+      "prompt_cache_miss_tokens": 2775
+    },
+    "raw": "{\"verdict\":\"REVISE\",\"findings\":[{\"quote\":\"林昭心里乱成一团。周砚和他朝夕共事这些年，他不愿意怀疑对方，可「早就清走了」「从来没见过」那几句话，此刻越想越刺耳。信任与怀疑在他心里来回拉扯，谁也没能压倒谁，他只觉这夜太长了，长得让他害怕听到答案。\",\"problem\":\"这段直接描述了林昭的内心活动（‘心里乱成一团’、‘不愿意怀疑’、‘信任与怀疑拉扯’、‘害怕听到答案’），属于心理解释，摄像机无法拍到。判据要求通过可见行动推进，心理解释只能作为调味，且需先有事件支撑。此处前文已有证据核对的事件，但这段解释冗长且替代了行动，应改为可见的动作或细节来暗示其心理状态。\"}]}"
+  },
+  {
+    "caseId": "pos-25",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "深夜来电",
+    "taskName": "《深夜来电》第三章",
+    "slotId": "scene_4",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 622,
+    "usage": {
+      "prompt_tokens": 2914,
+      "completion_tokens": 12,
+      "total_tokens": 2926,
+      "prompt_tokens_details": {
+        "cached_tokens": 256
+      },
+      "prompt_cache_hit_tokens": 256,
+      "prompt_cache_miss_tokens": 2658
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-08",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_4",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 557,
+    "usage": {
+      "prompt_tokens": 4397,
+      "completion_tokens": 12,
+      "total_tokens": 4409,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      },
+      "prompt_cache_hit_tokens": 640,
+      "prompt_cache_miss_tokens": 3757
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-19",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "REVISE",
+    "defectKind": "D4-停错地方",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 820,
+    "usage": {
+      "prompt_tokens": 3163,
+      "completion_tokens": 12,
+      "total_tokens": 3175,
+      "prompt_tokens_details": {
+        "cached_tokens": 2688
+      },
+      "prompt_cache_hit_tokens": 2688,
+      "prompt_cache_miss_tokens": 475
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-05",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "测试1",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1234,
+    "usage": {
+      "prompt_tokens": 3274,
+      "completion_tokens": 12,
+      "total_tokens": 3286,
+      "prompt_tokens_details": {
+        "cached_tokens": 256
+      },
+      "prompt_cache_hit_tokens": 256,
+      "prompt_cache_miss_tokens": 3018
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-03",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_2",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1310,
+    "usage": {
+      "prompt_tokens": 3020,
+      "completion_tokens": 12,
+      "total_tokens": 3032,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2636
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-22",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #20",
+    "slotId": "scene3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 928,
+    "usage": {
+      "prompt_tokens": 2994,
+      "completion_tokens": 12,
+      "total_tokens": 3006,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2610
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-09",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #4",
+    "slotId": "scene_lawyer_private",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1861,
+    "usage": {
+      "prompt_tokens": 4317,
+      "completion_tokens": 12,
+      "total_tokens": 4329,
+      "prompt_tokens_details": {
+        "cached_tokens": 640
+      },
+      "prompt_cache_hit_tokens": 640,
+      "prompt_cache_miss_tokens": 3677
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-16",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "REVISE",
+    "defectKind": "D3-事实矛盾",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1370,
+    "usage": {
+      "prompt_tokens": 3132,
+      "completion_tokens": 12,
+      "total_tokens": 3144,
+      "prompt_tokens_details": {
+        "cached_tokens": 2048
+      },
+      "prompt_cache_hit_tokens": 2048,
+      "prompt_cache_miss_tokens": 1084
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-16",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "REVISE",
+    "defectKind": "D3-事实矛盾",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 777,
+    "usage": {
+      "prompt_tokens": 3240,
+      "completion_tokens": 12,
+      "total_tokens": 3252,
+      "prompt_tokens_details": {
+        "cached_tokens": 896
+      },
+      "prompt_cache_hit_tokens": 896,
+      "prompt_cache_miss_tokens": 2344
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-02",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1315,
+    "usage": {
+      "prompt_tokens": 3232,
+      "completion_tokens": 12,
+      "total_tokens": 3244,
+      "prompt_tokens_details": {
+        "cached_tokens": 896
+      },
+      "prompt_cache_hit_tokens": 896,
+      "prompt_cache_miss_tokens": 2336
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-27",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "REVISE",
+    "defectKind": "D2-心理解释",
+    "story": "沈家分家会",
+    "taskName": "M4 实测 #5",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 648,
+    "usage": {
+      "prompt_tokens": 4468,
+      "completion_tokens": 12,
+      "total_tokens": 4480,
+      "prompt_tokens_details": {
+        "cached_tokens": 1408
+      },
+      "prompt_cache_hit_tokens": 1408,
+      "prompt_cache_miss_tokens": 3060
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-13",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "REVISE",
+    "defectKind": "D1-承接断裂",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #17",
+    "slotId": "scene_3",
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "quote": "雨是从傍晚五点开始下的，到七点已经压得路灯抬不起头。林越站在公交站台的檐下，把外套领子竖起来，手没有伸进口袋——那件东西在怀里，攥在手里反而踏实些。",
+        "problem": "本段与章节骨架场景一（雨夜赴约）的设定冲突：骨架要求场景一聚焦林越冒雨赴约的过程，而本段却重复了赴约前的等待与心理描写，且与上一场景正文（林越已进入包间）时间线不符，造成场景重叠。"
+      },
+      {
+        "quote": "他又隔着衣料按了一次，隔着两层布摸到那道折痕，指腹顺着折线滑过去。凭证不大，对折之后严严实实，边角藏在胸前的内袋里。他数着那道折痕，像数一个念了太久的数。",
+        "problem": "本段与章节骨架场景一（雨夜赴约）的设定冲突：骨架要求场景一以林越停在门外推门与老周目光相接前一刻结束，而本段却再次描写林越在赴约前的动作与心理，与上一场景正文（林越已进入包间）时间线不符，造成场景重叠。"
+      }
+    ],
+    "elapsedMs": 3130,
+    "usage": {
+      "prompt_tokens": 3129,
+      "completion_tokens": 276,
+      "total_tokens": 3405,
+      "prompt_tokens_details": {
+        "cached_tokens": 768
+      },
+      "prompt_cache_hit_tokens": 768,
+      "prompt_cache_miss_tokens": 2361
+    },
+    "raw": "{\"verdict\":\"REVISE\",\"findings\":[{\"quote\":\"雨是从傍晚五点开始下的，到七点已经压得路灯抬不起头。林越站在公交站台的檐下，把外套领子竖起来，手没有伸进口袋——那件东西在怀里，攥在手里反而踏实些。\",\"problem\":\"本段与章节骨架场景一（雨夜赴约）的设定冲突：骨架要求场景一聚焦林越冒雨赴约的过程，而本段却重复了赴约前的等待与心理描写，且与上一场景正文（林越已进入包间）时间线不符，造成场景重叠。\"},{\"quote\":\"他又隔着衣料按了一次，隔着两层布摸到那道折痕，指腹顺着折线滑过去。凭证不大，对折之后严严实实，边角藏在胸前的内袋里。他数着那道折痕，像数一个念了太久的数。\",\"problem\":\"本段与章节骨架场景一（雨夜赴约）的设定冲突：骨架要求场景一以林越停在门外推门与老周目光相接前一刻结束，而本段却再次描写林越在赴约前的动作与心理，与上一场景正文（林越已进入包间）时间线不符，造成场景重叠。\"}]}"
+  },
+  {
+    "caseId": "neg-18",
+    "criterionId": "S3",
+    "criterionTitle": "不与骨架或别的场次撞设定",
+    "label": "REVISE",
+    "defectKind": "D3-事实矛盾",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #13",
+    "slotId": "scene_reveal",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1076,
+    "usage": {
+      "prompt_tokens": 3562,
+      "completion_tokens": 12,
+      "total_tokens": 3574,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 3178
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-22",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #20",
+    "slotId": "scene3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 780,
+    "usage": {
+      "prompt_tokens": 3052,
+      "completion_tokens": 12,
+      "total_tokens": 3064,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2668
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-26",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "REVISE",
+    "defectKind": "D2-心理解释",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #20",
+    "slotId": "scene3",
+    "verdict": "REVISE",
+    "findings": [
+      {
+        "quote": "林越心里慌得厉害，知道主动权已经完全落在老周手里。他说不清自己哪一环露了，只觉得老周说的每一句，都像早就写好，等他撞上来。越想越是胸闷，那股压在心口的不安越来越重，他甚至开始怀疑自己今晚这一趟，是不是从一开始就错了。",
+        "problem": "这段是典型的心理解释，摄像机拍不到林越的内心活动，它用心理描写代替了可见的行动来推进情节。读者无法通过外部可见的行为感知林越的慌张和被动，这违反了S2判据中'用可见的东西推进'的要求。"
+      }
+    ],
+    "elapsedMs": 2050,
+    "usage": {
+      "prompt_tokens": 3075,
+      "completion_tokens": 141,
+      "total_tokens": 3216,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2563
+    },
+    "raw": "{\"verdict\":\"REVISE\",\"findings\":[{\"quote\":\"林越心里慌得厉害，知道主动权已经完全落在老周手里。他说不清自己哪一环露了，只觉得老周说的每一句，都像早就写好，等他撞上来。越想越是胸闷，那股压在心口的不安越来越重，他甚至开始怀疑自己今晚这一趟，是不是从一开始就错了。\",\"problem\":\"这段是典型的心理解释，摄像机拍不到林越的内心活动，它用心理描写代替了可见的行动来推进情节。读者无法通过外部可见的行为感知林越的慌张和被动，这违反了S2判据中'用可见的东西推进'的要求。\"}]}"
+  },
+  {
+    "caseId": "neg-21",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "REVISE",
+    "defectKind": "D4-停错地方",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #4",
+    "slotId": "scene_revelation",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 1176,
+    "usage": {
+      "prompt_tokens": 2812,
+      "completion_tokens": 12,
+      "total_tokens": 2824,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2428
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-19",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "REVISE",
+    "defectKind": "D4-停错地方",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #16",
+    "slotId": "scene_3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 795,
+    "usage": {
+      "prompt_tokens": 3221,
+      "completion_tokens": 12,
+      "total_tokens": 3233,
+      "prompt_tokens_details": {
+        "cached_tokens": 2688
+      },
+      "prompt_cache_hit_tokens": 2688,
+      "prompt_cache_miss_tokens": 533
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-21",
+    "criterionId": "S1",
+    "criterionTitle": "首段需衔接前一场景的结尾状态",
+    "label": "REVISE",
+    "defectKind": "D4-停错地方",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #4",
+    "slotId": "scene_revelation",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 826,
+    "usage": {
+      "prompt_tokens": 2862,
+      "completion_tokens": 12,
+      "total_tokens": 2874,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2350
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "neg-26",
+    "criterionId": "S4",
+    "criterionTitle": "「停在哪里」必须兑现",
+    "label": "REVISE",
+    "defectKind": "D2-心理解释",
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #20",
+    "slotId": "scene3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 636,
+    "usage": {
+      "prompt_tokens": 3044,
+      "completion_tokens": 12,
+      "total_tokens": 3056,
+      "prompt_tokens_details": {
+        "cached_tokens": 384
+      },
+      "prompt_cache_hit_tokens": 384,
+      "prompt_cache_miss_tokens": 2660
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  },
+  {
+    "caseId": "pos-23",
+    "criterionId": "S2",
+    "criterionTitle": "通过可见行动推进，不用心理解释代替事件",
+    "label": "PASS",
+    "defectKind": null,
+    "story": "林越雨夜",
+    "taskName": "M4 实测 #19",
+    "slotId": "scene3",
+    "verdict": "PASS",
+    "findings": [],
+    "elapsedMs": 674,
+    "usage": {
+      "prompt_tokens": 3504,
+      "completion_tokens": 12,
+      "total_tokens": 3516,
+      "prompt_tokens_details": {
+        "cached_tokens": 512
+      },
+      "prompt_cache_hit_tokens": 512,
+      "prompt_cache_miss_tokens": 2992
+    },
+    "raw": "{\"verdict\":\"PASS\",\"findings\":[]}"
+  }
+]

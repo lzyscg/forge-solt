@@ -23,6 +23,7 @@ import { runMigrations } from '@server/infrastructure/database/migrate.ts';
 import { FakeProvider } from '@server/runtime/provider/fake.ts';
 import { buildApp } from '@server/application/composition.ts';
 import { loadProviderConfig } from '@server/application/provider-config.ts';
+import type { LoadedSkill } from '@server/application/skill-loader.ts';
 import type { CompiledSlotType, CompiledTemplate } from '@server/application/template-loader.ts';
 import { loadServerConfig } from '@server/config/env.ts';
 
@@ -116,7 +117,7 @@ export async function runTask(argv: readonly string[]): Promise<number> {
   });
 
   const loaded = await app.catalog.requireUsable(args.template);
-  if (args.provider === 'fake') scriptFakeFromTemplate(fake, loaded.compiled);
+  if (args.provider === 'fake') scriptFakeFromTemplate(fake, loaded.compiled, loaded.skills);
   const created = await app.snapshots.createTask({
     templateId: args.template,
     name: args.name,
@@ -185,8 +186,20 @@ function singleFieldInput(
  *
  * 结构上刻意贴着模板：每个 `contentBearing` 类型出一个槽位，长度按 `minChars` 撑够。
  * 于是换一个模板，这个脚本自动跟着变——写死一份结构的话，CLI 就只对当前这个模板有效。
+ *
+ * **R4：绑了审核的槽位类型还要补审核轮的脚本。**
+ * 填槽提交之后槽位进 `reviewing`，引擎会按判据逐条跑 `review_slot` execution（D-23）。
+ * 不补这几轮，假脚本会在第一条判据上耗尽 → `end_turn` 且没有提交 → 整条 CLI 路径失败。
+ * 判据条数从**冻结前的同一份 Skill** 数（section 数），与调度器的枚举口径一致；
+ * 写死一个数字会在判据增删时静默错位。
+ * 一律回 `no_finding`：这个脚本要证明的是流水线跑得通，不是审核判得准——
+ * 让它回 `revise` 会把 CLI 变成返修循环的测试，而返修循环有自己的集成用例。
  */
-function scriptFakeFromTemplate(fake: FakeProvider, compiled: CompiledTemplate): void {
+function scriptFakeFromTemplate(
+  fake: FakeProvider,
+  compiled: CompiledTemplate,
+  skills: Readonly<Record<string, LoadedSkill>>,
+): void {
   const container = compiled.slotTypes.find((t) => !t.contentBearing);
   const contentTypes = compiled.slotTypes.filter((t) => t.contentBearing);
   if (container === undefined || contentTypes.length === 0) {
@@ -208,9 +221,18 @@ function scriptFakeFromTemplate(fake: FakeProvider, compiled: CompiledTemplate):
 
   fake.script({ submitStructure: { rootSlotId: rootId, slots } });
   for (const type of contentTypes) {
-    fake.script({
-      submitContent: { slotId: `${type.id}_01`, content: fillerFor(type) },
-    });
+    const slotId = `${type.id}_01`;
+    fake.script({ submitContent: { slotId, content: fillerFor(type) } });
+
+    const reviewBinding = compiled.bindings.reviewSlotByType[type.id];
+    if (reviewBinding === undefined) continue;
+    const reviewSkill = skills[reviewBinding.skillId];
+    if (reviewSkill === undefined) {
+      throw new Error(`模板 ${compiled.id} 的审核绑定引用了未加载的 Skill：${reviewBinding.skillId}`);
+    }
+    for (const _criterion of reviewSkill.sections) {
+      fake.script({ submitReview: { slotId, verdict: 'no_finding' } });
+    }
   }
 }
 

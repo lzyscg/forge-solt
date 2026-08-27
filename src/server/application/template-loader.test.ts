@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { ForgeError } from '@shared/errors.ts';
 import { canonicalJson } from '@server/domain/canonical.ts';
 import { validateConcreteStructure } from '@server/domain/structure-validation.ts';
+import { createTemplateWorkspace } from '../../../tests/fixtures/workspace.ts';
 import { compileTemplate, loadTemplate } from './template-loader.ts';
 import type { TemplateLoaderOptions } from './template-loader.ts';
 
@@ -314,5 +315,144 @@ describe('非法模板：单点变异', () => {
 
   it('缺 maxToolCallsPerAssignment（无回退来源，必须显式给出）', async () => {
     await expectRejected(compileMutated('  maxToolCallsPerAssignment: 24\n', ''), /maxToolCallsPerAssignment/);
+  });
+});
+
+/**
+ * R4 / FR-TPL-003：`reviewSlotByType` 的编译期校验。
+ *
+ * 基准夹具换成 `review-chapter`——它是唯一带 `reviewSlotByType` 的模板。
+ *
+ * 一条必须写在这里的事实：**「判据至少一条」「判据 ID 唯一」两条规则的实现
+ * 在 `skill-loader.ts`，不在本文件**。原因是模板编译必然先 `loadSkill` 把
+ * SKILL.md 解析进来（第 4 步），一份 0 判据或判据 ID 重复的审核 Skill
+ * 根本走不到绑定校验那一步。在这里再写一遍等于写一段永远进不去的分支——
+ * 它测不出来，也就防不住任何东西。下面两条用例验的是**编译期确实会拒**
+ * （这才是 FR-TPL-003 要的东西），而规则本身由 skill-loader 的用例锁住。
+ */
+describe('FR-TPL-003：reviewSlotByType 的编译期校验（R4）', () => {
+  const REVIEW_DIR = path.join(FIXTURES, 'templates', 'review-chapter');
+  const reviewYaml = async (): Promise<string> => readFile(path.join(REVIEW_DIR, 'template.yaml'), 'utf8');
+
+  async function compileReview(mutate?: [from: string, to: string]): Promise<CompileResult> {
+    let text = await reviewYaml();
+    if (mutate !== undefined) {
+      expect(text).toContain(mutate[0]);
+      text = text.replace(mutate[0], mutate[1]);
+    }
+    return compileTemplate(text, path.join(REVIEW_DIR, 'template.yaml'), OPTIONS);
+  }
+
+  it('合法：scene 绑定 review_slot Skill', async () => {
+    const { compiled } = await compileReview();
+    expect(Object.keys(compiled.bindings.reviewSlotByType)).toEqual(['scene']);
+    expect(compiled.bindings.reviewSlotByType['scene']?.skillId).toBe('scene-review');
+  });
+
+  it('绑定的 Skill 的 operation 不是 review_slot 时拒绝', async () => {
+    // 拿写作 Skill 当审核员：它跑得起来，只是审出来的东西是错的
+    await expectRejected(
+      compileReview(['skillId: scene-review', 'skillId: scene-writing']),
+      /reviewSlotByType\.scene 需要 operation 为 review_slot/,
+    );
+  });
+
+  it('不绑定审核是合法且默认的状态——不套用 fillSlotByType 的覆盖性校验（D-27）', async () => {
+    // 这条是反过来守的：谁要是照抄 fill 的「必须覆盖全部 contentBearing 类型」，
+    // 这里立刻红。zhihu-chapter 之外的模板一个审核绑定都没有，全会编译不过
+    const text = await reviewYaml();
+    const from = '  reviewSlotByType:\n    scene:\n      agentId: scene_reviewer\n      skillId: scene-review\n      maxRetries: 1\n';
+    expect(text).toContain(from);
+    const { compiled } = await compileTemplate(
+      text.replace(from, ''),
+      path.join(REVIEW_DIR, 'template.yaml'),
+      OPTIONS,
+    );
+    expect(compiled.bindings.reviewSlotByType).toEqual({});
+    // 内容型槽位一个不少，只是没人审
+    expect(Object.keys(compiled.bindings.fillSlotByType).sort()).toEqual(['chapter_outline', 'scene', 'title']);
+  });
+
+  it('maxRevisionRounds 为负数时拒绝', async () => {
+    await expectRejected(compileReview(['maxRevisionRounds: 2', 'maxRevisionRounds: -1']), /maxRevisionRounds/);
+  });
+
+  it('maxRevisionRounds 非整数时拒绝', async () => {
+    await expectRejected(compileReview(['maxRevisionRounds: 2', 'maxRevisionRounds: 1.5']), /maxRevisionRounds/);
+  });
+
+  it('maxRevisionRounds 省略时编译为 2（D-26 的默认值）', async () => {
+    const { compiled } = await compileReview(['    maxRevisionRounds: 2\n', '']);
+    expect(compiled.slotTypes.find((s) => s.id === 'scene')?.maxRevisionRounds).toBe(2);
+  });
+
+  it('maxRevisionRounds 为 0 合法（等于关掉返修，只审不修）', async () => {
+    const { compiled } = await compileReview(['maxRevisionRounds: 2', 'maxRevisionRounds: 0']);
+    expect(compiled.slotTypes.find((s) => s.id === 'scene')?.maxRevisionRounds).toBe(0);
+  });
+
+  it('绑定的审核 Skill 一条判据都没有时，编译期拒绝', async () => {
+    const workspace = await createTemplateWorkspace();
+    try {
+      await workspace.writeSkill(
+        'scene-review',
+        '---\nid: scene-review\nversion: 1.0.0\noperation: review_slot\nslotTypes: [scene]\nsummary: 空判据。\nrequiredSections: []\n---\n\n没有任何 `## S<n>` 章节。\n',
+      );
+      await expectRejected(
+        loadTemplate(path.join(workspace.templatesDir, 'review-chapter'), {
+          ...OPTIONS,
+          skillsDir: workspace.skillsDir,
+        }),
+        /至少声明一条判据/,
+      );
+    } finally {
+      await workspace.cleanup();
+    }
+  });
+
+  it('绑定的审核 Skill 判据 ID 重复时，编译期拒绝', async () => {
+    const workspace = await createTemplateWorkspace();
+    try {
+      const original = await workspace.readSkill('scene-review');
+      expect(original).toContain('## S2. 行动推进');
+      await workspace.writeSkill('scene-review', original.replace('## S2. 行动推进', '## S1. 又一个 S1'));
+      await expectRejected(
+        loadTemplate(path.join(workspace.templatesDir, 'review-chapter'), {
+          ...OPTIONS,
+          skillsDir: workspace.skillsDir,
+        }),
+        /重复/,
+      );
+    } finally {
+      await workspace.cleanup();
+    }
+  });
+});
+
+/**
+ * R4：仓库里真正会被加载的那份 `templates/zhihu-chapter`。
+ * 夹具过了而生产模板没过，等于什么都没验——而这一版的改动恰恰只落在生产模板上。
+ */
+describe('templates/zhihu-chapter：scene 绑上审核（R4 / D-27）', () => {
+  const REAL_TEMPLATE_DIR = fileURLToPath(new URL('../../../templates/zhihu-chapter', import.meta.url));
+  const REAL_SKILLS_DIR = fileURLToPath(new URL('../../../skills', import.meta.url));
+  const realOptions: TemplateLoaderOptions = { ...OPTIONS, skillsDir: REAL_SKILLS_DIR };
+
+  it('只给 scene 绑审核，绑的是 scene-review', async () => {
+    const { compiled } = await loadTemplate(REAL_TEMPLATE_DIR, realOptions);
+    // 「只给 scene」不是文案：R0.5 只测了场景正文，给 outline/title 开审核
+    // 是在为没测过的场景付 token 并承担未知误报（D-27）
+    expect(Object.keys(compiled.bindings.reviewSlotByType)).toEqual(['scene']);
+    const binding = compiled.bindings.reviewSlotByType['scene'];
+    expect(binding?.skillId).toBe('scene-review');
+    expect(binding?.agentId).toBe('scene_reviewer');
+    // 审核 Agent 与写作 Agent 必须是两个：同一个 Agent 既写又审，
+    // 它的 systemInstruction 会同时装着「你负责写」和「你负责挑错」
+    expect(binding?.agentId).not.toBe(compiled.bindings.fillSlotByType['scene']?.agentId);
+  });
+
+  it('scene 的 maxRevisionRounds 是 2（D-26）', async () => {
+    const { compiled } = await loadTemplate(REAL_TEMPLATE_DIR, realOptions);
+    expect(compiled.slotTypes.find((s) => s.id === 'scene')?.maxRevisionRounds).toBe(2);
   });
 });

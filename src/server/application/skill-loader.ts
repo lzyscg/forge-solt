@@ -67,6 +67,16 @@ const SkillFrontmatterSchema = z
         message: 'operation 为 fill_slot 时必须声明 slotTypes（模板编译期据此校验绑定是否匹配）',
       });
     }
+    // R4 / FR-TPL-003：审核 Skill 同理——模板编译期要据此校验
+    // `bindings.reviewSlotByType.<type>` 绑的这份 Skill 管不管这个类型。
+    // 不声明就只能在运行时才发现「拿 title 的审核 Skill 去审 scene」。
+    if (value.operation === 'review_slot' && value.slotTypes.length === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['slotTypes'],
+        message: 'operation 为 review_slot 时必须声明 slotTypes（模板编译期据此校验绑定是否匹配）',
+      });
+    }
     // 反过来，create_structure 的目标是整棵结构而非某个类型，写了 slotTypes 只能是误解，
     // 静默接受会让作者以为「结构 Skill 也能按类型挑」。
     if (value.operation === 'create_structure' && value.slotTypes.length > 0) {
@@ -188,6 +198,10 @@ function parseSections(body: string, sourcePath: string): { preamble: string; se
   }
   flush();
 
+  // R4 / FR-TPL-003：对审核 Skill 而言 section ID **就是判据 ID**，
+  // 而判据 ID 是 `slot_reviews` 主键的组成部分——重复会让两条判据的审核结果
+  // 互相覆盖（后一条 upsert 掉前一条），表现为「四条判据只落了三行」。
+  // 这条约束对所有 Skill 一视同仁，所以放在这里而不是按 operation 分支。
   const seen = new Set<string>();
   for (const section of sections) {
     if (seen.has(section.id)) {
@@ -219,6 +233,18 @@ export function parseSkill(raw: string, sourcePath: string): LoadedSkill {
   const meta = parsed.data;
 
   const { preamble, sections } = parseSections(body, sourcePath);
+
+  // R4 / FR-TPL-003：审核 Skill 的判据 = 它的 `## S<n>` 章节（D-23：一条判据一次 execution，
+  // 调度器按 sections 顺序枚举）。一条都没有的审核 Skill 在运行期的表现是
+  // 「槽位进 reviewing，调度器枚举出 0 条判据，立刻结算成未检出问题」——
+  // 一个审核绑定明明配了、却什么都没审的静默空转。必须在加载期拒掉。
+  if (meta.operation === 'review_slot' && sections.length === 0) {
+    throw invalid(
+      'operation 为 review_slot 的 Skill 必须至少声明一条判据（一个 `## S<n>` 章节）',
+      sourcePath,
+    );
+  }
+
   const sectionIndex: Record<string, SkillSection> = {};
   for (const section of sections) sectionIndex[section.id] = section;
 

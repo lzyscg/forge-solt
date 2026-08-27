@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -28,6 +29,33 @@ requiredSections: [S1, S6]
 ## S6. 提交前自检
 
 检查字数。
+`;
+
+/**
+ * R4：审核 Skill 的基准合法样本。判据 = `## S<n>` 章节（D-23，调度器按 sections 顺序枚举）。
+ * 与 VALID 分开一份，是因为 review_slot 的规则与 fill_slot 不同，
+ * 复用同一份再逐条 replace 会让「这条用例到底在测哪条规则」变得看不出来。
+ */
+const REVIEW_VALID = `---
+id: scene-review
+version: 1.0.0
+operation: review_slot
+slotTypes: [scene]
+summary: 按判据检查场景正文。
+requiredSections: []
+---
+
+# 场景审核 Skill
+
+前言部分。
+
+## S1. 首段承接
+
+检查首段。
+
+## S2. 可见行动
+
+检查行动。
 `;
 
 describe('parseSkill：合法文件', () => {
@@ -133,6 +161,104 @@ describe('parseSkill：非法文件各自被拒', () => {
 
   it('version 不是三段式', () => {
     rejects(VALID.replace('version: 1.0.0', 'version: v1'), /三段式/);
+  });
+
+  // --- R4 / FR-TPL-003：审核 Skill 的三条规则 ---
+
+  it('review_slot 未声明 slotTypes', () => {
+    // 不声明就没法在模板编译期校验「reviewSlotByType.scene 绑的这份 Skill 管不管 scene」，
+    // 错配会一路漏到运行时——那时已经在按一份不适用的判据审内容了
+    rejects(REVIEW_VALID.replace('slotTypes: [scene]\n', ''), /review_slot/);
+  });
+
+  it('review_slot 一条判据都没有', () => {
+    // 运行期表现是「槽位进 reviewing → 枚举出 0 条判据 → 立刻结算成未检出问题」：
+    // 一个配了却什么都没审的静默空转，比没配审核更危险
+    const noCriteria = REVIEW_VALID.replace(
+      '## S1. 首段承接\n\n检查首段。\n\n## S2. 可见行动\n\n检查行动。\n',
+      '',
+    );
+    rejects(noCriteria, /至少声明一条判据/);
+  });
+
+  it('审核 Skill 的判据 ID 重复', () => {
+    // 判据 ID 是 slot_reviews 主键的组成部分：重复会让后一条审核结果
+    // 覆盖掉前一条，四条判据只落三行，而没有任何地方会报错
+    rejects(REVIEW_VALID.replace('## S2. 可见行动', '## S1. 又一个 S1'), /重复/);
+  });
+});
+
+describe('parseSkill：审核 Skill（R4）', () => {
+  it('判据即 sections，按文件出现序', () => {
+    const skill = parseSkill(REVIEW_VALID, skillPath('scene-review'));
+    expect(skill.operation).toBe('review_slot');
+    expect(skill.slotTypes).toEqual(['scene']);
+    expect(skill.sections.map((s) => s.id)).toEqual(['S1', 'S2']);
+  });
+});
+
+describe('skills/scene-review/SKILL.md：上线的那份审核 Skill（R4）', () => {
+  // 测的是仓库里真正会被加载的那份文件，不是夹具——
+  // 夹具过了而真文件没过，等于什么都没验（§6.4 同一条理由）
+  const REAL = fileURLToPath(new URL('../../../skills/scene-review/SKILL.md', import.meta.url));
+
+  it('四条判据全部上线（D-28），ID 为 S1..S4', async () => {
+    const skill = await loadSkill(REAL);
+    expect(skill.operation).toBe('review_slot');
+    expect(skill.slotTypes).toEqual(['scene']);
+    expect(skill.sections.map((s) => s.id)).toEqual(['S1', 'S2', 'S3', 'S4']);
+  });
+
+  it('前两条判据的标题与 zhihu-chapter 的 scene guidance 逐字一致（§6.3）', async () => {
+    const skill = await loadSkill(REAL);
+    const templateYaml = await readFile(
+      fileURLToPath(new URL('../../../templates/zhihu-chapter/template.yaml', import.meta.url)),
+      'utf8',
+    );
+    // 判据一/二正是实测 3/3 的那两条。它们与模板 guidance 同源，
+    // 一旦有人只改一边，写作要求与审核判据就会开始漂移而无人察觉
+    for (const title of [skill.sections[0]?.title, skill.sections[1]?.title]) {
+      expect(title).toBeTruthy();
+      expect(templateYaml).toContain(`      - ${title ?? ''}\n`);
+    }
+  });
+
+  it('判据文本逐字取自 scene-writing（§6.3：不另写一套标准）', async () => {
+    const review = await loadSkill(REAL);
+    const writing = await loadSkill(
+      fileURLToPath(new URL('../../../skills/scene-writing/SKILL.md', import.meta.url)),
+    );
+    const writingText = [writing.preamble, ...writing.sections.map((s) => s.content)].join('\n');
+    // 引文块（`> ` 开头）必须能在写作 Skill 里逐字找到。审核判据自己另写一套措辞，
+    // 测到的就变成「两份标准的分歧」，而不是「模型能不能判」
+    const quoted = review.sections
+      .flatMap((s) => s.content.split('\n'))
+      .filter((line) => line.startsWith('> ') && line.trim() !== '>')
+      .map((line) => line.slice(2).trim());
+    expect(quoted.length).toBeGreaterThan(10);
+    for (const line of quoted) {
+      if (line.startsWith('自检项：')) {
+        expect(writingText).toContain(line.slice('自检项：'.length));
+      } else {
+        expect(writingText).toContain(line);
+      }
+    }
+  });
+
+  it('注入模型的部分不含实测可靠度记录（会告诉模型 S3/S4 没用）', async () => {
+    const skill = await loadSkill(REAL);
+    // preamble 与 sections 是 buildReviewSlotTexts 唯一会注入 system prompt 的两处。
+    // 「0/3」这类工程事实必须留在 RELIABILITY.md 里，进了 prompt 就是在教模型放行
+    const injected = [skill.summary, skill.preamble, ...skill.sections.map((s) => s.content)].join('\n');
+    expect(injected).not.toContain('0/3');
+    expect(injected).not.toContain('未验证有效');
+  });
+
+  it('措辞不出现「审核通过」「质量合格」「已校验」（D-30 / FR-REVIEW-004）', async () => {
+    const raw = await readFile(REAL, 'utf8');
+    for (const banned of ['审核通过', '质量合格', '已校验']) {
+      expect(raw).not.toContain(banned);
+    }
   });
 });
 
