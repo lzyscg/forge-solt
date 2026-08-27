@@ -303,6 +303,50 @@ describe('附录 B.1 deriveTaskPresentation', () => {
     expect(out).toEqual({ tone: 'ok', state: '已完成', detail: '2 个槽位全部通过，产物已组装' });
   });
 
+  /**
+   * D-30：「全部通过」这四个字只有在真的全部通过时才能说。
+   *
+   * 来自 2026-08-27 的真实任务：`scene1` 的 S2 连续三轮检出问题，返修预算打满，
+   * 系统按 D-26 放行（`review_exhausted = 1`）。放行是对的——任务永不因审核卡死；
+   * 但当时任务列表上写的是「5 个槽位全部通过，产物已组装」，
+   * 而那三条 S2 问题**一条都没修掉**。用户要往下点三层才能发现。
+   *
+   * 与「未检出问题不能写成审核通过」是同一条纪律，只是位置更靠前、危害更大：
+   * 它出现在可见度最高的那一层，是绝大多数人唯一会看的一句话。
+   */
+  it('B.1 第 13 行 · D-30：有槽位返修次数用尽时，不许说「全部通过」', () => {
+    const out = deriveTaskPresentation(
+      taskInput({
+        task: task({ status: 'completed', phase: 'done' }),
+        slots: [
+          slot({ slotId: 'chapter', contentBearing: false }),
+          slot({ slotId: 'scene_01', status: 'completed', reviewExhausted: true }),
+          slot({ slotId: 'scene_02', status: 'completed' }),
+        ],
+      }),
+    );
+    expect(out.detail).not.toContain('全部通过');
+    expect(out).toEqual({
+      tone: 'ok',
+      state: '已完成',
+      detail: '2 个槽位已完成，其中 1 个返修次数用尽、按现状放行，产物已组装',
+    });
+  });
+
+  it('B.1 第 8 行 · D-30：组装中同样不许把「按现状放行」说成「全部通过」', () => {
+    const out = deriveTaskPresentation(
+      taskInput({
+        task: task({ status: 'running', phase: 'assembly' }),
+        slots: [
+          slot({ slotId: 'chapter', contentBearing: false }),
+          slot({ slotId: 'scene_01', status: 'completed', reviewExhausted: true }),
+        ],
+      }),
+    );
+    expect(out.detail).not.toContain('全部通过');
+    expect(out.detail).toBe('1 个槽位已完成，其中 1 个返修次数用尽、按现状放行，正在组装产物');
+  });
+
   it('B.1 第 14 行：未命中任何行（running/done、failed/done 这类脏数据）→ idle/状态未知', () => {
     // D-19：不抛错（派生函数跑在每次列表渲染上），也不伪装成某个正常状态；
     // detail 把状态组合原样交出来，便于从界面直接定位脏数据。

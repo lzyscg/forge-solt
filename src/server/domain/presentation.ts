@@ -125,7 +125,7 @@ export function deriveTaskPresentation(input: TaskPresentationInput): Presentati
 
     // B.1 第 8 行
     if (task.phase === 'assembly') {
-      return { tone: 'run', state: '组装中', detail: `${total} 个槽位全部通过，正在组装产物` };
+      return { tone: 'run', state: '组装中', detail: `${slotsDoneText(slots, total)}，正在组装产物` };
     }
 
     // running + phase=done 落到函数末尾的第 14 行兜底，不在这里假装是「组装中」。
@@ -172,7 +172,7 @@ export function deriveTaskPresentation(input: TaskPresentationInput): Presentati
 
   // B.1 第 13 行
   if (task.status === 'completed') {
-    return { tone: 'ok', state: '已完成', detail: `${total} 个槽位全部通过，产物已组装` };
+    return { tone: 'ok', state: '已完成', detail: `${slotsDoneText(slots, total)}，产物已组装` };
   }
 
   // B.1 第 14 行（D-19）——TaskStatus × TaskPhase 有 5×4=20 种组合，表只覆盖了一部分。
@@ -195,6 +195,25 @@ export function deriveTaskPresentation(input: TaskPresentationInput): Presentati
 function failureText(reason: string | null): string {
   if (reason !== null && reason.trim().length > 0) return reason.trim();
   return '执行失败';
+}
+
+/**
+ * 任务级那句「N 个槽位…」。**「全部通过」这四个字只有在真的全部通过时才能说**（D-30）。
+ *
+ * 2026-08-27 的真实任务 `测试01`：`scene1` 的 S2 判据连续三轮都检出问题，
+ * 返修预算打满，系统按 D-26 放行（`review_exhausted = 1`）——它是「按现状完成」，
+ * **不是「通过」**。而任务列表当时无条件写着「5 个槽位全部通过，产物已组装」。
+ *
+ * 那句话出现在**可见度最高的一层**，用户要往下点三层、点开那个槽位读轨迹，
+ * 才能发现有三条已知问题没修掉就发出去了。这不是文案问题，是不实陈述：
+ * 与「未检出问题」不能写成「审核通过」是同一条纪律，只是位置更靠前、危害更大。
+ *
+ * 放行本身是对的（D-26：任务永不因审核卡死）。要改的只是**别把放行说成通过**。
+ */
+function slotsDoneText(slots: readonly Slot[], total: number): string {
+  const exhausted = slots.filter((slot) => slot.reviewExhausted).length;
+  if (exhausted === 0) return `${total} 个槽位全部通过`;
+  return `${total} 个槽位已完成，其中 ${exhausted} 个返修次数用尽、按现状放行`;
 }
 
 // ---------- B.2 槽位级 ----------
