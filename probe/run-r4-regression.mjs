@@ -27,17 +27,43 @@
  * 用法：
  *   node probe/run-r4-regression.mjs --dry-run   # 只装配 prompt，不发任何请求
  *   node probe/run-r4-regression.mjs             # 真跑，116 次调用，花钱
+ *   node probe/run-r4-regression.mjs --model deepseek-v4-pro --out ./results-r4-pro.json
+ *                                                # 换档实验：只动模型这一个变量
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import process from 'node:process';
 
 const DRY_RUN = process.argv.includes('--dry-run');
 
-const MODEL = 'deepseek-chat';
+/**
+ * 换档实验用：`--model` / `--out`。**默认值一个字都没变**，
+ * 不带这两个参数时跑出来的仍然是 R4 门槛那一次的配置。
+ *
+ * 单变量纪律：换档时只动 `--model`，端点、temperature、种子、并发、判据来源、
+ * 用例全部不动——`api.deepseek.com` 也不换成 OpenCode Go，
+ * 否则模型和路由一起变了，数字动了也说不清是哪个动的。
+ */
+const argOf = (name, fallback) => {
+  const at = process.argv.indexOf(name);
+  return at >= 0 && process.argv[at + 1] !== undefined ? process.argv[at + 1] : fallback;
+};
+
+const MODEL = argOf('--model', 'deepseek-chat');
+/**
+ * 输出预算。**默认 2000 不动**——R4 门槛那一跑就是 2000，改默认值会让它不可复现。
+ *
+ * 推理型号（deepseek-v4-pro）必须抬高，否则思维链会把预算整个吃光、
+ * 可见内容为空，116 次里 49 次 PARSE_ERROR，测到的是上限不是能力
+ * （实测：那 49 次的 completion_tokens 1998 全是 reasoning_tokens）。
+ * 抬上限对 flash 基线是**空操作**：它 116 次里最大才 543，从没接近过 2000。
+ */
+const MAX_TOKENS = Number(argOf('--max-tokens', '2000'));
+if (!Number.isInteger(MAX_TOKENS) || MAX_TOKENS <= 0) throw new Error(`--max-tokens 非法：${MAX_TOKENS}`);
 const TEMPERATURE = 0.2;
 const CONCURRENCY = 6;
 const SEED = 20260826;
-const OUT_URL = new URL('./results-r4.json', import.meta.url);
+const OUT_NAME = argOf('--out', './results-r4.json');
+const OUT_URL = new URL(OUT_NAME, import.meta.url);
 
 // ---------- 判据：读产品那份 SKILL.md，按 skill-loader 的规则切 ----------
 const SKILL_URL = new URL('../skills/scene-review/SKILL.md', import.meta.url);
@@ -184,7 +210,7 @@ if (DRY_RUN) {
 // ---------- 以下只有真跑才会执行 ----------
 if (existsSync(OUT_URL)) {
   // probe/ 下既有的结果文件是回归基线，覆盖了就再没有可比性。
-  throw new Error('probe/results-r4.json 已存在。先把它挪走或改名，本脚本不覆盖任何结果文件。');
+  throw new Error(`${OUT_NAME} 已存在。先把它挪走或改名，本脚本不覆盖任何结果文件。`);
 }
 
 const envText = readFileSync(new URL('../.env', import.meta.url), 'utf8');
@@ -214,7 +240,7 @@ async function callOnce(system, user) {
     model: MODEL,
     temperature: TEMPERATURE,
     response_format: { type: 'json_object' },
-    max_tokens: 2000,
+    max_tokens: MAX_TOKENS,
     messages: [
       { role: 'system', content: system },
       { role: 'user', content: user },
@@ -360,6 +386,6 @@ console.log('   它们**不是**发布闸门：判据三/四误报为 0，不添
 
 console.log('\n================ 其他 ================');
 console.log(`对照 ctl-29（句序倒置，不应被打回）：${controlFired.length === 0 ? '未被打回' : `被打回（${controlFired.map((c) => c.caseId).join(', ')}）`}`);
-console.log(`合计 ${results.length} 次调用，${tokens} token → probe/results-r4.json`);
+console.log(`模型 ${MODEL} · 合计 ${results.length} 次调用，${tokens} token → probe/${OUT_NAME.replace('./', '')}`);
 console.log(`\n${gateOk ? '门槛达标。' : '门槛未达标——不能发。'}`);
 process.exit(gateOk ? 0 : 1);
