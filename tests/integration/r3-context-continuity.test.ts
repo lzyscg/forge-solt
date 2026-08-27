@@ -218,6 +218,77 @@ describe('R3 上下文连续性（D-31 / D-32）', () => {
     expect(firstJson.revision).toBeNull();
   });
 
+  /**
+   * `context_json` 里 `revision` 那一段的**键名是对外契约，不是实现细节**。
+   *
+   * ## 先说清楚它**不是**唯一的防线（2026-08-27 实测）
+   *
+   * 把产品代码里的 `submittedContent` 改名成 `draftText`（写入端 context-builder、
+   * 读取端 revision-source、类型 revision-context 三处同时改）之后，
+   * 本文件已有的 **AC-R-013、D-31 第 2 轮、FR-CTX-005 三条一起红**——
+   * 它们靠类型断言逐个取键名，改名就取不到。**机械层面的检测早就在了。**
+   *
+   * 本条新增的只有两样，都很窄：
+   *   1. `criterionId` 与 `quote` 这两个 finding 键，全仓库只有这里钉死
+   *      （AC-R-013 只断言到 `problem`）；
+   *   2. `Object.keys().sort()` 是**全等**，所以还能抓住「悄悄多加一个键」，
+   *      而不只是改名——多加的键会进 `context_hash`，让同一份语义输入换了指纹。
+   *
+   * ## 真正的价值在下面这段说明，不在断言本身
+   *
+   * 上面那三条红了之后，最顺手的「修法」是把测试里的字面量跟着改一遍，然后绿。
+   * **那一步就是事故本身**：库里**已经存在的老行**还是老键名，新的读取端认不出来，
+   * `earlierRoundsOf` 的六条容错分支把它降级成「没有更早的轮次」——
+   * **不抛错、不留痕、任务照常跑完**，只是返修 Agent 突然不记得第 0 轮了。
+   * 那正是 D-31 开头写下的失效场景：第 2 轮把第 0 轮修好的地方改回去，
+   * 白烧一轮预算（总共只有两轮），而且事后无从查起。
+   *
+   * 所以这条断言存在的意义，是**在红的那一刻把「该怎么办」摆在改的人眼前**。
+   *
+   * ## 这条断言红了怎么办
+   *
+   * **不要改这里的字面量让它变绿。**改了就等于把上面那件事放行了。
+   * 要改形状，同时做三件事：
+   *   1. 给 `revision` 加版本号（读到「没有版本号」按现在这版解，老行才不失效）；
+   *   2. 让 `earlierRoundsOf` 遇到不认识的版本时**留痕**（发一条 trace 说
+   *      「本轮少读了 N 轮历史」），而不是静默返回空数组；
+   *   3. 再回来更新这里的字面量，并把新键名也钉死。
+   *
+   * 键名在这里**必须写成字面量**，不能从 `StoredRevision` 类型推导：
+   * 从类型推导的话，改名会让类型和断言一起变，这条断言就永远不会红。
+   */
+  it('context_json 的 revision 形状被钉死（改形状会让老任务静默丢历史）', async () => {
+    const h = fakeHarness([...scriptToFirstReview(), ...firstRoundReviewScripts(), ...tailScripts()]);
+    const taskId = await createAndStart(h);
+    await h.engine.drain();
+
+    const revision = fillSlotExecutions(h, taskId, 'scene_01')[1]!;
+    const parsed = JSON.parse(contextJsonOf(h, revision)) as Record<string, unknown>;
+
+    // 顶层：返修段挂在 `revision` 这个键上
+    expect(Object.keys(parsed)).toContain('revision');
+    const rev = parsed['revision'] as Record<string, unknown>;
+    expect(Object.keys(rev).sort()).toEqual(['priorRounds', 'round']);
+
+    // 每一轮的形状
+    const rounds = rev['priorRounds'] as Record<string, unknown>[];
+    expect(rounds.length).toBeGreaterThan(0);
+    for (const round of rounds) {
+      expect(Object.keys(round).sort()).toEqual([
+        'findings',
+        'readSlotIds',
+        'submittedContent',
+        'visibleOutput',
+      ]);
+      for (const finding of round['findings'] as Record<string, unknown>[]) {
+        expect(Object.keys(finding).sort()).toEqual(['criterionId', 'problem', 'quote']);
+      }
+    }
+
+    // 这一轮至少有一条 finding，否则上面那层 for 是空转，等于没断言
+    expect((rounds[0]!['findings'] as unknown[]).length).toBeGreaterThan(0);
+  });
+
   // AC-R-013（prompt 侧）：返修段真的进了送给模型的 User Message
   it('AC-R-013：返修轮的 User Message 含返修段，首稿那一轮不含', async () => {
     const h = fakeHarness([...scriptToFirstReview(), ...firstRoundReviewScripts(), ...tailScripts()]);
