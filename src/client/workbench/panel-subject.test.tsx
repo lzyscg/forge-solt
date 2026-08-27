@@ -12,6 +12,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { render, screen, cleanup } from '@testing-library/react';
 import type { ExecutionView, SlotView, StepperKey, TaskDetail } from '@shared/contracts.ts';
+import type { TraceEvent } from '@shared/trace.ts';
 import { determinePanelSubject } from './panel-subject.ts';
 import { RightPanel } from './RightPanel.tsx';
 
@@ -177,5 +178,52 @@ describe('RightPanel 组件按 subject 分支渲染', () => {
     const task = makeTask({ slots: [slot], activeExecution: exec });
     render(<RightPanel task={task} subject={{ kind: 'content', slot, execution: exec }} traces={[]} executions={[]} showBackToCurrent={false} onBackToCurrent={noop} />);
     expect(screen.getByText('进行中')).toBeTruthy();
+  });
+
+  /**
+   * R2 的**审核结算**事件是 `executionId === null` 的：它们收口一整轮判据，
+   * 不属于其中任何一次 execution，靠 `payload.slotId` 归属槽位。
+   *
+   * 2026-08-27 实测发现的缺陷：`scopeTraces` 的 content 分支原先写作
+   * `t.executionId !== null && ids.has(t.executionId)`，把这两条整轮里
+   * **最该被看见**的事件（「进入返修」「槽位完成」）整个丢掉。
+   * 后端 `/api/tasks/:id/traces` 一直照常返回它们——是前端没认领。
+   * 于是工作台上只剩逐条判据的结果，看不到「所以这一轮到底怎么判的」。
+   *
+   * 这条用例同时钉住**不能反过来变宽**：别的槽位的结算事件不许串进来。
+   */
+  it('content 分支：executionId 为 null 的审核结算事件按 payload.slotId 归属本槽位', () => {
+    const slot = makeSlot({ id: 'scene_01', status: 'completed', revisionRound: 1 });
+    const exec = makeExecution({ id: 'exec-1', targetSlotId: 'scene_01', status: 'succeeded' });
+    const task = makeTask({ slots: [slot] });
+
+    const settlement = (slotId: string, sequence: number): TraceEvent => ({
+      id: `trace-${String(sequence)}`,
+      taskId: 'task-1',
+      executionId: null,
+      sequence,
+      actor: 'system',
+      kind: 'review_revise',
+      title: '审核检出问题，进入返修',
+      summary: `槽位 ${slotId} 第 1 次返修`,
+      payload: { slotId, revisionRound: 0, exhausted: false },
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    render(
+      <RightPanel
+        task={task}
+        subject={{ kind: 'content', slot, execution: null }}
+        traces={[settlement('scene_01', 1), settlement('scene_02', 2)]}
+        executions={[exec]}
+        showBackToCurrent={false}
+        onBackToCurrent={noop}
+      />,
+    );
+
+    // 本槽位那一条要在
+    expect(screen.getByText('槽位 scene_01 第 1 次返修')).toBeTruthy();
+    // 别的槽位那一条不许串进来
+    expect(screen.queryByText('槽位 scene_02 第 1 次返修')).toBeNull();
   });
 });

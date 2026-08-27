@@ -54,7 +54,18 @@ function scopeTraces(
     }
     case 'content': {
       const ids = new Set(executions.filter((e) => e.targetSlotId === subject.slot.id).map((e) => e.id));
-      const list = traces.filter((t) => t.executionId !== null && ids.has(t.executionId));
+      /*
+       * R2 的**审核结算**事件（「审核检出问题，进入返修」「审核未检出问题，槽位完成」）
+       * 是 `executionId === null` 的：它们收口的是一整轮判据，不属于其中任何一次
+       * execution。只按 execution 归属过滤，会把这两条整轮里最该被看见的事件丢掉——
+       * 界面上只剩逐条判据的结果，看不到「所以这一轮到底怎么判的」。
+       * 它们靠 payload.slotId 归属槽位，这里按它认领。
+       */
+      const list = traces.filter((t) =>
+        t.executionId !== null
+          ? ids.has(t.executionId)
+          : t.payload !== null && t.payload['slotId'] === subject.slot.id,
+      );
       if (list.length === 0 && subject.slot.presentation.tone === 'wait') {
         return { list: [], note: '该槽位尚未创建 Assignment，因此没有工作轨迹。系统不会为未开始的槽位展示虚假执行记录。' };
       }
