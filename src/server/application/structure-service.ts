@@ -175,7 +175,7 @@ function violationsPayload(violations: readonly StructureViolation[]): Record<st
   };
 }
 
-function toInsertInput(taskId: string, slot: ValidatedSlot): InsertSlotInput {
+function toInsertInput(taskId: string, slot: ValidatedSlot, revisionRound: number): InsertSlotInput {
   return {
     taskId,
     slotId: slot.slotId,
@@ -186,6 +186,7 @@ function toInsertInput(taskId: string, slot: ValidatedSlot): InsertSlotInput {
     dependsOn: slot.dependsOn,
     contentBearing: slot.contentBearing,
     includeInArtifact: slot.includeInArtifact,
+    revisionRound,
   };
 }
 
@@ -232,7 +233,38 @@ export function createStructureService(options: StructureServiceOptions): Struct
 
       // 事务内：只做写入。任一步抛错整体回滚，槽位一个都不留（§5.5）。
       traces.runWithTraces((repos, trace) => {
-        repos.slots.insertMany(result.slots.map((slot) => toInsertInput(input.taskId, slot)));
+        /*
+         * R5：**整棵树原子替换**，而不是「插一棵新的」。
+         *
+         * 结构审核检出问题时，phase 退回 structure、上一棵树**原样留着**，
+         * 直到这里拿到一份通过校验的新提案才替换。留着是刻意的：
+         * 返修那一轮的 prompt 要把上一版的 instruction 与审核引文回灌给模型
+         * （见 context-builder 的 reviewFindings 块），而那两样东西的唯一来源
+         * 就是库里的旧树与 slot_reviews。先删再生成，等于让模型在看不见自己上一版的
+         * 情况下「改」它——那不是返修，是重抽一次。
+         *
+         * 轮次必须**继承**：新树的根接着旧根的 revision_round 往下数。
+         * 每棵新树都从 0 开始的话，`settleReview` 的 `revisionRound < maxRevisionRounds`
+         * 永远成立，结构会无限重来——D-26「任务永不因审核卡死」正是靠这个数收口。
+         *
+         * 删 slot_reviews 必须在删 slots 之前，且必须**整任务删干净**——
+         * 理由（连同我试图只删一部分时踩到的外键）写在 `deleteByTask` 上。
+         * 往轮的审核意见不会因此丢失：它们同时在 trace 里，而 trace 只追加。
+         */
+        const previous = repos.slots.listByTask(input.taskId);
+        const previousRoot = previous.find((slot) => slot.parentId === null);
+        const carriedRound = previousRoot?.revisionRound ?? 0;
+        if (previous.length > 0) {
+          repos.slotReviews.deleteByTask(input.taskId);
+          repos.slots.deleteAll(input.taskId);
+        }
+
+        repos.slots.insertMany(
+          result.slots.map((slot) =>
+            // 只有根携带轮次：其余槽位的返修轮是它们自己填槽审核的事，与结构无关。
+            toInsertInput(input.taskId, slot, slot.parentId === null ? carriedRound : 0),
+          ),
+        );
         repos.executions.markSucceeded(input.executionId);
         // 条件 UPDATE：`changes !== 1` 即抛 EXECUTION_STALE，把上面那批槽位一起回滚。
         // 守卫必须在这里而不是在 insertMany 之前——放前面就是「读判写」，
@@ -279,6 +311,21 @@ export function createStructureService(options: StructureServiceOptions): Struct
             rootSlotId: input.proposal.rootSlotId,
           },
         });
+
+        /*
+         * R5：绑了结构审核时，这里**不**把根置成 reviewing。
+         *
+         * 我先是在这个事务里加了一次 `markContainerReviewing`，理由写得挺像回事
+         * （「phase 已经推到 slots 了，中间崩一次就会留下一棵不会被审的树」）。
+         * 反证的时候把那段整个删掉，测试全绿——因为调度器本来就认
+         * 「pending 的根容器 + 有结构审核绑定 = 该审」（见 `pendingStructureRoot`），
+         * 而那条判定是**删不掉的**：stop 与崩溃恢复会用 `cancelReview` 把根放回
+         * pending，只认 reviewing 的话 resume 之后审核会被静默跳过。
+         *
+         * 于是这里那一次转换是第二条通往同一件事的路，且没有任何测试分得出它在不在。
+         * 分不出的分支迟早会烂，所以删掉它，只留调度器那一条。
+         * 状态转换统一由引擎在开跑前做（`markContainerReviewing` 的唯一调用点）。
+         */
       });
 
       return { ok: true, slots: result.slots };

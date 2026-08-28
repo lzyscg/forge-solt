@@ -32,6 +32,7 @@ import {
 import type { Slot } from '@server/domain/types.ts';
 import type { UnitOfWork, UnitOfWorkHandle } from '@server/infrastructure/uow.ts';
 import type { DependencyContent } from './context-builder.ts';
+import { isStructureRoot, reviewBindingOf } from './review-binding.ts';
 import type { SnapshotService } from './snapshot-service.ts';
 
 /** 「下一步该干什么」。每个分支都带上依据的槽位，调用方不必再查一次库 */
@@ -107,8 +108,8 @@ function findNextCriterion(
   slot: Slot,
 ): string | null {
   const snapshot = snapshots.readSnapshot(slot.taskId);
-  const binding = snapshot.compiled.bindings.reviewSlotByType[slot.type];
-  if (binding === undefined) {
+  const binding = reviewBindingOf(snapshot.compiled, slot);
+  if (binding === null) {
     // 调度器给了 review 工作但没有审核绑定 = 内部错误
     throw new ForgeError(
       'STORAGE_ERROR',
@@ -140,6 +141,20 @@ export function createSlotScheduler(options: SlotSchedulerOptions): SlotSchedule
   const { slots: slotRepo, slotReviews: slotReviewsRepo } = options.uow.repositories;
   const { snapshots } = options;
 
+  /**
+   * 还没审完的根容器。见 `selectNext` 里调用处的说明。
+   *
+   * 只在 `status === 'pending'` 时返回：审完之后 `clearReview` 会把根置成
+   * completed，那时这里必须返回 undefined，否则任务在结构审核上原地打转。
+   */
+  const pendingStructureRoot = (ordered: readonly Slot[]): Slot | undefined => {
+    const root = ordered.find(isStructureRoot);
+    if (root === undefined || root.status !== 'pending') return undefined;
+    return reviewBindingOf(snapshots.readSnapshot(root.taskId).compiled, root) === null
+      ? undefined
+      : root;
+  };
+
   return {
     selectNext(taskId) {
       // 一次读全量。分多次查会让「读到的状态」跨越多个时刻，
@@ -165,7 +180,15 @@ export function createSlotScheduler(options: SlotSchedulerOptions): SlotSchedule
       // R2：reviewing 必须排在 assembly 之前。否则 reviewing 的槽位会被
       // allContentSlotsCompleted 判为「没完成」而落到第 5 步去找新槽位——
       // 那会绕过审核直接开下一个（AC-R-007 必须反证）。
-      const reviewing = ordered.find((slot) => slot.status === 'reviewing');
+      //
+      // R5 的第二个来源：**pending 的根容器**。结构审核期间被 stop 或进程崩过一次，
+      // 恢复路径会用 `cancelReview` 把根放回 pending（AC-R-012，那条对内容槽位是对的：
+      // 停止不是审核驱动的返修，不该吃 D-26 的预算）。只认 reviewing 的话，
+      // resume 之后调度器看不到任何审核工作，直接开始填第一个槽位——
+      // 结构审核被静默跳过，而跳过的表现是「一切正常，只是没审」。
+      // 根容器永远不填槽，它停在 pending 只有这一种解释。
+      const reviewing =
+        ordered.find((slot) => slot.status === 'reviewing') ?? pendingStructureRoot(ordered);
       if (reviewing !== undefined) {
         // 从冻结快照枚举判据 ID（section_index 的章节 ID，按索引顺序）。
         const reviewWork = findNextCriterion(snapshots, slotReviewsRepo, reviewing);

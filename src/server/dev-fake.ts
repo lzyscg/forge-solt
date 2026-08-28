@@ -124,6 +124,24 @@ function scriptReviewTurns(
   });
 }
 
+/** R5：结构审核的假回合。判据条数同样从 Skill 数 section，不写死 */
+function scriptStructureReview(
+  fake: FakeProvider,
+  compiled: CompiledTemplate,
+  skills: Readonly<Record<string, LoadedSkill>>,
+  rootSlotId: string,
+): void {
+  const binding = compiled.bindings.reviewStructure;
+  if (binding === null) return;
+  const skill = skills[binding.skillId];
+  if (skill === undefined) {
+    throw new Error(`模板 ${compiled.id} 的结构审核绑定引用了未加载的 Skill：${binding.skillId}`);
+  }
+  for (const _section of skill.sections) {
+    fake.script({ submitReview: { slotId: rootSlotId, verdict: 'no_finding' } });
+  }
+}
+
 function scriptScenario(
   fake: FakeProvider,
   compiled: CompiledTemplate,
@@ -139,8 +157,9 @@ function scriptScenario(
     fake.script({ invalidStructure: 'DEPENDENCY_CYCLE', hangMs: 1200 });
   }
 
-  // 合法结构：容器 + 每个内容类型一个槽位；title/scene 依赖 outline（制造「等待依赖」态）
-  const outlineId = `${firstType(contentTypes, 'outline')}_01`;
+  // 合法结构：容器 + 每个内容类型一个槽位。第一个内容类型无依赖，其余都依赖它，
+  // 于是工作台上能看到「等待依赖」这个状态（合并 outline 之前这个角色由骨架槽位担任）。
+  const leadId = `${contentTypes[0]?.id ?? ''}_01`;
   const slots = [
     { id: container.id, type: container.id, parentId: null, order: 0, instruction: '', dependsOn: [] },
     ...contentTypes.map((type, index) => ({
@@ -149,10 +168,15 @@ function scriptScenario(
       parentId: container.id,
       order: index,
       instruction: `〔占位〕${type.name}`,
-      dependsOn: type.id === firstType(contentTypes, 'outline') ? [] : [outlineId],
+      dependsOn: index === 0 ? [] : [leadId],
     })),
   ];
   fake.script({ submitStructure: { rootSlotId: container.id, slots }, hangMs: 1500 });
+
+  // R5：结构审核在填槽之前，脚本顺序必须与引擎的调度顺序一致。
+  // 一律 no_finding：返修演示留给 review-revise 场景在槽位那一层做，
+  // 结构返修会把整棵树换掉，界面上正在看的槽位会连 ID 一起变——那是另一个演示。
+  scriptStructureReview(fake, compiled, skills, container.id);
 
   // 内容：按生产顺序消费。slot-fail 场景让第一个内容槽连续失败 → failed
   for (const type of contentTypes) {
@@ -171,13 +195,6 @@ function scriptScenario(
       }
     }
   }
-}
-
-function firstType(types: CompiledSlotType[], hint: string): string {
-  const hit = types.find((t) => t.id.includes(hint));
-  if (hit !== undefined) return hit.id;
-  const first = types[0];
-  return first === undefined ? '' : first.id;
 }
 
 function streamChunks(text: string): string[] {

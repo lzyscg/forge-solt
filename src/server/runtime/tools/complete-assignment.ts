@@ -83,6 +83,28 @@ export function createCompleteAssignment(ctx: ToolsetContext): ToolDefinition {
           ),
         );
       }
+      /*
+       * 审核结果的目标同样要对得上（R2 漏掉了这一条）。
+       *
+       * 少了它，一次审核可以把结果写到**别的槽位**头上：
+       * `submitReviewResult` 拿 payload 里的 slotId 去 `getOrThrow`，取到的是另一个槽位，
+       * 于是那个槽位的 slot_reviews 里多出一行本轮判据的记录。后果是双向的——
+       * 被写的那个槽位可能因此被判返修，而真正被审的这个永远等不到自己的那一行，
+       * 调度器每轮都重新选中它，同一条判据反复调用。
+       *
+       * R5 让这条路径从「几乎不会发生」变成「值得防」：结构审核的 prompt 里
+       * 摆着整棵树的槽位 ID，模型顺手填一个场景的 ID 比填根容器的 ID 更自然。
+       */
+      if (payload.kind === 'review_result' && payload.slotId !== ctx.targetSlotId) {
+        reject(
+          new ForgeError(
+            'SLOT_TARGET_MISMATCH',
+            `本次审核的目标是「${ctx.targetSlotId ?? ''}」，` +
+              `而提交的 slotId 是「${payload.slotId}」。请把 slotId 改为「${ctx.targetSlotId ?? ''}」后重新提交。`,
+            ctx.targetSlotId === null ? null : `slot:${ctx.targetSlotId}`,
+          ),
+        );
+      }
 
       ctx.trace.write({
         executionId: ctx.executionId,

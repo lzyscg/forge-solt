@@ -220,6 +220,20 @@ function scriptFakeFromTemplate(
   ];
 
   fake.script({ submitStructure: { rootSlotId: rootId, slots } });
+
+  // R5：结构审核排在填槽之前，脚本的顺序必须与引擎的调度顺序一致。
+  // 一律 no_finding，理由与下面逐槽审核相同：这个脚本证的是流水线跑得通。
+  const structureBinding = compiled.bindings.reviewStructure;
+  if (structureBinding !== null) {
+    const structureSkill = skills[structureBinding.skillId];
+    if (structureSkill === undefined) {
+      throw new Error(`模板 ${compiled.id} 的结构审核绑定引用了未加载的 Skill：${structureBinding.skillId}`);
+    }
+    for (const _criterion of structureSkill.sections) {
+      fake.script({ submitReview: { slotId: rootId, verdict: 'no_finding' } });
+    }
+  }
+
   for (const type of contentTypes) {
     const slotId = `${type.id}_01`;
     fake.script({ submitContent: { slotId, content: fillerFor(type) } });

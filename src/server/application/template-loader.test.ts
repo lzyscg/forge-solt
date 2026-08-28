@@ -433,26 +433,74 @@ describe('FR-TPL-003：reviewSlotByType 的编译期校验（R4）', () => {
  * R4：仓库里真正会被加载的那份 `templates/zhihu-chapter`。
  * 夹具过了而生产模板没过，等于什么都没验——而这一版的改动恰恰只落在生产模板上。
  */
-describe('templates/zhihu-chapter：scene 绑上审核（R4 / D-27）', () => {
+describe('templates/zhihu-chapter：审核绑定（R4 / R6 / D-27）', () => {
   const REAL_TEMPLATE_DIR = fileURLToPath(new URL('../../../templates/zhihu-chapter', import.meta.url));
   const REAL_SKILLS_DIR = fileURLToPath(new URL('../../../skills', import.meta.url));
   const realOptions: TemplateLoaderOptions = { ...OPTIONS, skillsDir: REAL_SKILLS_DIR };
 
-  it('只给 scene 绑审核，绑的是 scene-review', async () => {
+  /*
+   * 按类型绑的**只有 scene**，不含 title。
+   *
+   * 这条曾经是 `['chapter_outline', 'scene']`。骨架并进结构生成之后，
+   * 那份规划不再是一个槽位的正文，而是每个槽位 instruction 的总和——
+   * 它的审核搬到了 `reviewStructure`（下一条），不再是按类型绑的一项。
+   *
+   * title 仍然不绑：一个 4~40 字的标题，四次模型调用去审它，代价与收益差着量级。
+   * 这条断言用全等而不是 `toContain`，正是为了让「顺手再开一个类型」必须先改测试。
+   */
+  it('按类型绑审核的只有 scene，title 不绑', async () => {
     const { compiled } = await loadTemplate(REAL_TEMPLATE_DIR, realOptions);
-    // 「只给 scene」不是文案：R0.5 只测了场景正文，给 outline/title 开审核
-    // 是在为没测过的场景付 token 并承担未知误报（D-27）
-    expect(Object.keys(compiled.bindings.reviewSlotByType)).toEqual(['scene']);
+    expect(Object.keys(compiled.bindings.reviewSlotByType).sort()).toEqual(['scene']);
+  });
+
+  it('scene 绑到 scene-review，且审核 Agent 与写作 Agent 不是同一个', async () => {
+    const { compiled } = await loadTemplate(REAL_TEMPLATE_DIR, realOptions);
     const binding = compiled.bindings.reviewSlotByType['scene'];
     expect(binding?.skillId).toBe('scene-review');
     expect(binding?.agentId).toBe('scene_reviewer');
-    // 审核 Agent 与写作 Agent 必须是两个：同一个 Agent 既写又审，
-    // 它的 systemInstruction 会同时装着「你负责写」和「你负责挑错」
+    // 同一个 Agent 既写又审，它的 systemInstruction 会同时装着
+    // 「你负责写」和「你负责挑错」——而审核已经有极强的放行先验
     expect(binding?.agentId).not.toBe(compiled.bindings.fillSlotByType['scene']?.agentId);
   });
 
-  it('scene 的 maxRevisionRounds 是 2（D-26）', async () => {
+  it('R5：结构审核绑到 structure-review，Agent 与结构设计 Agent 不是同一个', async () => {
     const { compiled } = await loadTemplate(REAL_TEMPLATE_DIR, realOptions);
-    expect(compiled.slotTypes.find((s) => s.id === 'scene')?.maxRevisionRounds).toBe(2);
+    const binding = compiled.bindings.reviewStructure;
+    expect(binding?.skillId).toBe('structure-review');
+    expect(binding?.agentId).toBe('structure_reviewer');
+    // 设计者审自己的设计，等于让它再确认一遍刚才的判断
+    expect(binding?.agentId).not.toBe(compiled.bindings.createStructure.agentId);
+  });
+
+  /*
+   * 两个返修上限**不一样**，这是有意的，不是漏配：
+   * scene 是散文，改一轮往往带出新问题（实测 S2 连着三轮都在报，且每轮引不同的句子）；
+   * 结构错了则每一场都跟着错，而它的单价只有场景的三分之一，多给一轮划算。
+   *
+   * 结构的那个数落在**容器类型**上，因为轮次记在根槽位的 revision_round 里。
+   */
+  it.each([
+    ['scene', 2],
+    ['chapter', 3],
+  ])('%s 的 maxRevisionRounds 是 %i（D-26）', async (type, rounds) => {
+    const { compiled } = await loadTemplate(REAL_TEMPLATE_DIR, realOptions);
+    expect(compiled.slotTypes.find((s) => s.id === type)?.maxRevisionRounds).toBe(rounds);
+  });
+
+  /*
+   * 反证：拿一份**审内容槽位**的 Skill 去配 reviewStructure 必须被拒。
+   *
+   * scene-review 的 operation 也是 review_slot，跑得起来——它会拿着
+   * 「这段正文守没守写作规范」的判据去审一棵还没有正文的树，
+   * 四条判据全部落空，表现是「结构审核从来查不出问题」。
+   */
+  it('reviewStructure 配了审内容槽位的 Skill → 编译期拒绝', async () => {
+    const yamlPath = path.join(REAL_TEMPLATE_DIR, 'template.yaml');
+    const text = await readFile(yamlPath, 'utf8');
+    expect(text).toContain('skillId: structure-review');
+    await expectRejected(
+      compileTemplate(text.replace('skillId: structure-review', 'skillId: scene-review'), yamlPath, realOptions),
+      /必须全部是本模板的容器类型/,
+    );
   });
 });

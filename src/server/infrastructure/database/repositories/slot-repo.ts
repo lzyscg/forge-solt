@@ -50,6 +50,15 @@ export interface InsertSlotInput {
   dependsOn: readonly string[];
   contentBearing: boolean;
   includeInArtifact: boolean;
+  /**
+   * 起始返修轮次，省略即 0。
+   *
+   * 只有一种情况非 0：结构审核检出问题后整棵树被替换重来（见 `StructureService.submit`）。
+   * 那时新树的根槽位必须**继承**上一棵树根槽位的轮次，否则 `settleReview` 每次
+   * 都拿到 0，`revisionRound < maxRevisionRounds` 永远成立——结构会无限重来，
+   * 而 D-26 的「任务永不因审核卡死」正是靠这个数收口的。
+   */
+  revisionRound?: number;
 }
 
 export interface CommitSlotContentInput {
@@ -138,12 +147,31 @@ export interface SlotRepo {
    * 不触碰 content_text 与 producer 各列——内容与 producer 原样保留。
    */
   cancelReview(taskId: string, slotId: string): number;
+  /**
+   * R5：pending → reviewing，**只对容器槽位**。结构审核用。
+   *
+   * 与 `commitContentForReview` 的差别是它没有内容要写：被审的不是这个槽位自己的正文
+   * （容器根本不产出正文），而是它底下那棵树的 instruction。
+   *
+   * `content_bearing = 0` 写在 WHERE 里而不是调用方的 if 里。内容槽位若走这条路进
+   * reviewing，会撞上 §5.2 那条「reviewing 的内容槽必须有正文与 producer」的 CHECK——
+   * 那是一个抛异常、回滚整个事务的失败。压进 WHERE 之后它退化成一次 0 行更新，
+   * 由调用方按「没改到」处理；守卫的位置与本文件其余条件 UPDATE 一致。
+   */
+  markContainerReviewing(taskId: string, slotId: string): number;
   markFailed(taskId: string, slotId: string, errorCode: ErrorCode, errorMessage: string): void;
   /** §5.5 Stop / 启动恢复：running → pending，清 error */
   resetToPending(taskId: string, slotId: string): number;
   /** §5.5「重置失败 Slot」；§8.7 明确 completed 槽位永不重置 */
   resetFailedToPending(taskId: string): number;
-  /** §8.7 结构阶段 retry：整棵结构树作废重来 */
+  /**
+   * §8.7 结构阶段 retry / R5 结构审核返修：整棵结构树作废重来。
+   *
+   * **调用前必须先 `slotReviews.deleteByTask(taskId)`**，且两者要在同一个事务里。
+   * `slot_reviews.(task_id, slot_id)` 是指向本表的外键且不是 DEFERRABLE，
+   * 有审核行时这条 DELETE 会当场失败。忘了不会静默——外键会抛，
+   * 只是抛出来的信息指向 slots 而真正拦住它的是另一张表，所以在这里写明。
+   */
   deleteAll(taskId: string): number;
 }
 
@@ -155,7 +183,7 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
         content_text,
         producer_agent_id, producer_skill_id, producer_skill_version, producer_execution_id,
         error_code, error_message, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', 0, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?)`,
   );
   const getStmt = db.prepare('SELECT * FROM slots WHERE task_id = ? AND slot_id = ?');
   // 排序用 (parent_id, sort_order) 只是给出一个稳定顺序；真正的文档序由
@@ -238,6 +266,14 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
      WHERE task_id = ? AND slot_id = ? AND status = 'reviewing'`,
   );
 
+  // R5 结构审核：pending → reviewing，只对容器。理由见接口上的注释。
+  // 幂等靠 `status = 'pending'`——已经在 reviewing 的再调一次是 0 行，不是错误：
+  // stop 之后 cancelReview 会把根放回 pending，恢复时要能重新进审核。
+  const markContainerReviewingStmt = db.prepare(
+    `UPDATE slots SET status = 'reviewing', updated_at = ?
+     WHERE task_id = ? AND slot_id = ? AND status = 'pending' AND content_bearing = 0`,
+  );
+
   return {
     insertMany(slots) {
       const now = clock();
@@ -252,6 +288,7 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
           JSON.stringify(slot.dependsOn),
           toSqlBool(slot.contentBearing),
           toSqlBool(slot.includeInArtifact),
+          slot.revisionRound ?? 0,
           now,
           now,
         );
@@ -360,6 +397,10 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
 
     cancelReview(taskId, slotId) {
       return cancelReviewStmt.run(clock(), taskId, slotId).changes;
+    },
+
+    markContainerReviewing(taskId, slotId) {
+      return markContainerReviewingStmt.run(clock(), taskId, slotId).changes;
     },
 
     markFailed(taskId, slotId, errorCode, errorMessage) {

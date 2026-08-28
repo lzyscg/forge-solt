@@ -62,6 +62,7 @@ const structureInput = (overrides: Partial<StructureContextInput> = {}): Structu
   attemptNumber: 1,
   maxAttempts: 3,
   retry: null,
+  review: null,
   ...overrides,
 });
 

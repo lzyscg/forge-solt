@@ -42,6 +42,7 @@ import type { Slot, SlotProducer } from '@server/domain/types.ts';
 import { verifyFindings, type RawFinding } from '@server/domain/review-evidence.ts';
 import type { UnitOfWork, UnitOfWorkHandle } from '@server/infrastructure/uow.ts';
 import type { CompiledSlotValidation } from './template-loader.ts';
+import { contentUnderReviewOf } from './review-target.ts';
 import type { SnapshotService } from './snapshot-service.ts';
 import type { TraceService } from './trace-service.ts';
 
@@ -503,10 +504,13 @@ export function createCompletionService(options: CompletionServiceOptions): Comp
             );
           }
 
-          // AC-R-003：引文校验。content 是 slot 的正文（commitContentForReview 写入的）。
-          // verdict 为 no_finding 时无 findings 需要校验，传空数组即可。
+          // AC-R-003：引文校验。内容槽位比对的是它的正文（commitContentForReview
+          // 写入的那一份）；R5 的结构审核比对的是整棵树的结构概要——被审的东西
+          // 不在 content_text 里（容器根本不许有 content_text，§5.2 的 CHECK）。
+          // 走 contentUnderReviewOf 而不是在这里判：prompt 那一侧调的是同一个函数，
+          // 两边算出不同的文本会让所有 finding 被静默丢弃。
           const verified = verifyFindings(
-            slot.contentText ?? '',
+            contentUnderReviewOf(slot, repos.slots.listByTask(input.taskId)),
             input.verdict === 'revise' ? input.findings : [],
           );
 

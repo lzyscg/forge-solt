@@ -11,7 +11,6 @@ presentation: # 纯展示，不进快照，不计入 templateHash（D-02）
   tags: [结构 Agent, 写作 Agent, 场景写作]
   exampleStructure:
     - { name: chapter, typeId: chapter, kind: container, depth: 0 }
-    - { name: outline, typeId: chapter_outline, kind: content, depth: 1 }
     - { name: title, typeId: title, kind: content, depth: 1 }
     - { name: scene_01, typeId: scene, kind: content, depth: 1 }
 
@@ -27,19 +26,16 @@ slotTypes:
     name: 章节容器
     description: 承载完整章节结构，不产出正文
     contentBearing: false
-
-  # 工作槽位（D-16）：产出内容供下游 read_slot 读取，但不进最终产物
-  - id: chapter_outline
-    name: 章节骨架
-    description: 各场景的目标、冲突与出场人物。后续场景槽位读取它，不进正文。
-    contentBearing: true
-    includeInArtifact: false
-    validation:
-      minChars: 100
-      maxChars: 3000
-    guidance:
-      - 每个场景需明确写出目标、冲突与出场人物
-      - 只写规划，不写正文散文
+    # 结构审核的返修预算（D-26）。**容器类型上的这个数管的是整棵树**——
+    # 轮次存在根槽位的 revision_round 上，见 bindings.reviewStructure。
+    #
+    # 给 3 而不是 scene 的 2：结构错了，下游每一个场景都跟着错，
+    # 而结构返修的单价（约 31k input）只有场景的三分之一，多给一轮明显划算。
+    #
+    # 没给 5 是因为**我们对结构审核的收敛性一个数据点都没有**。
+    # 场景那边实测是非单调的（S2 连着三轮各报不同的句子）。3 轮最坏约 93k input，
+    # 够看清它收不收敛；5 轮是 155k。改成 5 是这里的一行，退不回已经花掉的钱。
+    maxRevisionRounds: 3
 
   - id: title
     name: 章节标题
@@ -90,13 +86,21 @@ agents:
     systemInstruction: |
       你负责按指定判据检查场景槽位的正文，不负责改写正文，也不负责修改结构。
 
+  # 与 scene_reviewer 分开而不是共用一个「审核 Agent」：两者的判断对象根本不同——
+  # 结构审的是「下游照着这些目标能不能写出来」，此刻一个字的正文都还没有；
+  # 场景审的是「这段正文守没守写作规范」。合成一个，它的 systemInstruction 里
+  # 就得同时装下两套标准，而每次调用只用得上其中一套，另一套是纯噪音。
+  - id: structure_reviewer
+    name: 章节结构审核 Agent
+    role: 按判据检查槽位树里各槽位的目标是否违反结构设计规范
+    model: main
+    systemInstruction: |
+      你负责按指定判据检查章节结构里各槽位的目标，不负责设计结构，也不负责撰写正文。
+
 skills:
   - id: chapter-structure-design
     version: 1.0.0
     source: skills/chapter-structure-design/SKILL.md
-  - id: outline-writing
-    version: 1.0.0
-    source: skills/outline-writing/SKILL.md
   - id: title-writing
     version: 1.0.0
     source: skills/title-writing/SKILL.md
@@ -106,6 +110,9 @@ skills:
   - id: scene-review
     version: 1.0.0
     source: skills/scene-review/SKILL.md
+  - id: structure-review
+    version: 1.0.0
+    source: skills/structure-review/SKILL.md
 
 bindings:
   createStructure:
@@ -120,10 +127,6 @@ bindings:
     maxRetries: 2
 
   fillSlotByType:
-    chapter_outline:
-      agentId: chapter_writer
-      skillId: outline-writing
-      maxRetries: 2
     title:
       agentId: chapter_writer
       skillId: title-writing
@@ -136,7 +139,7 @@ bindings:
       maxRetries: 1
 
   # R4 / D-27：审核按 Slot Type 可选绑定。**只给 scene 绑**——
-  # R0.5 的实测只覆盖场景正文，给 chapter_outline / title 开审核没有任何证据支持，
+  # R0.5 的实测只覆盖场景正文，给 title 开审核没有任何证据支持，
   # 而「默认全开」意味着为没测过的场景付 token 并承担未知误报。
   # 这里不写 timeoutMs：审核一次调用约 1s（R0.5 实测），走 limits 的 120s 绰绰有余。
   reviewSlotByType:
@@ -145,11 +148,24 @@ bindings:
       skillId: scene-review
       maxRetries: 1
 
+  # R5：结构审核。审的是根容器底下**整棵树**的槽位目标，不是某个槽位的正文，
+  # 所以它是一条独立绑定而不是 reviewSlotByType 里的一项
+  # （那张表的 key 是槽位类型，表达不出「只对根」）。
+  #
+  # 时机：确定性校验通过、槽位落库之后，**第一个槽位开填之前**。
+  # 检出问题就整棵树重来，此时写作 token 一个都还没花——
+  # 这正是把审核放在这个位置的全部理由。返修预算在 chapter 槽位类型的
+  # maxRevisionRounds 上（轮次存在根槽位的 revision_round 里）。
+  reviewStructure:
+    agentId: structure_reviewer
+    skillId: structure-review
+    maxRetries: 1
+
 limits:
   maxSlots: 32
   maxStructureDepth: 4
   maxExecutionRetries: 2
-  # 回退链的一级：outline 与 title 用它（两者都没写 timeoutMs）。
+  # 回退链的一级：title 用它（没写 timeoutMs）。
   # 曾于 2026-08-25 抬到 240000 适配 OpenCode Go，当天改回（见 Q-27）。
   #
   # 留一条从那次实测得到、与 Provider 无关的观察：title 只产出 5 个字却花了 53s，

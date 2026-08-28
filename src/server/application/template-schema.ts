@@ -206,6 +206,12 @@ export const RawTemplateSchema = z
          * operation 校验在编译期用 resolveOne 同型校验（R2 落，R4 只加规则）。
          */
         reviewSlotByType: z.record(RawBindingSchema).optional(),
+        /**
+         * R5：结构审核，可选。审的是根容器底下那棵树的 instruction，
+         * 不是某个槽位的正文——所以它是一条独立绑定而不是 reviewSlotByType 的一项。
+         * 理由见 CompiledTemplate.bindings.reviewStructure 上的注释。
+         */
+        reviewStructure: RawBindingSchema.optional(),
       })
       .strict(),
     limits: RawLimitsSchema,

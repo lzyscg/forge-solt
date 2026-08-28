@@ -208,6 +208,43 @@ describe('read_structure_outline', () => {
     const text = renderOutline(reversed, 'scene_03');
     expect(text.indexOf('scene_02')).toBeLessThan(text.indexOf('scene_03'));
   });
+
+  /*
+   * 概要要带上每个内容槽位的 instruction——那是结构 Agent 写下的「本槽位要完成什么」。
+   *
+   * 这是横向视野的**唯一**来源：填 scene_02 时，它自己的 instruction 在提示词里，
+   * 上游的成稿能用 read_slot 读，但**下游还没写的那些槽位打算干什么**，
+   * 只有这里能看到。少了它，两个场景各编各的，人物就会前后不一致
+   * （`outline-writing/SKILL.md` S1 讲的正是这件事）。
+   */
+  it('renderOutline 带上内容槽位的 instruction，容器的不带', () => {
+    const text = renderOutline(OUTLINE, 'scene_02');
+    expect(text).toContain('目标：');
+    expect(text).toContain(OUTLINE[1]!.instruction);
+    // 看得见**别的**槽位的目标，这条才是横向视野
+    expect(text).toContain(OUTLINE[2]!.instruction);
+    // 容器不产出内容，它的 instruction 对下游没有可执行含义
+    expect(text).not.toContain('整章容器');
+  });
+
+  /*
+   * instruction 可以是多行的（实测结构 Agent 写过分行清单）。原样渲染会让后续行
+   * 顶到最左边，看起来像树的下一个节点——缩进树的层级信息就被它破坏了。
+   */
+  it('多行 instruction 折成单行，不破坏树的缩进', () => {
+    const multiline: OutlineSlot = { ...OUTLINE[1]!, instruction: '第一行\n  第二行\n第三行' };
+    const text = renderOutline([OUTLINE[0]!, multiline], null);
+    const lines = text.split('\n');
+    expect(lines.filter((l) => l.includes('第二行'))).toHaveLength(1);
+    expect(text).toContain('第一行 第二行 第三行');
+  });
+
+  // 概要绝不能带正文：那会让依赖白名单有旁路。instruction 是规划不是正文，
+  // 两者的区别正是这条断言要守住的边界。
+  it('带 instruction 但仍然不带正文', () => {
+    const text = renderOutline(OUTLINE, null);
+    expect(text).not.toContain('第二场的正文');
+  });
 });
 
 describe('read_slot 的依赖白名单（REQ FR-CTX-003）', () => {

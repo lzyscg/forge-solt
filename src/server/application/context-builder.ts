@@ -95,9 +95,34 @@ export interface StructureRetryInput {
   noSubmission: boolean;
 }
 
+/**
+ * R5：结构审核检出问题后，重新设计那一轮的追加上下文。
+ *
+ * 与 `StructureRetryInput` 是**两件事**，与 fill_slot 那边 `retry` / `revision` 的
+ * 分法一模一样：`retry` 是「上一次提案没过 19 条确定性校验」，同一稿的重来；
+ * 这一个是「上一稿已经建成了树，审核 Agent 按判据在 instruction 里挑出了问题」。
+ * 一次尝试可能同时处在两者之中（重新设计的那一版又漏了个 parentId），两段各自成段。
+ */
+export interface StructureReviewInput {
+  /** 第几次重新设计，从 1 起。只用于「第 n 次」这句话 */
+  round: number;
+  /**
+   * 上一版结构的概要原文，**与审核 Agent 当时看到的逐字相同**。
+   *
+   * 回灌它的理由与 §7.4 回灌 proposalJson 相同：让模型做增量修正而不是重抽一版。
+   * 但这里给的是结构概要而不是提案 JSON——审核意见里的引文出自概要，
+   * 给 JSON 会让模型得自己在两种写法之间做对应，而那一步它经常做错。
+   */
+  previousOutline: string;
+  /** 通过引文闸门的 findings，按判据书写顺序。空数组说明上一轮全被丢弃了 */
+  findings: readonly { criterionId: string; quote: string; problem: string }[];
+}
+
 export interface StructureContextInput extends ContextBuilderCommonInput {
   operation: 'create_structure';
   retry: StructureRetryInput | null;
+  /** R5：审核驱动的重新设计。首次创建结构时为 null */
+  review: StructureReviewInput | null;
 }
 
 export interface FillSlotRetryInput {
@@ -383,6 +408,47 @@ function renderSlotTypeCatalog(slotTypes: readonly CompiledSlotType[]): string {
  * 保留标签是为了让模型能识别「上一轮报的还是这一条」。
  * 不做去重、不做截断、不合并同类项：D-13 明确一次给全部。
  */
+/**
+ * R5：审核检出问题后重新设计结构的追加块。
+ *
+ * 三条与 `renderStructureRetry` 一致的纪律：逐条列出不合并、原样给引文不改写、
+ * 明说「要交完整结构」（系统不保存部分结构）。
+ *
+ * 一条不同：这里**不印「第 n 次尝试，共 m 次机会」**。那句话说的是失败重试的配额，
+ * 而重新设计不是失败——它和填槽的返修一样，走的是 D-26 的返修预算，是另一个数。
+ * 两个数印在同一段里，模型会把它们当成同一个，然后在第 2 版就开始「因为快没机会了」
+ * 而收敛到保守方案。
+ */
+function renderStructureReview(review: StructureReviewInput): string {
+  const lines = [
+    '【上一版结构未通过审核】',
+    '',
+    `这是第 ${review.round} 次重新设计。你上一版的结构是：`,
+    '',
+    review.previousOutline,
+    '',
+  ];
+
+  if (review.findings.length === 0) {
+    // 走得到：上一轮全部 finding 都没通过引文闸门（verdict 降级为 discarded）
+    // 却仍然结算为返修的情形不存在——但审核行可能因整树替换而读不到。
+    // 与其编一段「审核说你哪里不好」，不如说清楚现在的处境。
+    lines.push('审核认为这一版需要重新设计，但具体意见没有保留下来。');
+  } else {
+    lines.push('审核逐条指出的问题如下，每一条都附了它引用的原文：', '');
+    review.findings.forEach((finding, index) => {
+      lines.push(`${index + 1}. [${finding.criterionId}] ${finding.problem}`, `   引用：${finding.quote}`);
+    });
+  }
+
+  lines.push(
+    '',
+    '请针对上述问题重新设计整棵结构并提交。没有被指出问题的部分可以保留。',
+    '系统不保存部分结构，本次需要提交全部槽位。',
+  );
+  return lines.join('\n');
+}
+
 function renderStructureRetry(retry: StructureRetryInput, attempt: number, maxAttempts: number): string {
   if (retry.noSubmission) {
     return [
@@ -439,6 +505,10 @@ function buildStructureTexts(input: StructureContextInput): {
       '至少一个内容承载槽位',
     ].join('\n'),
     STRUCTURE_OUTPUT_CONTRACT,
+    // 审核意见排在确定性校验之前：两者都在时，前者说的是「这棵树规划得不对」，
+    // 后者说的是「这次提交的 JSON 有形式问题」。先看该往哪个方向重新设计，
+    // 再看这一版哪里写错了。
+    input.review === null ? null : renderStructureReview(input.review),
     input.retry === null ? null : renderStructureRetry(input.retry, input.attemptNumber, input.maxAttempts),
   ]);
 
@@ -465,6 +535,18 @@ const SLOT_STATUS_LABEL: Record<Slot['status'], string> = {
  * 给模型看另一种顺序会让它对「谁在我前面」形成错误认知。
  *
  * 不含任何槽位正文（FR-CTX-003）：正文只通过【依赖槽位内容】按依赖声明给出。
+ *
+ * ## 为什么带 instruction
+ *
+ * 合并 outline 之前，「后面还要发生什么」这件事由一个独立的章节骨架槽位提供，
+ * 挂成每个场景的依赖。骨架并进结构生成之后，那份横向视野的唯一去处就是
+ * 每个槽位的 `instruction`——不渲染出来，场景二就只能看见场景一的正文，
+ * 对场景三一无所知，写出来的东西没法给后面留口子。
+ *
+ * `instruction` 是**规划**不是正文，所以它不受依赖白名单约束：
+ * 让场景二看见场景三的计划没有问题，让它看见场景三的正文才有问题
+ * （那会让它去衔接一段还不存在、且将来可能被改写的文字）。
+ * 与 `read_structure_outline` 工具的判断同源，理由写在那个文件里。
  */
 export function renderStructureOutline(slots: readonly Slot[], targetSlotId: string): string {
   const byId = new Map<string, Slot>();
@@ -499,6 +581,12 @@ export function renderStructureOutline(slots: readonly Slot[], targetSlotId: str
     lines.push(`${prefix}${branch}${label(slot)}`);
     const children = childrenOf.get(slot.slotId) ?? [];
     const childPrefix = depth === 0 ? '' : prefix + (isLast ? '   ' : '│  ');
+    // 目标另起一行、缩进到子节点那一列：instruction 是成段的中文，跟在标记后面
+    // 会把那一行撑到几百字符，树形结构靠列对齐传达的层级就全毁了。
+    // 容器不产出内容，它的 instruction 对下游没有可执行含义，不渲染。
+    if (slot.contentBearing && slot.instruction.trim() !== '') {
+      lines.push(`${childPrefix}   目标：${slot.instruction.replace(/\s*\n\s*/g, ' ').trim()}`);
+    }
     children.forEach((child, index) => {
       walk(child, childPrefix, index === children.length - 1, depth + 1);
     });
@@ -719,7 +807,11 @@ function buildReviewSlotTexts(input: ReviewSlotContextInput): {
       'Operation: review_slot',
       `目标槽位: ${targetSlot.slotId}（${slotType.name}）`,
       `判据: ${criterionId}`,
-      '你只需按上述判据审核本槽位正文，不审其他判据。',
+      // 容器槽位没有正文，被审的是它底下那棵树的规划。说成「本槽位正文」会让模型
+      // 去找一段不存在的正文，然后要么空手而归、要么把 instruction 当正文来挑毛病。
+      targetSlot.contentBearing
+        ? '你只需按上述判据审核本槽位正文，不审其他判据。'
+        : '你只需按上述判据审核这棵结构树的规划，不审其他判据；这里还没有任何正文。',
     ].join('\n'),
     // 只注入本条判据文本 + Skill 概览（不含其他判据的 section 全文）
     `【工作方法】${input.skill.id} v${input.skill.version}`,
@@ -731,12 +823,27 @@ function buildReviewSlotTexts(input: ReviewSlotContextInput): {
     REVIEW_OUTPUT_CONTRACT,
   ]);
 
+  /*
+   * R5 结构审核：待审的就是那棵树，所以 user message 里**不再另画一遍结构概要**。
+   *
+   * 这不是省 token，是防一类静默失败。两处渲染的是同一棵树但写法不同
+   * （`renderStructureOutline` 用 `├─` 连线且不带 instruction，
+   * `contentUnderReview` 用缩进且带 instruction）。两份都摆在模型眼前时，
+   * 它完全可能从上面那一份里抄一句当引文——而那一句逐字不出现在下面那一份里。
+   * D-11 的闸门会把这条 finding 丢弃，verdict 降级为 `discarded`，
+   * 对下游等同「未检出问题」（D-25）。表现是审核看起来什么都没查出来。
+   *
+   * 【本槽位目标】同样去掉：容器的 instruction 说的是「承载章节结构」这类话，
+   * 对判断这棵树规划得好不好没有任何信息量，只是又一段可以被误引的文字。
+   */
+  const structureReview = !targetSlot.contentBearing;
+
   const userText = joinBlocks([
     renderTaskInput(input.snapshot),
-    renderStructureOutline(input.slots, targetSlot.slotId),
-    ['【本槽位目标】', targetSlot.instruction].join('\n'),
+    structureReview ? null : renderStructureOutline(input.slots, targetSlot.slotId),
+    structureReview ? null : ['【本槽位目标】', targetSlot.instruction].join('\n'),
     renderDependencies(input.dependencies),
-    '【待审正文】',
+    structureReview ? '【待审结构】' : '【待审正文】',
     contentUnderReview,
   ]);
 

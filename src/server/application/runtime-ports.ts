@@ -28,6 +28,7 @@ import type { TraceService } from './trace-service.ts';
 import type { CompletionService } from './completion-service.ts';
 import type { StructureService } from './structure-service.ts';
 import type { SnapshotService } from './snapshot-service.ts';
+import { reviewBindingOf } from './review-binding.ts';
 
 // ---------------------------------------------------------------- TracePort
 
@@ -215,7 +216,7 @@ export function createCompletionPort(options: CompletionPortOptions): Completion
       );
     }
     const hasReviewBinding =
-      snapshots.readSnapshot(request.taskId).compiled.bindings.reviewSlotByType[slot.type] !== undefined;
+      reviewBindingOf(snapshots.readSnapshot(request.taskId).compiled, slot) !== null;
     const result = completion.submitSlotContent({
       taskId: request.taskId,
       executionId: request.executionId,

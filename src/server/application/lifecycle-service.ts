@@ -126,6 +126,11 @@ export function createLifecycleService(options: LifecycleServiceOptions): Lifecy
       if (task.phase === 'structure') {
         // 结构失败时正常不该有槽位（提交是原子的），但保险起见清一次——
         // 留下半棵树会让下一次结构提交撞上主键冲突，而报错指向的是提交而不是这里。
+        //
+        // R5 之后「结构相位有槽位」不再是异常：结构审核检出问题时 phase 会退回
+        // structure，而上一棵树要留到新提案通过校验才替换（见 StructureService.submit）。
+        // 此时根槽位上挂着本轮的审核行，必须先删——外键不是 DEFERRABLE。
+        repos.slotReviews.deleteByTask(taskId);
         repos.slots.deleteAll(taskId);
       } else if (task.phase === 'slots') {
         repos.slots.resetFailedToPending(taskId);

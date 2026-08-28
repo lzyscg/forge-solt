@@ -37,10 +37,13 @@ import type { TraceService } from './trace-service.ts';
 import { buildContext } from './context-builder.ts';
 import type {
   StructureRetryInput,
+  StructureReviewInput,
   FillSlotRetryInput,
   FillSlotRevisionInput,
 } from './context-builder.ts';
 import { collectPriorRounds } from './revision-source.ts';
+import { isStructureRoot, reviewBindingOf } from './review-binding.ts';
+import { contentUnderReviewOf } from './review-target.ts';
 import {
   createCompletionPort,
   createStructurePort,
@@ -377,7 +380,19 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
     round: RoundState,
   ): Promise<boolean> {
     const binding = snapshot.compiled.bindings.createStructure;
-    const key = STRUCTURE_BUDGET_KEY;
+    /*
+     * R5：配额桶按**重新设计的轮次**分开，与填槽的 `budgetKeyOfFill` 同一个理由。
+     *
+     * 桶键不带轮次时真实语义会变成「这个任务一生只有 maxRetries+1 次结构失败额度，
+     * 跨审核轮共享」：第 0 版 Provider 抖一次重试成功，审核判返修之后
+     * 第 1 版**第一次**失败即判耗尽，任务直接 failed——而重新设计本身不是故障。
+     *
+     * 同一个键还决定 `RetryState` 的作用域：不带轮次的话，第 0 版那次
+     * 「少了 parentId」会一直留在同一个 RetryState 上，于是重新设计那一版的 prompt
+     * 里会追加一整段【上一次提交未通过校验】，内容是上一版早已改掉的违规。
+     */
+    const structureReview = structureReviewOf(taskId, snapshot);
+    const key = structureBudgetKey(structureReview?.round ?? 0);
     const previous = structureRetryOf(round, key);
 
     const outcome = await runAssignment({
@@ -388,6 +403,7 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
       targetSlotId: null,
       slotType: null,
       contextRetry: previous.retry,
+      structureReview,
       record: previous.record,
       state: previous,
     });
@@ -434,6 +450,26 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
   ): Promise<boolean> {
     const work = scheduler.selectNext(taskId);
 
+    /*
+     * R5：结构审核的工作可能是从**pending 的根容器**进来的——
+     * 结构刚建好还没审过，或者审到一半被 stop / 崩过一次
+     * （恢复路径用 `cancelReview` 把根放回 pending，见 `pendingStructureRoot`）。
+     *
+     * 在这里统一推回 reviewing，是因为**两条分支都需要它**：
+     * `review` 那条要它才能让审核结果落到一个 reviewing 的槽位上；
+     * `review_settle` 那条更要——`clearReview` / `markForRevision` 的 WHERE 里
+     * 带着 `status = 'reviewing'`，根停在 pending 时结算是一次 0 行更新，
+     * 状态不动，调度器下一轮又选中同一个根，任务在这里**空转不退出**。
+     * 只在 `review` 分支里做过一版，正是漏了这个（见 R5 的用例「停在最后一条判据上」）。
+     *
+     * 已经是 reviewing 时这是一次 0 行更新，无副作用。
+     */
+    if ((work.kind === 'review' || work.kind === 'review_settle') && isStructureRoot(work.slot)) {
+      traces.runWithTraces((repos) => {
+        repos.slots.markContainerReviewing(taskId, work.slot.slotId);
+      });
+    }
+
     if (work.kind === 'assembly') {
       // 全部内容槽位已完成 → 系统判定可以组装（AC-014）
       traces.runWithTraces((repos, trace) => {
@@ -472,8 +508,8 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
       const slot = work.slot;
       const criterionId = work.criterionId;
       const slotType = slotTypeOf(snapshot, slot);
-      const reviewBinding = snapshot.compiled.bindings.reviewSlotByType[slot.type];
-      if (reviewBinding === undefined) {
+      const reviewBinding = reviewBindingOf(snapshot.compiled, slot);
+      if (reviewBinding === null) {
         throw new ForgeError(
           'STORAGE_ERROR',
           `任务 ${taskId} 的快照里没有槽位类型「${slot.type}」的审核绑定`,
@@ -537,20 +573,40 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
         maxRevisionRounds: slotType.maxRevisionRounds,
       });
 
+      const structureRound = isStructureRoot(slot);
+
       traces.runWithTraces((repos, trace) => {
         if (settlement.action === 'revise') {
           repos.slots.markForRevision(taskId, slot.slotId);
+          /*
+           * R5：结构审核的返修不是「重填一个槽位」，是**整棵树重来**。
+           *
+           * `markForRevision` 上面那一行对两者是共用的（reviewing → pending，
+           * 轮次 +1），差别全在这里：把 phase 退回 structure，让下一轮 tick 走
+           * `runStructurePhase` 重新生成一份提案。旧树留着不删——返修那一轮的 prompt
+           * 要把它和审核引文一起回灌给模型，真正的替换发生在
+           * `StructureService.submit` 拿到新提案之后（那里是一个事务）。
+           *
+           * 不在这里删还有一个更硬的理由：删了就没有根槽位，而轮次就存在根槽位上。
+           * 那样每次重来都从第 0 轮开始，D-26 的预算永远用不完。
+           */
+          if (structureRound) {
+            repos.tasks.update(taskId, { phase: 'structure' });
+          }
           trace.record({
             taskId,
             executionId: null,
             actor: 'system',
             kind: 'review_revise',
-            title: '审核检出问题，进入返修',
-            summary: `槽位 ${slot.slotId} 第 ${slot.revisionRound + 1} 次返修`,
+            title: structureRound ? '结构审核检出问题，重新设计结构' : '审核检出问题，进入返修',
+            summary: structureRound
+              ? `第 ${slot.revisionRound + 1} 次重新设计结构`
+              : `槽位 ${slot.slotId} 第 ${slot.revisionRound + 1} 次返修`,
             payload: {
               slotId: slot.slotId,
               revisionRound: slot.revisionRound,
               nextRound: settlement.nextRound,
+              structure: structureRound,
               verdicts: [...verdicts],
             },
           });
@@ -562,14 +618,23 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
             executionId: null,
             actor: 'system',
             kind: settlement.exhausted ? 'revision_budget_exhausted' : 'review_no_finding',
+            // D-30：不许说「通过 / 合格」。结构那一支同样——「未检出问题」说的是
+            // 这四条判据没抓到东西，不是这棵结构是对的。
             title: settlement.exhausted
-              ? '返修次数用尽，按现状完成'
-              : '审核未检出问题，槽位完成',
-            summary: `槽位 ${slot.slotId}${settlement.exhausted ? ' · 返修次数用尽' : ''}`,
+              ? structureRound
+                ? '结构重来次数用尽，按现状继续'
+                : '返修次数用尽，按现状完成'
+              : structureRound
+                ? '结构审核未检出问题，开始填槽'
+                : '审核未检出问题，槽位完成',
+            summary: structureRound
+              ? `根槽位 ${slot.slotId}${settlement.exhausted ? ' · 重来次数用尽' : ''}`
+              : `槽位 ${slot.slotId}${settlement.exhausted ? ' · 返修次数用尽' : ''}`,
             payload: {
               slotId: slot.slotId,
               revisionRound: slot.revisionRound,
               exhausted: settlement.exhausted,
+              structure: structureRound,
               verdicts: [...verdicts],
             },
           });
@@ -677,6 +742,8 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
     dependencies?: readonly { slotId: string; content: string }[];
     allowedDependencySlotIds?: readonly string[];
     contextRetry: StructureRetryInput | FillSlotRetryInput | null;
+    /** R5：只有 create_structure 会给，且只在审核判了重新设计之后 */
+    structureReview?: StructureReviewInput | null;
     /** R3 / D-31：只有 fill_slot 会给。D-32：review_slot 恒不给 */
     revision?: FillSlotRevisionInput | null;
     /**
@@ -720,6 +787,7 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
             attemptNumber,
             maxAttempts: binding.maxRetries + 1,
             retry: input.contextRetry as StructureRetryInput | null,
+            review: input.structureReview ?? null,
           })
         : operation === 'fill_slot'
           ? buildContext({
@@ -749,7 +817,12 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
               slotType: mustHave(input.slotType, 'slotType'),
               dependencies: input.dependencies ?? [],
               criterionId: mustHave(record.criterionId, 'criterionId'),
-              contentUnderReview: mustHave(input.targetSlot, 'targetSlot').contentText ?? '',
+              // 内容槽位取正文，根容器取整棵树的结构概要。与引文闸门调的是同一个
+              // 函数——两边算出不同的文本会让所有 finding 被静默丢弃，见那个文件。
+              contentUnderReview: contentUnderReviewOf(
+                mustHave(input.targetSlot, 'targetSlot'),
+                input.slots ?? [],
+              ),
             });
 
     /**
@@ -954,12 +1027,47 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
     return state;
   }
 
-  function maxRetriesFor(snapshot: FrozenTaskSnapshot, key: string): number {
-    if (key === STRUCTURE_BUDGET_KEY) return snapshot.compiled.bindings.createStructure.maxRetries;
+  /**
+   * R5：上一版结构与审核意见，**每次都从库里重建**，不缓存在 `RoundState` 里。
+   *
+   * 与 R3 的 `collectPriorRounds` 同一条纪律（D-31）：缓存就是一个跨 execution 存活的
+   * 会话对象，撑不过重启的连续性等于没有连续性。重建的代价是两次索引查询，
+   * 换来的是「进程重启后接着跑，模型看到的上下文一个字不差」。
+   *
+   * 返回 null 有两种情形，都不该带审核块：结构还没建过（首次创建），
+   * 或者根槽位的轮次是 0（建过但从没被判返修）。
+   */
+  function structureReviewOf(
+    taskId: string,
+    snapshot: FrozenTaskSnapshot,
+  ): StructureReviewInput | null {
+    if (snapshot.compiled.bindings.reviewStructure === null) return null;
+    const slots = uow.repositories.slots.listByTask(taskId);
+    const root = slots.find(isStructureRoot);
+    if (root === undefined || root.revisionRound === 0) return null;
 
-    // `fill:<slotId>:<round>` / `review:<slotId>:<round>:<criterionId>`。
-    // slotId 与 criterionId 都不含冒号（SLOT_ID_PATTERN / SECTION_ID_PATTERN），拆分是安全的。
+    // 审核行属于**上一轮**：`markForRevision` 已经把根的轮次从 N 推到了 N+1。
+    const findings: { criterionId: string; quote: string; problem: string }[] = [];
+    for (const review of uow.repositories.slotReviews.listByRound(taskId, root.slotId, root.revisionRound - 1)) {
+      for (const finding of parseReviewFindings(review.findingsJson)) findings.push(finding);
+    }
+
+    return {
+      round: root.revisionRound,
+      // 与审核 Agent 当时看到的是同一个函数的输出，逐字相同（见 review-target.ts）
+      previousOutline: contentUnderReviewOf(root, slots),
+      findings,
+    };
+  }
+
+  function maxRetriesFor(snapshot: FrozenTaskSnapshot, key: string): number {
+    // `create_structure:<round>` / `fill:<slotId>:<round>` /
+    // `review:<slotId>:<round>:<criterionId>`。slotId 与 criterionId 都不含冒号
+    // （SLOT_ID_PATTERN / SECTION_ID_PATTERN），拆分是安全的。
     const parts = key.split(':');
+    if (parts[0] === STRUCTURE_BUDGET_PREFIX) {
+      return snapshot.compiled.bindings.createStructure.maxRetries;
+    }
     const slot = uow.repositories.slots.get(snapshot.taskId, parts[1] ?? '');
     if (slot === null) return snapshot.compiled.limits.maxExecutionRetries;
     const binding =
@@ -974,7 +1082,42 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
 // 配额分桶键（R3 返修）
 // ---------------------------------------------------------------------------
 
-const STRUCTURE_BUDGET_KEY = 'create_structure';
+const STRUCTURE_BUDGET_PREFIX = 'create_structure';
+
+/** 结构的配额桶键。轮次在键里的理由见 `runStructurePhase` 里的说明 */
+function structureBudgetKey(reviewRound: number): string {
+  return `${STRUCTURE_BUDGET_PREFIX}:${reviewRound}`;
+}
+
+/**
+ * `slot_reviews.findings_json` → findings。
+ *
+ * 解析失败**抛出去**，不静默当成空数组。这一列是我们自己在同一个事务里
+ * `JSON.stringify` 写进去的，读不回来说明库里的数据坏了；
+ * 而静默吞掉的后果是模型收到一段「审核认为这一版需要重新设计，但具体意见没有保留」——
+ * 一句读起来完全正常的话，掩盖着一个数据损坏。
+ */
+function parseReviewFindings(
+  json: string,
+): readonly { criterionId: string; quote: string; problem: string }[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch (error) {
+    throw new ForgeError('STORAGE_ERROR', '审核结果的 findings 无法解析', null, undefined, error);
+  }
+  if (!Array.isArray(parsed)) {
+    throw new ForgeError('STORAGE_ERROR', '审核结果的 findings 不是数组', null);
+  }
+  return parsed.map((item) => {
+    const row = item as Record<string, unknown>;
+    return {
+      criterionId: typeof row['criterionId'] === 'string' ? row['criterionId'] : '',
+      quote: typeof row['quote'] === 'string' ? row['quote'] : '',
+      problem: typeof row['problem'] === 'string' ? row['problem'] : '',
+    };
+  });
+}
 
 /**
  * 填槽的配额桶键。**必须含 `revisionRound`**（§8 速查第 5 条）。

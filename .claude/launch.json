@@ -50,6 +50,43 @@
       }
     },
     {
+      "name": "structure-demo",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "tsx",
+        "src/server/dev-fake.ts"
+      ],
+      "port": 3311,
+      "env": {
+        "DATABASE_PATH": "/private/tmp/claude-501/-Users-lzy-Desktop-forge-solt/9b78e483-107c-4960-9909-cb90b4666f18/scratchpad/structure-demo.sqlite",
+        "FAKE_SCENARIO": "happy"
+      }
+    },
+    {
+      "name": "outline-demo",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "tsx",
+        "src/server/dev-fake.ts"
+      ],
+      "port": 3311,
+      "env": {
+        "DATABASE_PATH": "/private/tmp/claude-501/-Users-lzy-Desktop-forge-solt/9b78e483-107c-4960-9909-cb90b4666f18/scratchpad/outline-demo.sqlite"
+      }
+    },
+    {
+      "name": "flow-preview",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "tsx",
+        "src/server/dev-fake.ts"
+      ],
+      "port": 3311,
+      "env": {
+        "DATABASE_PATH": "/private/tmp/claude-501/-Users-lzy-Desktop-forge-solt/9b78e483-107c-4960-9909-cb90b4666f18/scratchpad/flow-preview.sqlite"
+      }
+    },
+    {
       "name": "client",
       "runtimeExecutable": "npx",
       "runtimeArgs": [

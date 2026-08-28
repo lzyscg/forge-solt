@@ -127,6 +127,16 @@ export interface CompiledTemplate {
     fillSlotByType: Readonly<Record<string, CompiledBinding>>;
     /** R2：审核绑定，可选（D-27）。不覆盖全部 contentBearing 类型是合法默认 */
     reviewSlotByType: Readonly<Record<string, CompiledBinding>>;
+    /**
+     * R5：结构审核，可选。审的是**根容器底下那棵树**——每个内容槽位的 instruction。
+     *
+     * 与 `reviewSlotByType` 分开而不是给容器类型加一条：被审的东西不是同一样。
+     * `reviewSlotByType.<type>` 审的是那个槽位自己的正文，容器没有正文；
+     * 这一条审的是一棵树的规划，它只对**根**成立，而模板不知道运行时哪个类型会当根
+     * （结构由 Agent 设计，校验规则 2 只保证「根唯一且是容器」）。
+     * 用 key 是类型的字典表达「只对根」，表达不出来。
+     */
+    reviewStructure: CompiledBinding | null;
   };
   limits: CompiledLimits;
   output: { fileName: string; mediaType: string; assembler: 'markdown_concat_v1' };
@@ -498,6 +508,32 @@ export async function compileTemplate(
     reviewSlotByType[slotTypeId] = resolveOne(rawBinding, `reviewSlotByType.${slotTypeId}`, 'review_slot', slotTypeId);
   }
 
+  // R5：结构审核绑定。可选——不审结构是合法默认，与 D-27 同一条纪律。
+  //
+  // 第四个参数传 null（跳过 resolveOne 的按类型校验）：运行时的目标是**根容器**，
+  // 而哪个类型当根要等结构 Agent 设计完才知道，编译期没有一个具体类型可以拿去比。
+  // 但完全不校验就会放过「把 scene-review 配到这里」——它 operation 也是 review_slot，
+  // 跑得起来，只是拿着「场景正文该怎么写」的判据去审一棵树。
+  // 所以改成校验它声明的适用类型**全是本模板里的容器类型**：
+  // 一份审结构的 Skill 若声明自己适用于 scene，那它不是审结构的。
+  let reviewStructure: CompiledBinding | null = null;
+  const rawReviewStructure = raw.bindings.reviewStructure;
+  if (rawReviewStructure !== undefined) {
+    const skill = skills[rawReviewStructure.skillId];
+    // skill 为 undefined 的情形由下面的 resolveOne 报（那里的信息更准），这里只在拿得到时查类型
+    if (skill !== undefined) {
+      const notContainer = skill.slotTypes.filter((id) => slotTypeById.get(id)?.contentBearing !== false);
+      if (skill.slotTypes.length === 0 || notContainer.length > 0) {
+        throw invalid(
+          templateRef,
+          `绑定 reviewStructure 使用的 Skill ${skill.id} 的 slotTypes 必须全部是本模板的容器类型，` +
+            `实际为 [${skill.slotTypes.join(', ')}]`,
+        );
+      }
+    }
+    reviewStructure = resolveOne(rawReviewStructure, 'reviewStructure', 'review_slot', null);
+  }
+
   // --- 6. forbidPattern：先查语法，再查时间预算 ---
   const patternSpecs: PatternBudgetSpec[] = [];
   for (const slotType of slotTypes) {
@@ -574,7 +610,7 @@ export async function compileTemplate(
       // 只记 id+version 会让「版本号没动但内容改了」悄悄溜过去。
       contentHash: skills[ref.id]?.contentHash ?? '',
     })),
-    bindings: { createStructure, fillSlotByType, reviewSlotByType },
+    bindings: { createStructure, fillSlotByType, reviewSlotByType, reviewStructure },
     limits: {
       maxSlots: raw.limits.maxSlots,
       maxStructureDepth: raw.limits.maxStructureDepth,
