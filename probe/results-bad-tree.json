@@ -1,0 +1,415 @@
+{
+  "model": "deepseek-v4-flash",
+  "ranAt": "2026-08-28T17:27:24.061Z",
+  "results": [
+    {
+      "variant": "clean",
+      "expect": [],
+      "planted": "无。控制组，量的是误报",
+      "fired": [],
+      "discarded": [],
+      "verdicts": [
+        {
+          "criterionId": "S1",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        },
+        {
+          "criterionId": "S2",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        },
+        {
+          "criterionId": "S3",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        },
+        {
+          "criterionId": "S4",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        }
+      ],
+      "realCalls": 11,
+      "roundsSeen": 1,
+      "inputTokens": 68524,
+      "outputTokens": 17634,
+      "executions": [
+        {
+          "attempt": 1,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 2,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 3,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 4,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        }
+      ]
+    },
+    {
+      "variant": "S1",
+      "expect": [
+        "S1"
+      ],
+      "planted": "scene_02 写了发生什么与冲突什么，但**没写停在哪里**",
+      "fired": [
+        "S1"
+      ],
+      "discarded": [],
+      "verdicts": [
+        {
+          "criterionId": "S1",
+          "verdict": "revise",
+          "quote": "接住上一场的静场。",
+          "problem": "scene_02 的目标缺三件事里的第三件「停在哪里」。目标写全了发生什么（沈明川与沈明月立场正面冲突、沈明远放录音）和建立什么（立场对立、录音被播放、周桂芳的沉默延续），但结尾落在「周桂芳仍然不开口」这一贯穿全场的延续性状态上，不是这场结束时停住的画面或状态；下游写作者无法从这条目标判断 scene_02 该在哪个瞬间收尾。同树其他 scene 均有显式停点（scene_01「停在……静场」、scene_03「停在……时候」、scene_04「结尾留下……状态」），仅此条缺失。"
+        },
+        {
+          "criterionId": "S2",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        },
+        {
+          "criterionId": "S3",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        },
+        {
+          "criterionId": "S4",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        }
+      ],
+      "realCalls": 12,
+      "roundsSeen": 1,
+      "inputTokens": 78950,
+      "outputTokens": 20228,
+      "executions": [
+        {
+          "attempt": 1,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 2,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 3,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 4,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        }
+      ]
+    },
+    {
+      "variant": "S2-a",
+      "expect": [
+        "S2"
+      ],
+      "planted": "scene_02 里塞了两句**结构 Agent 自拟**的对白（执行包里没有这两句）",
+      "fired": [
+        "S2"
+      ],
+      "discarded": [],
+      "verdicts": [
+        {
+          "criterionId": "S1",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        },
+        {
+          "criterionId": "S2",
+          "verdict": "revise",
+          "quote": "这三年是谁端的药、谁半夜爬起来翻的身？",
+          "problem": "scene_02 的目标把沈明川的台词逐字写进了 instruction，并冠以「沈明川说」的叙述。这句在执行包中没有任何逐字出处（执行包唯一逐字指定的是周桂芳的\"晓晓的学费，你们谁管\"），不适用例外。下游拿到后只会照抄，等于替下游写好了正文。应改为转述这场争执中沈明川要传达的意思（如：他要用照顾起居的付出争多分），而不是给出可直接抄进正文的台词。"
+        },
+        {
+          "criterionId": "S3",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        },
+        {
+          "criterionId": "S4",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        }
+      ],
+      "realCalls": 11,
+      "roundsSeen": 1,
+      "inputTokens": 72735,
+      "outputTokens": 20210,
+      "executions": [
+        {
+          "attempt": 1,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 2,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 3,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 4,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        }
+      ]
+    },
+    {
+      "variant": "clean-repeat",
+      "expect": [],
+      "planted": "与 clean 同一棵树。查 S2 例外是否生效，兼做同输入两跑的一致性检查",
+      "fired": [
+        "S4"
+      ],
+      "discarded": [],
+      "verdicts": [
+        {
+          "criterionId": "S1",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        },
+        {
+          "criterionId": "S2",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        },
+        {
+          "criterionId": "S3",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        },
+        {
+          "criterionId": "S4",
+          "verdict": "revise",
+          "quote": "结尾留下一个下一章可以直接承接的状态：分家会没有结论，但四房各自去做了一件事。",
+          "problem": "执行包情节目标 6 点名要求「结尾必须留下一个具体的、下一章可以直接承接的状态：分家会没有结论，但四房各自去做了一件事」，且 S4 规定这一条要原样落到最后一场的 instruction 里。scene_04 作为最后一场，其目标把它改写成了「结尾留下一个下一章可以直接承接的状态：分家会没有结论，但四房各自去做了一件事。」，漏掉了「必须」「具体的」等字样，结尾状态这一条没有原样落到最后一场的 instruction 里，属于执行包点名要求的落点未完整承接。"
+        }
+      ],
+      "realCalls": 12,
+      "roundsSeen": 1,
+      "inputTokens": 72187,
+      "outputTokens": 19683,
+      "executions": [
+        {
+          "attempt": 1,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 2,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 3,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 4,
+          "status": "failed",
+          "errorCode": "PROVIDER_TIMEOUT",
+          "errorMessage": "执行超过 120000ms 未完成"
+        },
+        {
+          "attempt": 5,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        }
+      ]
+    },
+    {
+      "variant": "S3",
+      "expect": [
+        "S3"
+      ],
+      "planted": "scene_02 停在「名片推到桌心」，scene_03 开场却已是三天后祖宅挂牌，中间「分家会怎么散的」没有任何槽位承载",
+      "fired": [
+        "S3",
+        "S4"
+      ],
+      "discarded": [],
+      "verdicts": [
+        {
+          "criterionId": "S1",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        },
+        {
+          "criterionId": "S2",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        },
+        {
+          "criterionId": "S3",
+          "verdict": "revise",
+          "quote": "停在沈明月把中介的名片推到桌心、没有人去拿的那一刻。",
+          "problem": "上一场（scene_02）停在「名片推到桌心、没有人去拿」的僵局，下一场（scene_03）开场却直接是「三天后，祖宅门口挂上了待售的牌子」。从「无人接名片」到「房子挂牌出售」之间，缺了「由谁把出售一事推进下去（联系中介、挂牌）」这一段该被写出来的事，且没有任何槽位承载它；挂牌这个结果与停点处「没有人去拿」的僵局对不上，上一场的停点接不上下一场的开场。"
+        },
+        {
+          "criterionId": "S4",
+          "verdict": "revise",
+          "quote": "结尾留下一个下一章可以直接承接的状态：分家会没有结论，但四房各自去做了一件事。",
+          "problem": "执行包情节目标第 6 条点名「结尾必须留下一个具体的、下一章可以直接承接的状态：分家会没有结论，但四房各自去做了一件事」，S4 的「漏掉结尾状态」要求这一条原样落到最后一场的 instruction 里。scene_04 是最后一场，其目标虽然写到了结尾状态，但把执行包的原文改写成了省略「必须」和「具体的」的版本，没有原样落到最后一场的 instruction 中，结尾状态这一条未被原样承接。"
+        }
+      ],
+      "realCalls": 12,
+      "roundsSeen": 1,
+      "inputTokens": 66002,
+      "outputTokens": 16818,
+      "executions": [
+        {
+          "attempt": 1,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 2,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 3,
+          "status": "failed",
+          "errorCode": "PROVIDER_TIMEOUT",
+          "errorMessage": "执行超过 120000ms 未完成"
+        },
+        {
+          "attempt": 4,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 5,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        }
+      ]
+    },
+    {
+      "variant": "S4",
+      "expect": [
+        "S4"
+      ],
+      "planted": "执行包第 6 条要求「结尾必须留下一个具体的、下一章可以直接承接的状态」，scene_04 把它拿掉了（停点还在，但停的是一个封闭的静场，不是可承接的状态）",
+      "fired": [
+        "S4"
+      ],
+      "discarded": [],
+      "verdicts": [
+        {
+          "criterionId": "S1",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        },
+        {
+          "criterionId": "S2",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        },
+        {
+          "criterionId": "S3",
+          "verdict": "no_finding",
+          "quote": null,
+          "problem": null
+        },
+        {
+          "criterionId": "S4",
+          "verdict": "revise",
+          "quote": "停在正厅安静下来、没有人先起身的那一刻。",
+          "problem": "执行包情节目标第 6 条点名结尾必须留下可承接的状态「分家会没有结论，但四房各自去做了一件事」。该状态应原样落到最后一场的 instruction 里；最后一场 scene_04 的目标只承载了「没有结论」（争执停下、无人起身），但「四房各自去做了一件事」这个下一章可直接承接的状态完全没有落点——该场停在无人先起身的静场，四房各自去做一件事的状态没有被接住。"
+        }
+      ],
+      "realCalls": 12,
+      "roundsSeen": 1,
+      "inputTokens": 60713,
+      "outputTokens": 11535,
+      "executions": [
+        {
+          "attempt": 1,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 2,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 3,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        },
+        {
+          "attempt": 4,
+          "status": "succeeded",
+          "errorCode": null,
+          "errorMessage": null
+        }
+      ]
+    }
+  ]
+}
