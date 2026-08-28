@@ -56,6 +56,31 @@ export const TraceKindSchema = z.enum(TRACE_KINDS);
 export type TraceKind = (typeof TRACE_KINDS)[number];
 
 /**
+ * **一整轮判据**的结算事件（R2）。
+ *
+ * 与逐条判据的结果共用 kind，靠 `executionId === null` 区分：结算收口的是整轮，
+ * 不属于其中任何一次 execution。`review_no_finding` 这个 kind 被用了两次——
+ * 一次是「某条判据没检出」（带 executionId），一次是「整轮结算」（executionId 为 null）。
+ * 只按 kind 取，一轮 4 条判据会被读成 5 条结算。
+ */
+export const REVIEW_SETTLEMENT_KINDS = [
+  'review_revise',
+  'review_no_finding',
+  'revision_budget_exhausted',
+] as const satisfies readonly TraceKind[];
+
+/**
+ * 收口整个槽位的结算：其后不会再有下一稿。
+ *
+ * `review_revise` 刻意不在内。它读起来像个结论，但它后面还跟着一次填槽——
+ * 把它当终点，界面会在槽位还在生产时就画出收口。
+ */
+export const SLOT_TERMINAL_KINDS = [
+  'review_no_finding',
+  'revision_budget_exhausted',
+] as const satisfies readonly TraceKind[];
+
+/**
  * payload 键名黑名单（REQ §13 脱敏要求的机器化）。
  * 命中即解析失败——宁可让写 trace 的代码在测试里炸掉，也不要让密钥流到页面上。
  */

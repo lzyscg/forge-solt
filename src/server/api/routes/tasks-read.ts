@@ -6,6 +6,7 @@
  * GET /api/tasks/:id                    任务详情
  * GET /api/tasks/:id/slots              槽位列表
  * GET /api/tasks/:id/slots/:slotId      单槽位（含完整 content）
+ * GET /api/tasks/:id/slots/:slotId/flow 单槽位的生产流程（轮次 / 判据 / 结算）
  * GET /api/tasks/:id/executions         执行记录
  * GET /api/tasks/:id/traces?after=&limit=  轨迹分页
  * GET /api/tasks/:id/artifact           产物元信息 + 内容
@@ -66,6 +67,12 @@ export function registerTaskReadRoutes(app: FastifyInstance, forge: ForgeApp): v
 
   app.get<{ Params: SlotParams }>('/api/tasks/:id/slots/:slotId', (request) =>
     forge.tasks.getSlotDetail(request.params.id, request.params.slotId),
+  );
+
+  // 与上一条分开：流程要多读 slot_reviews 与结算轨迹，
+  // 而绝大多数打开右栏的场景只想看正文。见 TaskService.getSlotFlow 的注释。
+  app.get<{ Params: SlotParams }>('/api/tasks/:id/slots/:slotId/flow', (request) =>
+    forge.tasks.getSlotFlow(request.params.id, request.params.slotId),
   );
 
   app.get<{ Params: TaskIdParams }>('/api/tasks/:id/executions', (request) =>

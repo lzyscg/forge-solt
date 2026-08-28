@@ -12,7 +12,7 @@ import { z } from 'zod';
 
 import { PublicErrorSchema } from './errors';
 import { PresentationSchema } from './presentation';
-import { TraceEventSchema } from './trace';
+import { TraceEventSchema, TraceKindSchema } from './trace';
 
 // ---------- 通用词表 ----------
 
@@ -324,6 +324,100 @@ export const TaskDetailSchema = TaskSummarySchema.extend({
   error: PublicErrorSchema.nullable(),
 });
 export type TaskDetail = z.infer<typeof TaskDetailSchema>;
+
+// ---------- 生产流程视图（右栏「生产过程」） ----------
+
+/**
+ * 一个槽位的生产流程（`GET /api/tasks/:id/slots/:slotId/flow`）。
+ *
+ * 右栏的「产物」答「产出是什么」，这一组答「产出经历了什么」。数据全部来自
+ * 已有的 executions / slot_reviews / trace_events，**没有新增任何持久化**；
+ * 折成轮次这件事在 `domain/production-flow.ts` 里做完，前端只渲染不判断（D-07）。
+ *
+ * 刻意**不带节点内部的运行明细**：一个槽位的轨迹实测 685 条 / 81.7 KB，
+ * 跟着骨架一起返回就是把面板变成第二个 firehose。展开某个节点时，
+ * 前端从它已经持有的轨迹里按 executionId 挑，不再多一次请求。
+ */
+export const FlowFindingSchema = z.object({
+  /** 通过引文校验（D-11）的逐字引文。没通过的那些在结算时就被丢了，不会到这里 */
+  quote: z.string(),
+  problem: z.string(),
+});
+export type FlowFinding = z.infer<typeof FlowFindingSchema>;
+
+export const FlowNodeViewSchema = z.object({
+  executionId: z.string(),
+  attemptNumber: z.number().int(),
+  status: ExecutionStatusSchema,
+  inputTokens: z.number().nullable(),
+  outputTokens: z.number().nullable(),
+  /** 运行中为 null。这一层不补「已耗时」——那需要读时钟，而流程图不是计时器 */
+  durationMs: z.number().nullable(),
+  error: PublicErrorSchema.nullable(),
+});
+export type FlowNodeView = z.infer<typeof FlowNodeViewSchema>;
+
+export const FlowReviewNodeViewSchema = FlowNodeViewSchema.extend({
+  criterionId: z.string(),
+  /** 判据全名。取自任务冻结的审核 Skill 快照；快照里没有这条时为 null，不编 */
+  criterionTitle: z.string().nullable(),
+  /**
+   * 判据 ID 是推出来的还是库里的事实。
+   *
+   * 失败的审核执行在库里查无判据（`executions` 没有 criterion_id 列，
+   * `slot_reviews` 也没有它的行），只能按派发顺序推。true 时界面不得把它
+   * 当成已核实的事实展示。
+   */
+  criterionInferred: z.boolean(),
+  /** 失败的执行没有裁决 */
+  verdict: z.enum(['no_finding', 'revise', 'discarded']).nullable(),
+  findings: z.array(FlowFindingSchema),
+});
+export type FlowReviewNodeView = z.infer<typeof FlowReviewNodeViewSchema>;
+
+/** 一整轮判据的结算。它不属于任何一次 execution，因此单独成型 */
+export const FlowSettlementViewSchema = z.object({
+  round: z.number().int().min(0),
+  kind: TraceKindSchema,
+  title: z.string(),
+  summary: z.string(),
+  createdAt: z.string(),
+});
+export type FlowSettlementView = z.infer<typeof FlowSettlementViewSchema>;
+
+export const FlowRoundViewSchema = z.object({
+  round: z.number().int().min(0),
+  /** 同一轮可能有多次填槽：前面那次失败重试过 */
+  fills: z.array(FlowNodeViewSchema),
+  reviews: z.array(FlowReviewNodeViewSchema),
+  /** 检出了问题的**判据条数**（不是 findings 条数） */
+  firedCount: z.number().int().min(0),
+  /**
+   * 未检出的判据条数。默认折叠的就是这些，**数量必须在界面上说出来**（D-30）——
+   * 折了又不报数，读起来就是「其余都通过了」。
+   * 失败的执行既不进这里也不进 firedCount：它没有裁决。
+   */
+  cleanCount: z.number().int().min(0),
+  settlement: FlowSettlementViewSchema.nullable(),
+});
+export type FlowRoundView = z.infer<typeof FlowRoundViewSchema>;
+
+export const SlotFlowViewSchema = z.object({
+  slotId: z.string(),
+  /** 该槽位上的执行次数。失败的那些照样算——它们照样花了钱 */
+  calls: z.number().int().min(0),
+  inputTokens: z.number().int().min(0),
+  outputTokens: z.number().int().min(0),
+  /**
+   * 该槽位类型绑定的审核判据，取自任务冻结的快照，顺序即 SKILL.md 的书写顺序。
+   * 没有审核绑定时为空数组。**条数不写死**：改 Skill 加到 10 条，这里就是 10 条。
+   */
+  criteria: z.array(z.object({ id: z.string(), title: z.string() })),
+  rounds: z.array(FlowRoundViewSchema),
+  /** 全流程的收口（未检出问题完成 / 返修次数用尽）。还在跑时为 null */
+  ending: FlowSettlementViewSchema.nullable(),
+});
+export type SlotFlowView = z.infer<typeof SlotFlowViewSchema>;
 
 // ---------- 请求体 ----------
 

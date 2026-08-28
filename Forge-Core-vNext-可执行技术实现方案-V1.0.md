@@ -3291,6 +3291,7 @@ assert(allContentSlotsCompleted(slots), '违反 FR-ASM-001');
 | POST | `/api/tasks/:id/retry` | 重试 | REQ §21 |
 | GET | `/api/tasks/:id/slots` | 槽位列表 | REQ §21 |
 | GET | `/api/tasks/:id/slots/:slotId` | 单槽位（含完整 content） | REQ §21 |
+| GET | `/api/tasks/:id/slots/:slotId/flow` | 单槽位的生产流程（轮次 / 判据 / 结算） | **R5 新增** |
 | GET | `/api/tasks/:id/executions` | 执行记录列表 | REQ §21 |
 | GET | `/api/tasks/:id/traces?after=&limit=` | 轨迹分页 | TECH-V0.1 §9.4 |
 | GET | `/api/tasks/:id/stream?after=` | SSE | TECH-V0.1 §9.4 |

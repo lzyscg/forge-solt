@@ -35,7 +35,9 @@
 import type {
   ArtifactView,
   ExecutionView,
+  FlowFinding,
   SlotDetail,
+  SlotFlowView,
   SlotView,
   SseStateEvent,
   StepperKey,
@@ -45,8 +47,15 @@ import type {
 } from '@shared/contracts.ts';
 import type { PublicError } from '@shared/errors.ts';
 import { DEFAULT_ERROR_ACTION, ForgeError } from '@shared/errors.ts';
+import type { TraceEvent } from '@shared/trace.ts';
 import type { Execution, Slot, Task } from '@server/domain/types.ts';
 import { deriveSlotPresentation, deriveTaskPresentation } from '@server/domain/presentation.ts';
+import {
+  deriveSlotFlow,
+  type FlowCriterion,
+  type FlowReviewRecord,
+  type FlowSettlement,
+} from '@server/domain/production-flow.ts';
 import {
   blockedBy,
   computeDepth,
@@ -54,6 +63,7 @@ import {
   selectNextReadySlot,
 } from '@server/domain/readiness.ts';
 import type { UnitOfWork, UnitOfWorkHandle } from '@server/infrastructure/uow.ts';
+import { reviewBindingOf } from './review-binding.ts';
 import type { CompiledTemplate } from './template-loader.ts';
 
 // ---------------------------------------------------------------------------
@@ -87,6 +97,14 @@ export interface TaskService {
   getTaskDetail(taskId: string): TaskDetail;
   listSlots(taskId: string): SlotView[];
   getSlotDetail(taskId: string, slotId: string): SlotDetail;
+  /**
+   * 右栏「生产过程」视图：把该槽位的执行序列折成轮次。
+   *
+   * 与 `getSlotDetail` 分开是因为两者的代价差一个量级——流程要多读
+   * slot_reviews 与结算轨迹，而绝大多数打开右栏的场景只想看正文。
+   * 合成一个端点等于让每次选中槽位都付这份钱。
+   */
+  getSlotFlow(taskId: string, slotId: string): SlotFlowView;
   listExecutions(taskId: string): ExecutionView[];
   /** `content` 仅在 `includeContent` 为 true 时返回，避免把整章正文塞进任务详情 */
   getArtifact(taskId: string, options?: { includeContent?: boolean }): ArtifactView | null;
@@ -203,6 +221,45 @@ export function createTaskService(options: TaskServiceOptions): TaskService {
     }
     compiledCache.set(task.snapshotId, compiled);
     return compiled;
+  };
+
+  /**
+   * 冻结快照里某个 Skill 的判据表（= sections，按书写顺序）。
+   *
+   * 与 `compiledCache` 同一条理由按 snapshotId 缓存：快照表没有 update 入口，
+   * 同一个 snapshotId 下的 section_index_json 永不改变。
+   *
+   * 刻意**不复用 `SnapshotService.readSnapshot`**：那个方法要解全部 Skill 快照
+   * 并重算一遍 contentHash，而这里只需要一份 Skill 的章节标题。
+   */
+  const criteriaCache = new Map<string, readonly FlowCriterion[]>();
+
+  const criteriaOf = (task: Task, skillId: string): readonly FlowCriterion[] => {
+    const key = `${task.snapshotId}:${skillId}`;
+    const cached = criteriaCache.get(key);
+    if (cached !== undefined) return cached;
+
+    const row = uow.repositories.snapshots.getSkill(task.id, skillId);
+    // 绑定指向的 Skill 不在快照里 = 快照与模板对不上。这不该让整个面板打不开，
+    // 给空判据表即可：界面会显示成「没有判据」，而审核节点仍然按推断的 ID 画出来。
+    if (row === null) return [];
+
+    let sections: readonly { id: string; title: string }[];
+    try {
+      sections = (JSON.parse(row.sectionIndexJson) as { sections: { id: string; title: string }[] })
+        .sections;
+    } catch (error) {
+      throw new ForgeError(
+        'STORAGE_ERROR',
+        `任务 ${task.id} 的 Skill 快照「${skillId}」无法解析`,
+        `task:${task.id}`,
+        '请查看服务日志',
+        error,
+      );
+    }
+    const criteria = sections.map((section) => ({ id: section.id, title: section.title }));
+    criteriaCache.set(key, criteria);
+    return criteria;
   };
 
   const agentNameOf = (compiled: CompiledTemplate, agentId: string): string =>
@@ -515,6 +572,72 @@ export function createTaskService(options: TaskServiceOptions): TaskService {
       return { ...view, content: slot.contentText };
     },
 
+    getSlotFlow(taskId, slotId) {
+      const task = uow.repositories.tasks.getOrThrow(taskId);
+      const slot = uow.repositories.slots.getOrThrow(taskId, slotId);
+      const compiled = compiledFor(task);
+
+      // 没有审核绑定是合法默认（D-27）：判据表为空，流程里就只有填槽节点。
+      const binding = reviewBindingOf(compiled, slot);
+      const criteria = binding === null ? [] : criteriaOf(task, binding.skillId);
+
+      const flow = deriveSlotFlow({
+        slotId,
+        executions: uow.repositories.executions.listByTask(taskId),
+        reviews: uow.repositories.slotReviews
+          .listBySlot(taskId, slotId)
+          .map((row): FlowReviewRecord => ({
+            criterionId: row.criterionId,
+            executionId: row.executionId,
+            verdict: row.verdict,
+            findings: parseFindings(row.findingsJson, taskId, slotId),
+          })),
+        criteria,
+        settlements: settlementsOf(uow.repositories.traces.listSettlements(taskId), slotId),
+      });
+
+      return {
+        slotId: flow.slotId,
+        calls: flow.calls,
+        inputTokens: flow.inputTokens,
+        outputTokens: flow.outputTokens,
+        criteria: criteria.map((criterion) => ({ id: criterion.id, title: criterion.title })),
+        rounds: flow.rounds.map((round) => ({
+          round: round.round,
+          fills: round.fills.map((node) => ({
+            executionId: node.executionId,
+            attemptNumber: node.attemptNumber,
+            status: node.status,
+            inputTokens: node.inputTokens,
+            outputTokens: node.outputTokens,
+            durationMs: node.durationMs,
+            error: toPublicError(node.errorCode, node.errorMessage, `slot:${slotId}`),
+          })),
+          reviews: round.reviews.map((node) => ({
+            executionId: node.executionId,
+            attemptNumber: node.attemptNumber,
+            status: node.status,
+            inputTokens: node.inputTokens,
+            outputTokens: node.outputTokens,
+            durationMs: node.durationMs,
+            error: toPublicError(node.errorCode, node.errorMessage, `slot:${slotId}`),
+            criterionId: node.criterionId,
+            criterionTitle: node.criterionTitle,
+            criterionInferred: node.criterionInferred,
+            verdict: node.verdict,
+            findings: node.findings.map((finding) => ({
+              quote: finding.quote,
+              problem: finding.problem,
+            })),
+          })),
+          firedCount: round.firedCount,
+          cleanCount: round.cleanCount,
+          settlement: round.settlement,
+        })),
+        ending: flow.ending,
+      };
+    },
+
     listExecutions(taskId) {
       const timestamp = now();
       const task = uow.repositories.tasks.getOrThrow(taskId);
@@ -581,6 +704,72 @@ export function createTaskService(options: TaskServiceOptions): TaskService {
       };
     },
   };
+}
+
+// ---------------------------------------------------------------------------
+// 生产流程视图的取数辅助
+// ---------------------------------------------------------------------------
+
+/**
+ * `slot_reviews.findings_json` 反序列化。
+ *
+ * 解析失败**抛而不是吞**。吞掉的后果是这条判据在界面上显示成「未检出」——
+ * 那是一条它明明报了问题却被说成没问题的假话，正是 D-30 要堵的那种。
+ * 存储坏了就该让存储坏了这件事被看见。
+ */
+function parseFindings(json: string, taskId: string, slotId: string): FlowFinding[] {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch (error) {
+    throw new ForgeError(
+      'STORAGE_ERROR',
+      `槽位 ${slotId} 的审核意见无法解析`,
+      `slot:${slotId}`,
+      '请查看服务日志',
+      error,
+    );
+  }
+  if (!Array.isArray(parsed)) {
+    throw new ForgeError(
+      'STORAGE_ERROR',
+      `任务 ${taskId} 槽位 ${slotId} 的审核意见不是数组`,
+      `slot:${slotId}`,
+      '请查看服务日志',
+    );
+  }
+  // findings 里的 criterionId 在这一层被丢掉：它与 slot_reviews 那一行的
+  // criterion_id 必然同值（一次调用只审一条判据，D-23），留着只会让前端
+  // 多一个可以跟行头对不上的字段。
+  return (parsed as { quote: string; problem: string }[]).map((finding) => ({
+    quote: finding.quote,
+    problem: finding.problem,
+  }));
+}
+
+/**
+ * 把结算轨迹认领到某个槽位，并读出它收口的轮号。
+ *
+ * 结算事件的 `executionId` 为 null（它收的是一整轮，不属于任何一次 execution），
+ * 归属只能靠 `payload.slotId`——这正是 R2 那次界面缺陷的成因。
+ * 读不出 `revisionRound` 的直接跳过：宁可这一轮不显示结算，也不能把它挂到错的轮上。
+ */
+function settlementsOf(events: readonly TraceEvent[], slotId: string): FlowSettlement[] {
+  const settlements: FlowSettlement[] = [];
+  for (const event of events) {
+    const payload = event.payload;
+    if (payload === null || payload['slotId'] !== slotId) continue;
+    const round = payload['revisionRound'];
+    if (typeof round !== 'number') continue;
+    settlements.push({
+      round,
+      kind: event.kind,
+      title: event.title,
+      summary: event.summary,
+      createdAt: event.createdAt,
+    });
+  }
+  return settlements;
 }
 
 // ---------------------------------------------------------------------------

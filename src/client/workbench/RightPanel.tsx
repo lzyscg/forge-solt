@@ -3,13 +3,20 @@
  * 子组件**不再判断** `task.phase` / `slot.contentBearing`（§10.3②）。
  * 轨迹按 subject 收敛（容器/输入 → 空 + 解释，槽位/结构 → 该 execution 的事件）。
  * 容器分支不显示 Producer/耗时（§10.3③）。技术详情见 §13.5。
+ *
+ * ## 两个视图
+ *
+ * 「产物」是原来那套（轨迹流水 + 生产信息）；「生产过程」把同一批事件折成流向图，
+ * 见 `ProductionFlow.tsx`。切换出现在**被逐条判据审过**的 subject 上：
+ * 内容槽位，以及绑了结构审核的根容器。判据见 `canFlow`。
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { PanelSubject } from './panel-subject.ts';
 import type { TaskDetail, ExecutionView } from '@shared/contracts.ts';
 import type { TraceEvent } from '@shared/trace.ts';
 import { TraceTimeline } from './TraceTimeline.tsx';
+import { ProductionFlow } from './ProductionFlow.tsx';
 import { formatDurationMs, formatClock } from '../lib/format.ts';
 
 interface RightPanelProps {
@@ -34,11 +41,32 @@ function scopeTraces(
   traces: TraceEvent[],
 ): { list: TraceEvent[]; note?: string | undefined } {
   switch (subject.kind) {
-    case 'container':
+    /*
+     * 容器**可能有轨迹**：R5 的结构审核就把根容器当作审核目标，
+     * 一轮四条判据各一次 execution，`targetSlotId` 就是这个容器。
+     *
+     * 这里原来硬编码返回空列表 + 一句「容器槽位没有 Agent 工作轨迹」。
+     * 结构审核接上之后那句话就成了假话，而且它藏起来的是**用户真金白银付过的
+     * 四次模型调用**——界面上看不出这棵结构被审过，更看不出它为什么被打回重来。
+     * 归属方式与 content 分支同源（execution 归属 + 结算事件按 payload.slotId 认领），
+     * 理由见那里。
+     */
+    case 'container': {
+      const ids = new Set(executions.filter((e) => e.targetSlotId === subject.slot.id).map((e) => e.id));
+      const list = traces.filter((t) =>
+        t.executionId !== null
+          ? ids.has(t.executionId)
+          : t.payload !== null && t.payload['slotId'] === subject.slot.id,
+      );
       return {
-        list: [],
-        note: '容器槽位不创建 Fill Slot Assignment，因此没有 Agent 工作轨迹。它在结构提交时由系统直接置为 completed。',
+        list,
+        // 没有轨迹是合法默认（D-27：不绑审核）。这句话此时才是真的
+        note:
+          list.length === 0
+            ? '容器槽位不创建 Fill Slot Assignment，本模板也没有给它绑定结构审核，因此没有 Agent 工作轨迹。'
+            : undefined,
       };
+    }
     case 'input':
       return { list: [], note: '冻结任务输入由系统在创建任务时保存，不涉及 Agent 工作，因此没有轨迹。' };
     case 'structure': {
@@ -77,17 +105,43 @@ function scopeTraces(
 function summarize(
   subject: PanelSubject,
   task: TaskDetail,
+  executions: readonly ExecutionView[],
 ): { kindLabel: string; title: string; sentence: string; heading: string; rows: SummaryRow[] } {
   switch (subject.kind) {
     case 'container': {
       const children = task.slots.filter((s) => s.contentBearing);
+      /*
+       * 根容器绑了结构审核时，它**有** Assignment（每条判据一次），
+       * 而且它的 status 是被审核结算推动的，不是「提交时置为 completed」。
+       * 两种情形的每一行都不一样，所以整块分开写而不是拼字符串——
+       * 拼出来的句子在其中一种情形下总会读着别扭或干脆是假的。
+       *
+       * 判据是「这个容器**有没有 Assignment**」，不是 `revisionRound > 0`：
+       * 后者只在被打回重来过时才为真，而一棵一次就审过的结构 revisionRound 也是 0，
+       * 那正是最常见的情形——用它判会把「审过且干净」显示成「从来没审过」。
+       */
+      const reviewed = executions.some((e) => e.targetSlotId === subject.slot.id);
+      if (reviewed) {
+        return {
+          kindLabel: 'Assignment',
+          title: '根容器 · 结构审核',
+          sentence: `${subject.slot.id} 不承载正文，被审的是它底下那棵树：每个内容槽位的目标写清楚了没有。审核在任何槽位开工之前跑完，检出问题就整棵树重新设计。`,
+          heading: '槽位属性',
+          rows: [
+            { k: 'Actor', v: 'Agent', sub: '一条判据一次调用' },
+            { k: 'contentBearing', v: 'false', sub: '被审的是子槽位的目标' },
+            { k: '子槽位', v: `${String(children.length)} 个`, sub: '决定组装层级与顺序' },
+            { k: '重新设计', v: `${String(subject.slot.revisionRound)} 次`, sub: '审核检出问题的轮数' },
+          ],
+        };
+      }
       return {
         kindLabel: '无 Assignment',
         title: '容器槽位',
-        sentence: `${subject.slot.id} 的 contentBearing 为 false，结构提交时由系统直接置为 completed，不创建 Fill Slot Assignment，因此没有 Agent 工作轨迹。`,
+        sentence: `${subject.slot.id} 的 contentBearing 为 false，不创建 Fill Slot Assignment；本模板也没有给它绑定结构审核，因此没有 Agent 工作轨迹。它的状态不参与调度与组装。`,
         heading: '槽位属性',
         rows: [
-          { k: 'Actor', v: 'System', sub: '结构提交时置为 completed' },
+          { k: 'Actor', v: 'System', sub: '状态不参与调度' },
           { k: 'contentBearing', v: 'false', sub: '不承载正文' },
           { k: '子槽位', v: `${String(children.length)} 个`, sub: '决定组装层级与顺序' },
           { k: 'Assignment', v: '—', sub: '容器槽位不创建' },
@@ -186,9 +240,32 @@ function summarize(
 }
 
 export function RightPanel({ task, subject, traces, executions, showBackToCurrent, onBackToCurrent }: RightPanelProps) {
-  const s = summarize(subject, task);
+  const s = summarize(subject, task, executions);
   const scoped = scopeTraces(subject, executions, traces);
   const techExec = subject.kind === 'content' ? subject.execution : subject.kind === 'structure' ? subject.execution : null;
+
+  const [view, setView] = useState<PanelView>('artifact');
+  /*
+   * 谁有「生产过程」可看，判据是**它有没有被逐条判据审过**，不是它的 kind。
+   *
+   * 这里原来写死 `kind === 'content'`，理由是「容器、输入、组装、结构都没有『轮次』
+   * 这回事，给它们一个切不出东西的开关只会让人白点一次」。那句话在 R5 之前是对的，
+   * 之后就成了假的：根容器现在正是结构审核的对象，有判据表、有逐条裁决、
+   * 有返修轮次，`/slots/:id/flow` 对它返回的是一份完整的流程
+   * （实测 4 条判据、4 次调用、36k input）。挡住它的只有这一行。
+   *
+   * 用「有没有 Assignment」而不是「是不是根容器」：没绑结构审核的模板里，
+   * 根容器确实什么都没有，那时开关照旧不出现——与 `summarize` 那边同一个判据。
+   */
+  const canFlow =
+    subject.kind === 'content' ||
+    (subject.kind === 'container' && executions.some((e) => e.targetSlotId === subject.slot.id));
+  // 切到没有流程可言的 subject 时退回产物视图。
+  // 不退的话，切回来之前面板是空的，而用户并没有主动切过视图。
+  useEffect(() => {
+    if (!canFlow) setView('artifact');
+  }, [canFlow]);
+  const showFlow = canFlow && view === 'flow';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
@@ -218,7 +295,13 @@ export function RightPanel({ task, subject, traces, executions, showBackToCurren
         </div>
       </div>
 
-      <TraceTimeline traces={scoped.list} emptyNote={scoped.note} />
+      {canFlow ? <ViewSwitch view={view} onChange={setView} /> : null}
+
+      {showFlow ? (
+        <ProductionFlow taskId={task.id} slotId={subject.slot.id} traces={traces} />
+      ) : (
+        <>
+          <TraceTimeline traces={scoped.list} emptyNote={scoped.note} />
 
       <div
         className="fc-scroll"
@@ -244,8 +327,48 @@ export function RightPanel({ task, subject, traces, executions, showBackToCurren
             ))}
           </div>
           {techExec !== null ? <TechDetails exec={techExec} snapshotHash={task.snapshotHash} /> : null}
-        </div>
-      </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+type PanelView = 'artifact' | 'flow';
+
+const VIEW_LABEL: Record<PanelView, string> = { artifact: '产物', flow: '生产过程' };
+
+function ViewSwitch({ view, onChange }: { view: PanelView; onChange: (next: PanelView) => void }) {
+  return (
+    <div
+      role="tablist"
+      style={{ flex: 'none', display: 'flex', gap: 2, padding: '0 14px', borderBottom: '1px solid var(--color-divider)' }}
+    >
+      {(Object.keys(VIEW_LABEL) as PanelView[]).map((key) => (
+        <button
+          key={key}
+          type="button"
+          role="tab"
+          aria-selected={view === key}
+          onClick={() => onChange(key)}
+          style={{
+            appearance: 'none',
+            background: 'none',
+            border: 0,
+            borderBottom: `2px solid ${view === key ? 'var(--color-accent)' : 'transparent'}`,
+            font: 'inherit',
+            fontFamily: 'var(--font-heading)',
+            fontWeight: 600,
+            fontSize: 12.5,
+            color: view === key ? 'var(--color-text)' : 'var(--color-neutral-600)',
+            padding: '11px 10px 9px',
+            cursor: 'pointer',
+          }}
+        >
+          {VIEW_LABEL[key]}
+        </button>
+      ))}
     </div>
   );
 }

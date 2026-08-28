@@ -23,6 +23,7 @@
 
 import { randomUUID } from 'node:crypto';
 import type { TraceActor, TraceEvent, TraceKind, TracePayload } from '@shared/trace.ts';
+import { REVIEW_SETTLEMENT_KINDS } from '@shared/trace.ts';
 import { TraceEventSchema } from '@shared/trace.ts';
 import type { ForgeDb } from '../db.ts';
 import type { Clock } from './types.ts';
@@ -74,6 +75,17 @@ export interface TraceRepo {
   /** `GET /api/tasks/:id/traces?after=&limit=`（§9.4 断线补发也走它） */
   listByTask(taskId: string, options?: { after?: number; limit?: number }): TraceEvent[];
   listByExecution(executionId: string): TraceEvent[];
+  /**
+   * R2 的**轮次结算**事件：`execution_id IS NULL` 且 kind ∈ REVIEW_SETTLEMENT_KINDS。
+   *
+   * 两个条件缺一不可，见 `@shared/trace.ts` 里那组常量的注释：`review_no_finding`
+   * 这个 kind 被用了两次，只按 kind 筛会把逐条判据的结果一起捞进来，
+   * 一轮 4 条判据会被读成 5 条结算。
+   *
+   * 单独开一个方法而不是让调用方拉全量再筛：一个槽位的轨迹实测能到 685 条 / 81.7 KB，
+   * 为了挑出 3 条结算把整条时间线读进内存，代价与收益差了两个数量级。
+   */
+  listSettlements(taskId: string): TraceEvent[];
   /** 当前已分配到的最大序号；0 表示该任务还没有事件 */
   maxSequence(taskId: string): number;
 }
@@ -97,6 +109,14 @@ export function createTraceRepo(db: ForgeDb, clock: Clock): TraceRepo {
   );
   const byExecStmt = db.prepare(
     'SELECT * FROM trace_events WHERE execution_id = ? ORDER BY sequence',
+  );
+  // 占位符按常量长度展开一次。kind 列表来自 @shared/trace.ts 的 as const 数组，
+  // 不含任何外部输入，但仍走参数绑定——SQL 里没有字符串拼接的例外。
+  const settlementStmt = db.prepare(
+    `SELECT * FROM trace_events
+     WHERE task_id = ? AND execution_id IS NULL
+       AND kind IN (${REVIEW_SETTLEMENT_KINDS.map(() => '?').join(', ')})
+     ORDER BY sequence`,
   );
 
   return {
@@ -148,6 +168,11 @@ export function createTraceRepo(db: ForgeDb, clock: Clock): TraceRepo {
 
     listByExecution(executionId) {
       return (byExecStmt.all(executionId) as TraceRow[]).map(toDomain);
+    },
+
+    listSettlements(taskId) {
+      const rows = settlementStmt.all(taskId, ...REVIEW_SETTLEMENT_KINDS) as TraceRow[];
+      return rows.map(toDomain);
     },
 
     maxSequence(taskId) {

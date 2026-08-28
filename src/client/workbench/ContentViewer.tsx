@@ -68,8 +68,16 @@ function ContainerView({ task, slot, onSelectSlot }: { task: TaskDetail; slot: S
         <span style={{ fontSize: 11.5, padding: '3px 10px', borderRadius: 3, background: 'var(--color-neutral-200)', color: 'var(--color-neutral-800)' }}>容器槽位</span>
       </div>
       <div style={{ fontSize: 12, color: 'var(--color-neutral-600)', marginTop: 8 }}>类型：{slot.typeName} · contentBearing：false</div>
+      {/*
+        原来这里写的是「结构通过校验时，系统直接将它置为 completed」。那句话有两处不实：
+        容器落库即 pending 并一直保持 pending（`structure-service.ts` 文件头记过这条
+        文案分歧）；而根容器绑了结构审核之后，它的状态是被审核结算推动的，
+        期间还会经过 reviewing。措辞受 D-30 约束，不许说得比事实更确定。
+      */}
       <p style={{ margin: '22px 0 0', fontSize: 14.5, lineHeight: 1.95, textAlign: 'justify', maxWidth: 640, textWrap: 'pretty' }}>
-        容器槽位只用于组织结构：它决定子槽位的归属、层级和组装顺序，本身不承载正文，也不会创建 Fill Slot Assignment。结构通过校验时，系统直接将它置为 completed。
+        {slot.parentId === null
+          ? '容器槽位只用于组织结构：它决定子槽位的归属、层级和组装顺序，本身不承载正文，也不会创建 Fill Slot Assignment。作为根容器，它还是结构审核的对象——被审的不是它自己，而是它底下每个内容槽位的目标。'
+          : '容器槽位只用于组织结构：它决定子槽位的归属、层级和组装顺序，本身不承载正文，也不会创建 Fill Slot Assignment。它的状态不参与调度，也不影响组装。'}
       </p>
       <hr className="hr" />
       <div style={{ fontSize: 11, letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--color-neutral-500)', marginBottom: 8 }}>下级内容槽位 · 按此顺序组装</div>

@@ -13,6 +13,7 @@ import {
   TaskCommandResultSchema,
   SlotViewSchema,
   SlotDetailSchema,
+  SlotFlowViewSchema,
   ExecutionViewSchema,
   TraceListResponseSchema,
   ArtifactViewSchema,
@@ -22,6 +23,7 @@ import {
   type TaskCommandResult,
   type SlotView,
   type SlotDetail,
+  type SlotFlowView,
   type ExecutionView,
   type TraceListResponse,
   type ArtifactView,
@@ -63,6 +65,16 @@ export function getSlots(taskId: string): Promise<SlotView[]> {
 export function getSlotDetail(taskId: string, slotId: string): Promise<SlotDetail> {
   return request(SlotDetailSchema, {
     path: `/api/tasks/${encodeURIComponent(taskId)}/slots/${encodeURIComponent(slotId)}`,
+  });
+}
+
+/**
+ * 右栏「生产过程」视图的骨架：轮次、判据、结算。
+ * 单独一个端点而不是塞进 slot detail——见服务端 `getSlotFlow` 的注释。
+ */
+export function getSlotFlow(taskId: string, slotId: string): Promise<SlotFlowView> {
+  return request(SlotFlowViewSchema, {
+    path: `/api/tasks/${encodeURIComponent(taskId)}/slots/${encodeURIComponent(slotId)}/flow`,
   });
 }
 
