@@ -240,18 +240,19 @@ describe('R6 返修粒度', () => {
      * 刻意的设计（省一次 attempt），所以这一条断言的不是「执行失败」，
      * 而是「拒绝确实发生过，且被拒的那份没进库」。
      */
+    /*
+     * 被拒之后模型在**同一次执行里**改交整篇并成功——这是 `complete-assignment.ts`
+     * 刻意的设计（省一次 attempt），所以断言的不是「执行失败」，
+     * 而是「拒绝确实发生过、被拒的那份没进库、且这件事在轨迹上看得见」。
+     */
     expect(fills).toHaveLength(1);
     expect(fills[0]?.status).toBe('succeeded');
-    /*
-     * **已知缺口，不是本条用例的疏漏**：工具层的**预检**拒绝
-     * （kind 与 operation 不匹配、slotId 不匹配、以及 R6 新增的这两条）
-     * 只调 `ctx.onRejected` 登记给下一次尝试当反馈，**不写 trace**——
-     * 只有过了预检、被 CompletionPort 拒的那一支才写 `validation_failed`。
-     * 所以这里断言不了「拒绝发生过」，只能断言它的**后果**：
-     * 被拒的那份没进库，模型改交的整篇进了库。
-     * 要让预检拒绝也可见，得在 `complete-assignment.ts` 的 `reject` 里补一条 trace，
-     * 那是独立于 R6 的一处改动，没有一并做。
-     */
+
+    const precheckRejections = h.uow.repositories.traces
+      .listByTask(taskId)
+      .filter((e) => e.kind === 'validation_failed' && e.title === '提交被预检拒绝');
+    expect(precheckRejections).toHaveLength(1);
+    expect(precheckRejections[0]?.summary).toContain('首稿');
     expect(h.uow.repositories.slots.getOrThrow(taskId, 'scene_01').contentText).toBe(DRAFT_0);
   });
 

@@ -86,6 +86,11 @@ export interface TraceRepo {
    * 为了挑出 3 条结算把整条时间线读进内存，代价与收益差了两个数量级。
    */
   listSettlements(taskId: string): TraceEvent[];
+  /**
+   * R6 / D-64：`assignment_submitted` 事件（`execution_id` 非空）。
+   * 流程视图靠它区分「这一稿是定点编辑」还是「整篇重写」。
+   */
+  listSubmissions(taskId: string): TraceEvent[];
   /** 当前已分配到的最大序号；0 表示该任务还没有事件 */
   maxSequence(taskId: string): number;
 }
@@ -117,6 +122,18 @@ export function createTraceRepo(db: ForgeDb, clock: Clock): TraceRepo {
      WHERE task_id = ? AND execution_id IS NULL
        AND kind IN (${REVIEW_SETTLEMENT_KINDS.map(() => '?').join(', ')})
      ORDER BY sequence`,
+  );
+  /*
+   * R6 / D-64：提交事件。流程视图靠它区分「定点编辑」与「整篇重写」。
+   *
+   * 与 `listSettlements` 同一条理由单开一个方法而不是让调用方拉全量再筛：
+   * 一个槽位的轨迹实测能到 685 条 / 81.7 KB，为了挑出几条提交记录
+   * 把整条时间线读进内存，代价与收益差两个数量级。
+   */
+  const submissionStmt = db.prepare(
+    `SELECT * FROM trace_events
+      WHERE task_id = ? AND kind = 'assignment_submitted' AND execution_id IS NOT NULL
+      ORDER BY sequence`,
   );
 
   return {
@@ -173,6 +190,10 @@ export function createTraceRepo(db: ForgeDb, clock: Clock): TraceRepo {
     listSettlements(taskId) {
       const rows = settlementStmt.all(taskId, ...REVIEW_SETTLEMENT_KINDS) as TraceRow[];
       return rows.map(toDomain);
+    },
+
+    listSubmissions(taskId) {
+      return (submissionStmt.all(taskId) as TraceRow[]).map(toDomain);
     },
 
     maxSequence(taskId) {

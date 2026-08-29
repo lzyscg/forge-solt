@@ -40,10 +40,27 @@ export function createCompleteAssignment(ctx: ToolsetContext): ToolDefinition {
     async (submitted) => {
       ctx.gate.assertOpen('complete_assignment');
 
-      // 显式标注成 `=> never`：TS 只对**带类型注解的**声明做「调用即不可达」的收窄，
-      // 少了这行注解，下面三处 reject 之后 payload 的判别联合不会被收窄
+      /*
+       * 显式标注成 `=> never`：TS 只对**带类型注解的**声明做「调用即不可达」的收窄，
+       * 少了这行注解，下面几处 reject 之后 payload 的判别联合不会被收窄。
+       *
+       * **预检拒绝也要写 trace（R6 补）。**
+       * 在此之前这里只调 `onRejected` 登记给下一次尝试当反馈，轨迹上一个字都没有。
+       * 于是「这次返修为什么花了两次尝试」在事后**查不出来**——
+       * 执行记录只显示 failed + no_submission，而真正的原因是它交错了形状被当场退回。
+       * R6 让这条路径从「几乎不发生」变成「每次模型不守编辑清单契约都会走一遍」，
+       * 不记下来就是给自己埋一个必然会踩的坑。
+       */
       const reject: (error: ForgeError) => never = (error) => {
         ctx.onRejected({ code: error.code, message: error.message, violations: [] });
+        ctx.trace.write({
+          executionId: ctx.executionId,
+          actor: 'system',
+          kind: 'validation_failed',
+          title: '提交被预检拒绝',
+          summary: error.message,
+          payload: { code: error.code, stage: 'precheck' },
+        });
         throw error;
       };
 

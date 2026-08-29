@@ -55,6 +55,7 @@ import {
   type FlowCriterion,
   type FlowReviewRecord,
   type FlowSettlement,
+  type FlowSubmission,
 } from '@server/domain/production-flow.ts';
 import {
   blockedBy,
@@ -594,6 +595,7 @@ export function createTaskService(options: TaskServiceOptions): TaskService {
           })),
         criteria,
         settlements: settlementsOf(uow.repositories.traces.listSettlements(taskId), slotId),
+        submissions: submissionsOf(uow.repositories.traces.listSubmissions(taskId)),
       });
 
       return {
@@ -612,6 +614,7 @@ export function createTaskService(options: TaskServiceOptions): TaskService {
             outputTokens: node.outputTokens,
             durationMs: node.durationMs,
             error: toPublicError(node.errorCode, node.errorMessage, `slot:${slotId}`),
+            edits: node.edits,
           })),
           reviews: round.reviews.map((node) => ({
             executionId: node.executionId,
@@ -770,6 +773,30 @@ function settlementsOf(events: readonly TraceEvent[], slotId: string): FlowSettl
     });
   }
   return settlements;
+}
+
+/**
+ * R6 / D-64：从 `assignment_submitted` 事件里取出每次提交的形态。
+ *
+ * `editCount` / `editedChars` 由 `complete-assignment.ts` 写进 payload，
+ * **只有编辑清单那条路径才写**。取不到就是整篇提交——
+ * 这里返回 `edits: null` 而不是干脆不放进表里，是为了让下游能区分
+ * 「整篇提交」（有事件、无编辑）与「还没提交」（压根没有事件）。
+ */
+function submissionsOf(events: readonly TraceEvent[]): FlowSubmission[] {
+  const submissions: FlowSubmission[] = [];
+  for (const event of events) {
+    if (event.executionId === null) continue;
+    const payload = event.payload;
+    const count = payload?.['editCount'];
+    const chars = payload?.['editedChars'];
+    submissions.push({
+      executionId: event.executionId,
+      edits:
+        typeof count === 'number' && typeof chars === 'number' ? { count, chars } : null,
+    });
+  }
+  return submissions;
 }
 
 // ---------------------------------------------------------------------------

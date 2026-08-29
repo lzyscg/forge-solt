@@ -357,6 +357,28 @@ export const FlowNodeViewSchema = z.object({
 });
 export type FlowNodeView = z.infer<typeof FlowNodeViewSchema>;
 
+/**
+ * 填槽节点。比 `FlowNodeView` 多一条：这一稿是**定点编辑**还是**整篇重写**（D-64）。
+ *
+ * 这一栏不是锦上添花。实测里返修新造的 5 条缺陷，是事后写脚本逐稿 diff 才发现的
+ * （`probe/finding-origin.py`）——当时界面上「改了 3 处」与「重写了整篇」
+ * 长得一模一样。有了它，那件事在发生的当时就摆在面上。
+ */
+export const FlowFillNodeViewSchema = FlowNodeViewSchema.extend({
+  /**
+   * 提交的是编辑清单时非 null。首稿、以及 D-65 降级后的整篇提交都是 null——
+   * **null 的含义是「整篇提交」，不是「没数据」**，界面要按前者措辞。
+   */
+  edits: z
+    .object({
+      count: z.number().int().min(1),
+      /** 编辑覆盖的字数（归一化后），用来一眼看出「只动了一句」还是「动了大半篇」 */
+      chars: z.number().int().min(0),
+    })
+    .nullable(),
+});
+export type FlowFillNodeView = z.infer<typeof FlowFillNodeViewSchema>;
+
 export const FlowReviewNodeViewSchema = FlowNodeViewSchema.extend({
   criterionId: z.string(),
   /** 判据全名。取自任务冻结的审核 Skill 快照；快照里没有这条时为 null，不编 */
@@ -388,7 +410,7 @@ export type FlowSettlementView = z.infer<typeof FlowSettlementViewSchema>;
 export const FlowRoundViewSchema = z.object({
   round: z.number().int().min(0),
   /** 同一轮可能有多次填槽：前面那次失败重试过 */
-  fills: z.array(FlowNodeViewSchema),
+  fills: z.array(FlowFillNodeViewSchema),
   reviews: z.array(FlowReviewNodeViewSchema),
   /** 检出了问题的**判据条数**（不是 findings 条数） */
   firedCount: z.number().int().min(0),

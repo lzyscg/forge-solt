@@ -30,7 +30,13 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { FlowNodeView, FlowReviewNodeView, FlowRoundView, SlotFlowView } from '@shared/contracts.ts';
+import type {
+  FlowFillNodeView,
+  FlowNodeView,
+  FlowReviewNodeView,
+  FlowRoundView,
+  SlotFlowView,
+} from '@shared/contracts.ts';
 import type { TraceEvent } from '@shared/trace.ts';
 import { getSlotFlow } from '../api/tasks.ts';
 import { ApiError } from '../api/http.ts';
@@ -370,7 +376,7 @@ function FillNode({
   open,
   onToggle,
 }: {
-  node: FlowNodeView;
+  node: FlowFillNodeView;
   label: string;
   traces: TraceEvent[];
   open: boolean;
@@ -392,6 +398,17 @@ function FillNode({
             {label}
           </span>
           {failed ? <Pill tone="danger">失败</Pill> : null}
+          {/*
+            D-64：这一稿是定点编辑还是整篇重写。
+            实测里返修新造的 5 条缺陷是事后写脚本逐稿 diff 才发现的，
+            当时界面上这两种情况长得一模一样。**只在有编辑时显示**——
+            首稿本来就该是整篇，给它挂个「整篇」标签是噪音。
+          */}
+          {node.edits === null ? null : (
+            <Pill tone="info">
+              定点改 {node.edits.count} 处 · {node.edits.chars} 字
+            </Pill>
+          )}
         </>
       }
       meta={node}
@@ -790,7 +807,18 @@ function Settlement({ kind, title }: { kind: string; title: string }) {
   );
 }
 
-function Pill({ tone, children }: { tone: 'danger' | 'muted'; children: React.ReactNode }) {
+/**
+ * `info` 与 `muted` 的区别不是好看：`muted`（「未检出」）说的是「这里没事，别看」，
+ * `info`（「定点改 N 处」）说的是「这里有一条你该知道的事实」。
+ * 用同一种灰会让后者被当成前者略过，而它恰恰是 D-64 要人看见的东西。
+ */
+function Pill({ tone, children }: { tone: 'danger' | 'muted' | 'info'; children: React.ReactNode }) {
+  const color =
+    tone === 'danger'
+      ? 'var(--color-danger)'
+      : tone === 'info'
+        ? 'var(--color-text)'
+        : 'var(--color-neutral-500)';
   return (
     <span
       style={{
@@ -800,7 +828,8 @@ function Pill({ tone, children }: { tone: 'danger' | 'muted'; children: React.Re
         padding: '1px 6px',
         borderRadius: 2,
         background: tone === 'danger' ? 'var(--color-danger-bg)' : 'transparent',
-        color: tone === 'danger' ? 'var(--color-danger)' : 'var(--color-neutral-500)',
+        border: tone === 'info' ? '1px solid var(--color-border)' : 'none',
+        color,
       }}
     >
       {children}

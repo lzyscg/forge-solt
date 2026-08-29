@@ -84,6 +84,17 @@ export interface SlotFlowInput {
   readonly criteria: readonly FlowCriterion[];
   /** 该槽位的轮次结算事件。顺序无关，按各自的 `round` 归位 */
   readonly settlements: readonly FlowSettlement[];
+  /**
+   * R6 / D-64：每次提交的形态，按 executionId 归位。
+   * 表里没有某个 executionId = 那一稿是整篇提交（首稿，或 D-65 降级后）。
+   */
+  readonly submissions: readonly FlowSubmission[];
+}
+
+/** 一次提交的形态。`edits` 为 null 表示整篇提交 */
+export interface FlowSubmission {
+  readonly executionId: string;
+  readonly edits: { readonly count: number; readonly chars: number } | null;
 }
 
 // ---------- 输出 ----------
@@ -100,6 +111,11 @@ export interface FlowNode {
   readonly errorMessage: string | null;
 }
 
+/** 填槽节点。比 FlowNode 多一条：这一稿是定点编辑还是整篇重写（D-64） */
+export interface FlowFillNode extends FlowNode {
+  readonly edits: { readonly count: number; readonly chars: number } | null;
+}
+
 export interface FlowReviewNode extends FlowNode {
   readonly criterionId: string;
   readonly criterionTitle: string | null;
@@ -113,7 +129,7 @@ export interface FlowReviewNode extends FlowNode {
 export interface FlowRound {
   readonly round: number;
   /** 同一轮里可能有多次填槽（前面的失败重试过） */
-  readonly fills: readonly FlowNode[];
+  readonly fills: readonly FlowFillNode[];
   readonly reviews: readonly FlowReviewNode[];
   /** 检出了问题的判据数 */
   readonly firedCount: number;
@@ -231,12 +247,15 @@ export function deriveSlotFlow(input: SlotFlowInput): SlotFlow {
   const byExecution = new Map(input.reviews.map((r) => [r.executionId, r]));
   const titleOf = new Map(input.criteria.map((c) => [c.id, c.title]));
   const settlementOf = new Map(input.settlements.map((s) => [s.round, s]));
+  const submissionOf = new Map(input.submissions.map((s) => [s.executionId, s.edits]));
 
   const rounds = splitRounds(mine).map((draft, index): FlowRound => {
     const reviews = attachCriteria(draft.reviews, byExecution, input.criteria, titleOf);
     return {
       round: index,
-      fills: draft.fills.map(nodeOf),
+      // D-64：整篇提交在表里没有条目，`edits` 因此为 null——
+      // 界面要把 null 讲成「整篇重写」，不是「没数据」
+      fills: draft.fills.map((e) => ({ ...nodeOf(e), edits: submissionOf.get(e.id) ?? null })),
       reviews,
       firedCount: reviews.filter((r) => r.findings.length > 0).length,
       // 只数「有裁决且没检出」的。失败执行既不算通过也不算检出——

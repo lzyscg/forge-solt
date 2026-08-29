@@ -94,6 +94,7 @@ function makeFlow(): SlotFlowView {
             outputTokens: 1105,
             durationMs: 12500,
             error: null,
+            edits: null,
           },
         ],
         reviews,
@@ -342,6 +343,41 @@ describe('右栏「生产过程」视图', () => {
     renderPanel();
     await openFlow();
     expect(screen.getAllByText('返修次数用尽，按现状完成')).toHaveLength(1);
+  });
+
+  /*
+   * R6 / D-64。这两条钉的是「定点编辑」与「整篇重写」在界面上分得开。
+   *
+   * 实测里返修新造的 5 条缺陷（`probe/finding-origin.py`）是事后写脚本逐稿 diff
+   * 才发现的——当时这一栏上「改了 1 处」与「重写了整篇」长得一模一样。
+   */
+  it('返修稿提交的是编辑清单时，标出改了几处、多少字', async () => {
+    const flow = makeFlow();
+    vi.mocked(fetch).mockImplementation(() =>
+      Promise.resolve(
+        json({
+          ...flow,
+          rounds: [
+            {
+              ...flow.rounds[0],
+              fills: [{ ...flow.rounds[0]!.fills[0]!, edits: { count: 2, chars: 47 } }],
+            },
+          ],
+        }),
+      ),
+    );
+
+    renderPanel();
+    await openFlow();
+    expect(screen.getByText(/定点改 2 处/)).toBeTruthy();
+    expect(screen.getByText(/47 字/)).toBeTruthy();
+  });
+
+  it('整篇提交时不挂标签——首稿本来就该是整篇，标它是噪音', async () => {
+    renderPanel();
+    await openFlow();
+    // 夹具里 fills 的 edits 都是 null
+    expect(screen.queryByText(/定点改/)).toBeNull();
   });
 
   it('非内容槽位没有视图切换——容器没有「轮次」这回事', () => {

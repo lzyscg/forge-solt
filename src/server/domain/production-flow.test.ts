@@ -15,6 +15,7 @@ import {
   type FlowCriterion,
   type FlowReviewRecord,
   type FlowSettlement,
+  type FlowSubmission,
 } from './production-flow.ts';
 
 const CRITERIA: readonly FlowCriterion[] = [
@@ -88,12 +89,14 @@ function derive(input: {
   reviews?: readonly FlowReviewRecord[];
   criteria?: readonly FlowCriterion[];
   settlements?: readonly FlowSettlement[];
+  submissions?: readonly FlowSubmission[];
 }) {
   return deriveSlotFlow({
     slotId: 'scene_01',
     executions: input.executions,
     reviews: input.reviews ?? [],
     criteria: input.criteria ?? CRITERIA,
+    submissions: input.submissions ?? [],
     settlements: input.settlements ?? [],
   });
 }
@@ -439,6 +442,41 @@ describe('deriveSlotFlow', () => {
     it('一条结算都没有时 ending 为 null', () => {
       const flow = derive({ executions: [exec(1)] });
       expect(flow.ending).toBeNull();
+    });
+  });
+
+  /**
+   * R6 / D-64。这一组钉的是「整篇重写」与「定点编辑」在流程里分得开——
+   * 实测里返修新造的 5 条缺陷，当时就是因为这两者长得一样才只能靠事后 diff 发现。
+   */
+  describe('提交形态（D-64）', () => {
+    it('提交表里有这次执行 → edits 带上条数与字数', () => {
+      const fill = exec(1);
+      const flow = derive({
+        executions: [fill],
+        submissions: [{ executionId: fill.id, edits: { count: 3, chars: 128 } }],
+      });
+      expect(flow.rounds[0]?.fills[0]?.edits).toEqual({ count: 3, chars: 128 });
+    });
+
+    it('提交表里没有这次执行 → edits 为 null（= 整篇提交，不是「没数据」）', () => {
+      const flow = derive({ executions: [exec(1)], submissions: [] });
+      expect(flow.rounds[0]?.fills[0]?.edits).toBeNull();
+    });
+
+    it('按 executionId 归位，不按顺序——同一轮里两次填槽只有后一次是编辑', () => {
+      // 第 1 次失败重试、第 2 次成功，属于同一轮（中间没有 review）
+      const first = exec(1);
+      const second = exec(2);
+      const flow = derive({
+        executions: [first, second],
+        // 刻意只给后一次，且顺序上它是表里唯一一条——归位靠 id，不靠位置
+        submissions: [{ executionId: second.id, edits: { count: 1, chars: 9 } }],
+      });
+      const fills = flow.rounds[0]?.fills ?? [];
+      expect(fills).toHaveLength(2);
+      expect(fills[0]?.edits).toBeNull();
+      expect(fills[1]?.edits).toEqual({ count: 1, chars: 9 });
     });
   });
 });
