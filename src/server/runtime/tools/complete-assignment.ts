@@ -28,6 +28,7 @@
  */
 
 import { ForgeError } from '@shared/errors.ts';
+import { applySlotEdits } from '@server/domain/slot-edits.ts';
 import { defineTool } from './tool-definition.ts';
 import type { ToolDefinition } from './tool-definition.ts';
 import type { ToolsetContext } from './context.ts';
@@ -36,7 +37,7 @@ export function createCompleteAssignment(ctx: ToolsetContext): ToolDefinition {
   return defineTool(
     'complete_assignment',
     '提交本次工作的正式产出。这是唯一会被保存的动作，调用成功后本次工作立即结束。',
-    async (payload) => {
+    async (submitted) => {
       ctx.gate.assertOpen('complete_assignment');
 
       // 显式标注成 `=> never`：TS 只对**带类型注解的**声明做「调用即不可达」的收窄，
@@ -46,7 +47,7 @@ export function createCompleteAssignment(ctx: ToolsetContext): ToolDefinition {
         throw error;
       };
 
-      if (ctx.operation === 'create_structure' && payload.kind !== 'structure') {
+      if (ctx.operation === 'create_structure' && submitted.kind !== 'structure') {
         reject(
           new ForgeError(
             'ASSIGNMENT_OUTPUT_INVALID',
@@ -55,16 +56,20 @@ export function createCompleteAssignment(ctx: ToolsetContext): ToolDefinition {
           ),
         );
       }
-      if (ctx.operation === 'fill_slot' && payload.kind !== 'slot_content') {
+      if (
+        ctx.operation === 'fill_slot' &&
+        submitted.kind !== 'slot_content' &&
+        submitted.kind !== 'slot_edits'
+      ) {
         reject(
           new ForgeError(
             'ASSIGNMENT_OUTPUT_INVALID',
-            `本次工作是填充槽位「${ctx.targetSlotId ?? ''}」，必须提交 kind 为 "slot_content" 的正文，` +
-              '不能提交结构。',
+            `本次工作是填充槽位「${ctx.targetSlotId ?? ''}」，必须提交 kind 为 "slot_content" 的正文` +
+              '（返修轮也可以提交 kind 为 "slot_edits" 的编辑清单），不能提交结构。',
           ),
         );
       }
-      if (ctx.operation === 'review_slot' && payload.kind !== 'review_result') {
+      if (ctx.operation === 'review_slot' && submitted.kind !== 'review_result') {
         reject(
           new ForgeError(
             'ASSIGNMENT_OUTPUT_INVALID',
@@ -73,16 +78,108 @@ export function createCompleteAssignment(ctx: ToolsetContext): ToolDefinition {
           ),
         );
       }
-      if (payload.kind === 'slot_content' && payload.slotId !== ctx.targetSlotId) {
+      if (
+        (submitted.kind === 'slot_content' || submitted.kind === 'slot_edits') &&
+        submitted.slotId !== ctx.targetSlotId
+      ) {
         reject(
           new ForgeError(
             'SLOT_TARGET_MISMATCH',
             `本次工作只能为槽位「${ctx.targetSlotId ?? ''}」撰写内容，` +
-              `而提交的 slotId 是「${payload.slotId}」。请把 slotId 改为「${ctx.targetSlotId ?? ''}」后重新提交。`,
+              `而提交的 slotId 是「${submitted.slotId}」。请把 slotId 改为「${ctx.targetSlotId ?? ''}」后重新提交。`,
             ctx.targetSlotId === null ? null : `slot:${ctx.targetSlotId}`,
           ),
         );
       }
+
+      /*
+       * ── R6 / D-61：编辑清单在这里就地化成整篇正文 ──────────────
+       *
+       * **下游一层都不知道 `slot_edits` 存在**：CompletionPort、仓储、
+       * 确定性校验（maxChars / forbidPattern）、组装拿到的仍然是整篇 content。
+       * 这是让这个特性只落在一层的关键，也意味着它不会给已经跑过 4 次真跑的
+       * 提交事务引入任何新分支。
+       *
+       * 读的是 `ctx.revisionBase.content`（= 提交事务开始前的 `content_text`）。
+       * 理论上「读」与「写」之间正文可能被改，实际上不可能：
+       * 同一槽位同时只有一个活动执行（`active_execution_id` 单车道），
+       * 而写正文只发生在提交事务里。记一笔以免将来有人以为这里被证明过。
+       */
+      let payload: Exclude<typeof submitted, { kind: 'slot_edits' }>;
+      let editSummary: { count: number; touchedChars: number } | null = null;
+
+      /*
+       * **未降级的返修轮里，整篇提交要被拒。**
+       *
+       * 这一条是整个特性的支点。少了它，提示词要求编辑清单、工具照收整篇正文，
+       * 那就退化成「又写了一句更长的提示词」——而提示词这条路已经被实测证伪
+       * （原文本来就写着「未被指出问题的部分保持原样」，然后 72.8%）。
+       *
+       * 被拒一次的代价是本轮的一次尝试，而下一次尝试系统就会降级（D-65），
+       * 那时整篇提交照收。所以最坏情况是「多花一次尝试」，不是「卡死」——
+       * D-26 那条铁律仍然成立。
+       */
+      if (
+        submitted.kind === 'slot_content' &&
+        ctx.revisionBase !== null &&
+        !ctx.revisionBase.degraded
+      ) {
+        reject(
+          new ForgeError(
+            'ASSIGNMENT_OUTPUT_INVALID',
+            `这是第 ${ctx.revisionBase.round} 轮返修，不接受整篇正文。` +
+              '请提交 kind 为 "slot_edits" 的编辑清单，只列出你要改动的片段：' +
+              '{"kind":"slot_edits","edits":[{"oldText":"上一稿里逐字存在的一段","newText":"改成什么"}]}。' +
+              '没有写进清单的段落会原样保留，不需要你重复一遍。',
+            ctx.targetSlotId === null ? null : `slot:${ctx.targetSlotId}`,
+          ),
+        );
+      }
+
+      if (submitted.kind === 'slot_edits') {
+        const base = ctx.revisionBase;
+        if (base === null) {
+          reject(
+            new ForgeError(
+              'ASSIGNMENT_OUTPUT_INVALID',
+              '这是本槽位的首稿，没有可供编辑的上一稿，不能提交编辑清单。' +
+                '请提交 kind 为 "slot_content" 的完整正文。',
+              ctx.targetSlotId === null ? null : `slot:${ctx.targetSlotId}`,
+            ),
+          );
+        }
+        const applied = applySlotEdits(base.content, submitted.edits);
+        if (!applied.ok) {
+          // 与结构校验同一条形状：message 给人看现象，agentHint 给模型看怎么改（D-13）
+          ctx.onRejected({
+            code: 'ASSIGNMENT_OUTPUT_INVALID',
+            message: applied.violations.map((v) => v.message).join('；'),
+            violations: [],
+          });
+          ctx.trace.write({
+            executionId: ctx.executionId,
+            actor: 'system',
+            kind: 'validation_failed',
+            title: '编辑清单未通过校验',
+            summary: applied.violations.map((v) => v.message).join('；'),
+            payload: { rules: applied.violations.map((v) => v.rule) },
+          });
+          throw new ForgeError(
+            'ASSIGNMENT_OUTPUT_INVALID',
+            [
+              '提交的编辑清单无法应用到上一稿：',
+              ...applied.violations.map((v, i) => `${i + 1}. [${v.rule}] ${v.agentHint}`),
+              '系统不保存部分结果。请修正后重新提交。',
+            ].join('\n'),
+            ctx.targetSlotId === null ? null : `slot:${ctx.targetSlotId}`,
+          );
+        }
+        editSummary = { count: submitted.edits.length, touchedChars: applied.touchedChars };
+        payload = { kind: 'slot_content', slotId: submitted.slotId, content: applied.content };
+      } else {
+        payload = submitted;
+      }
+
       /*
        * 审核结果的目标同样要对得上（R2 漏掉了这一条）。
        *
@@ -115,7 +212,12 @@ export function createCompleteAssignment(ctx: ToolsetContext): ToolDefinition {
           payload.kind === 'structure'
             ? `提交结构提案：${payload.slots.length} 个槽位，根槽位 ${payload.rootSlotId}`
             : payload.kind === 'slot_content'
-              ? `提交槽位「${payload.slotId}」正文，共 ${payload.content.length} 字`
+              ? // D-64：编辑清单要在轨迹上看得见，否则「改了这 3 处」与「重写了整篇」
+                // 在事后长得一样——上一轮那 5 条返修新造的缺陷就是这么被埋掉的
+                editSummary === null
+                ? `提交槽位「${payload.slotId}」正文，共 ${payload.content.length} 字`
+                : `提交槽位「${payload.slotId}」的 ${editSummary.count} 条定点编辑，` +
+                  `覆盖 ${editSummary.touchedChars} 字，成稿 ${payload.content.length} 字`
               : `提交槽位「${payload.slotId}」审核结果：${payload.verdict}`,
         // 正文与完整提案都不进 payload：前者可能上万字，后者会在校验失败时
         // 由 validation_failed 带上；trace 的 payload 是展开区不是仓库
@@ -123,7 +225,14 @@ export function createCompleteAssignment(ctx: ToolsetContext): ToolDefinition {
           payload.kind === 'structure'
             ? { kind: payload.kind, slotCount: payload.slots.length, rootSlotId: payload.rootSlotId }
             : payload.kind === 'slot_content'
-              ? { kind: payload.kind, slotId: payload.slotId, contentLength: payload.content.length }
+              ? {
+                  kind: payload.kind,
+                  slotId: payload.slotId,
+                  contentLength: payload.content.length,
+                  ...(editSummary === null
+                    ? {}
+                    : { editCount: editSummary.count, editedChars: editSummary.touchedChars }),
+                }
               : { kind: payload.kind, slotId: payload.slotId, verdict: payload.verdict, findingCount: payload.findings.length },
       });
 

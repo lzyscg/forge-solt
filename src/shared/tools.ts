@@ -31,6 +31,20 @@ export const SlotProposalSchema = z.object({
 export type SlotProposal = z.infer<typeof SlotProposalSchema>;
 
 /**
+ * R6 / D-61：返修轮的一条定点编辑。
+ *
+ * `oldText` 必须逐字出现在上一稿里且唯一——比对用与引文闸门（D-25）**同一套**
+ * 归一化，实现与校验在 `server/domain/slot-edits.ts`。
+ * 两个字段都不设 max：正文本身受 `validation.maxChars` 约束，
+ * 在这里再设一个上限只会多出一处需要对齐的数字。
+ */
+export const SlotEditSchema = z.object({
+  oldText: z.string().min(1),
+  newText: z.string(),
+});
+export type SlotEdit = z.infer<typeof SlotEditSchema>;
+
+/**
  * 工具参数表。
  * 工具集合是封闭的：Agent 只有这 6 个动作，其中只有 complete_assignment 是写动作（REQ §12.3）。
  */
@@ -67,6 +81,21 @@ export const ToolSchemas = {
       slotId: z.string(),
       content: z.string(),
     }),
+    /*
+     * R6 / D-61：返修轮提交编辑清单，而不是整篇正文。
+     *
+     * 只在返修轮（`slots.revision_round > 0`）可用，首稿仍走 slot_content——
+     * 首稿没有「上一稿」可以引，编辑清单无从谈起。
+     *
+     * 形状刻意只有 oldText/newText 两个字段，**不给行号或序号**：
+     * 坐标一旦让模型提供，就要处理它数错的情况；而把 oldText 加长到唯一，
+     * 让歧义在提交那一刻就消失。与引文闸门（D-25）同一条思路。
+     */
+    z.object({
+      kind: z.literal('slot_edits'),
+      slotId: z.string(),
+      edits: z.array(SlotEditSchema).min(1),
+    }),
     z.object({
       kind: z.literal('review_result'),
       slotId: z.string(),
@@ -94,6 +123,15 @@ export type ToolInput<N extends ToolName> = z.infer<(typeof ToolSchemas)[N]>;
 
 /** 提交载荷。两种 operation 的产出形状不同，用判别联合而不是可选字段，写错时编译期就报 */
 export type CompleteAssignmentInput = ToolInput<'complete_assignment'>;
+
+/**
+ * 工具层解析之后的提交载荷。
+ *
+ * `slot_edits` 在 `complete-assignment.ts` 里就地应用成整篇正文，**下游看不到它**——
+ * CompletionPort、仓储、确定性校验、组装拿到的永远是 slot_content。
+ * 把这件事写成类型而不是留成约定：将来有人把 slot_edits 往下传，编译期就炸。
+ */
+export type ResolvedSubmissionPayload = Exclude<CompleteAssignmentInput, { kind: 'slot_edits' }>;
 export type ReportWorkInput = ToolInput<'report_work'>;
 
 /** report_work 的类型词表映射到 work_* trace kind，供 Runtime 直接转换 */

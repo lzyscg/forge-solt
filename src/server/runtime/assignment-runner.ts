@@ -59,6 +59,8 @@ export interface Assignment {
   readonly allowedDependencySlotIds: readonly string[];
   readonly skill: SkillSnapshotView;
   readonly taskInput: Readonly<Record<string, string>>;
+  /** R6 / D-61：返修轮的编辑基线。首稿为 null，见 `tools/context.ts` */
+  readonly revisionBase: { readonly round: number; readonly content: string; readonly degraded: boolean } | null;
   /**
    * 由调用方创建并登记进 `activeControllers`（§8.3），**不是**在这里 new。
    * stop 事务提交后要能拿到它 abort；Runtime 自己 new 一个的话，
@@ -153,6 +155,7 @@ export class AssignmentRunner {
       operation: assignment.operation,
       targetSlotId: assignment.targetSlotId,
       allowedDependencySlotIds: assignment.allowedDependencySlotIds,
+      revisionBase: assignment.revisionBase,
       skill: assignment.skill,
       taskInput: assignment.taskInput,
       gate,

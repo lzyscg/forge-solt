@@ -666,8 +666,21 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
      * 重算的代价是两次索引查询，换来的是「清空进程内存也能逐字重建」（FR-CTX-005）。
      */
     const priorRounds = collectPriorRounds(uow.repositories, slot);
+    /*
+     * R6 / D-65：本轮是不是已经降级（放行整篇提交）。
+     *
+     * 判据是「这一轮已经不是第一次尝试」——一次返修尝试之所以会被重试，
+     * 只可能是上一次失败了（编辑清单不合格、确定性校验没过、或压根没提交）。
+     * 场景槽 maxRetries=1，于是恰好落成「第一次要求编辑清单，第二次放行整篇」。
+     *
+     * 用现成的本轮尝试计数而不是新加一个「编辑清单失败了几次」的计数器：
+     * 多一个计数器就多一处可能与返修预算不同步的状态，而这里只需要
+     * 「别在同一轮里反复撞同一堵墙」这一个效果。
+     * 与下面 `promptAttemptNumber` 同源，两处必须用同一个数。
+     */
+    const degraded = round.budget.attempts(key) > 0;
     const revision: FillSlotRevisionInput | null =
-      priorRounds.length === 0 ? null : { round: slot.revisionRound, priorRounds };
+      priorRounds.length === 0 ? null : { round: slot.revisionRound, priorRounds, degraded };
 
     const outcome = await runAssignment({
       taskId,
@@ -897,6 +910,31 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
         allowedDependencySlotIds: input.allowedDependencySlotIds ?? [],
         skill: toSkillView(skill),
         taskInput: snapshot.input,
+        /*
+         * R6 / D-61：返修轮的编辑基线。
+         *
+         * 正文取自 `targetSlot.contentText`——`markForRevision` 刻意不碰它，
+         * 所以返修轮开始时它就是上一稿那份字节，也正是 prompt 里给模型看的那一份。
+         *
+         * **D-65 的降级由系统按尝试次数决定，不由模型自己选。**
+         * 判据是「这一轮已经不是第一次尝试」：一次返修尝试之所以会被重试，
+         * 只可能是上一次失败了（编辑清单不合格、校验没过、或压根没提交）。
+         * 场景槽 maxRetries=1，于是恰好是「第一次要求编辑清单，第二次放行整篇」。
+         * 用现成的 promptAttemptNumber 而不是新加一个计数器：多一个计数器就多一处
+         * 可能与预算不同步的状态。
+         *
+         * 实测（probe/edit-contract-replay.ts）里模型**一次都没主动**走过整篇退路，
+         * 两次失败都是硬撞（非法 JSON、输出到长度上限也不提交）。
+         * 不由系统降级，这两种在生产里就是执行失败→重试→白烧一轮返修预算。
+         */
+        revisionBase:
+          operation === 'fill_slot' && input.revision != null && input.targetSlot?.contentText != null
+            ? {
+                round: input.revision.round,
+                content: input.targetSlot.contentText,
+                degraded: (input.promptAttemptNumber ?? attemptNumber) > 1,
+              }
+            : null,
         controller,
       });
 

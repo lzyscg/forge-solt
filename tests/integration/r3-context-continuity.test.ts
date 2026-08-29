@@ -22,6 +22,7 @@ import {
   VALID_STRUCTURE,
   waitFor,
   type EngineHarness,
+  sceneEditsTo,
 } from '../fixtures/engine.ts';
 import { FakeProvider, type FakeProviderScript } from '@server/runtime/provider/fake.ts';
 import { OpenAiCompatibleAdapter } from '@server/runtime/provider/openai-compatible.ts';
@@ -100,7 +101,7 @@ function firstRoundReviewScripts(): FakeProviderScript[] {
 /** 第 1 轮之后一路跑完（scene_01 返修稿 + 两条判据 + scene_02 + 两条判据） */
 function tailScripts(): FakeProviderScript[] {
   return [
-    { submitContent: { slotId: 'scene_01', content: DRAFT_1 } },
+    sceneEditsTo('scene_01', '第一稿', '第二稿'),
     { submitReview: { slotId: 'scene_01', verdict: 'no_finding' } },
     { submitReview: { slotId: 'scene_01', verdict: 'no_finding' } },
     { submitContent: { slotId: 'scene_02', content: sceneText('第二场') } },
@@ -324,12 +325,11 @@ describe('R3 上下文连续性（D-31 / D-32）', () => {
   // AC-R-013 / D-31：上下文回溯到第 0 轮，不是只带最近一轮
   it('D-31：第 2 轮的上下文同时含第 0 轮与第 1 轮的 findings 与稿子', async () => {
     const PROBLEM_1 = '心理解释代替了事件，没有可见行动（第一轮检出）';
-    const DRAFT_2 = sceneText('第三稿');
     const h = fakeHarness([
       ...scriptToFirstReview(),
       ...firstRoundReviewScripts(),
       // 第 1 轮返修稿 → 又被 S2 检出问题 → 第 2 轮
-      { submitContent: { slotId: 'scene_01', content: DRAFT_1 } },
+      sceneEditsTo('scene_01', '第一稿', '第二稿'),
       { submitReview: { slotId: 'scene_01', verdict: 'no_finding' } },
       {
         submitReview: {
@@ -339,7 +339,7 @@ describe('R3 上下文连续性（D-31 / D-32）', () => {
         },
       },
       // 第 2 轮返修稿
-      { submitContent: { slotId: 'scene_01', content: DRAFT_2 } },
+      sceneEditsTo('scene_01', '第二稿', '第三稿'),
       { submitReview: { slotId: 'scene_01', verdict: 'no_finding' } },
       { submitReview: { slotId: 'scene_01', verdict: 'no_finding' } },
       { submitContent: { slotId: 'scene_02', content: sceneText('第二场') } },
@@ -582,7 +582,7 @@ describe('R3 上下文连续性（D-31 / D-32）', () => {
       sceneScript!,
       ...firstRoundReviewScripts(),
       // 第 1 轮返修稿
-      { submitContent: { slotId: 'scene_01', content: DRAFT_1 } },
+      sceneEditsTo('scene_01', '第一稿', '第二稿'),
       {
         submitReview: {
           slotId: 'scene_01',
@@ -707,8 +707,14 @@ describe('AC-R-014：返修上下文中不得出现 reasoning_content', () => {
         },
       },
       { submit: { kind: 'review_result', slotId: 'scene_01', verdict: 'no_finding', findings: [] } },
-      // 返修稿
-      { submit: { kind: 'slot_content', slotId: 'scene_01', content: DRAFT_1 } },
+      // 返修稿。R6：未降级的返修轮只收编辑清单，整篇正文会被工具层当场拒
+      {
+        submit: {
+          kind: 'slot_edits',
+          slotId: 'scene_01',
+          edits: [{ oldText: '第一稿。', newText: '第二稿。' }],
+        },
+      },
       { submit: { kind: 'review_result', slotId: 'scene_01', verdict: 'no_finding', findings: [] } },
       { submit: { kind: 'review_result', slotId: 'scene_01', verdict: 'no_finding', findings: [] } },
       { submit: { kind: 'slot_content', slotId: 'scene_02', content: sceneText('第二场') } },

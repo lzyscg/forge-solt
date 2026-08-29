@@ -50,14 +50,17 @@ describe('toJsonSchema', () => {
     expect(order?.['minimum']).toBe(0);
   });
 
-  it('discriminatedUnion 展开成 anyOf，三个分支都在', () => {
+  it('discriminatedUnion 展开成 anyOf，四个分支都在', () => {
     const schema = toJsonSchema(ToolSchemas.complete_assignment);
     const anyOf = schema['anyOf'] as Record<string, unknown>[];
-    expect(anyOf).toHaveLength(3);
+    expect(anyOf).toHaveLength(4);
     const kinds = anyOf.map(
       (branch) => ((branch['properties'] as Record<string, Record<string, unknown>>)['kind'])?.['const'],
     );
-    expect(kinds).toEqual(['structure', 'slot_content', 'review_result']);
+    // R6：slot_edits 是第四个分支。它只在返修轮可用，但**工具定义是全局的**——
+    // 模型在首稿也看得见这个分支，首稿提交它会被 complete-assignment.ts 当场拒绝
+    // 并告知改用 slot_content（`revisionBase === null` 那一支）。
+    expect(kinds).toEqual(['structure', 'slot_content', 'slot_edits', 'review_result']);
   });
 
   /**

@@ -17,7 +17,7 @@
 
 import type { Operation, SlotStatus } from '@shared/contracts.ts';
 import type { ErrorCode } from '@shared/errors.ts';
-import type { CompleteAssignmentInput } from '@shared/tools.ts';
+import type { ResolvedSubmissionPayload } from '@shared/tools.ts';
 import type { TraceActor, TraceKind, TracePayload } from '@shared/trace.ts';
 import type { StructureViolation } from '@server/domain/structure-validation.ts';
 
@@ -62,8 +62,11 @@ export interface CompletionRequest {
   operation: Operation;
   /** create_structure 时为 null */
   targetSlotId: string | null;
-  /** 已过 `ToolSchemas.complete_assignment` 的载荷 */
-  payload: CompleteAssignmentInput;
+  /**
+   * 已过 `ToolSchemas.complete_assignment` **并经工具层解析**的载荷。
+   * `slot_edits` 到不了这里——它在 `complete-assignment.ts` 就地化成了 slot_content。
+   */
+  payload: ResolvedSubmissionPayload;
 }
 
 /**

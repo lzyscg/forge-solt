@@ -84,6 +84,8 @@ function makeContext(overrides: Partial<ToolsetContext> = {}): {
     operation: 'fill_slot',
     targetSlotId: 'scene_03',
     allowedDependencySlotIds: ['scene_02'],
+    /** 默认首稿。要测编辑清单的用例用 overrides 传一份基线进来 */
+    revisionBase: null,
     skill: FAKE_SKILL,
     taskInput: { premise: '前提', tone: '克制' },
     gate,

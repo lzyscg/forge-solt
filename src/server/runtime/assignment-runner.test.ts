@@ -85,6 +85,8 @@ function harness(options: {
     executionToken: 'token-plaintext',
     operation: 'fill_slot',
     targetSlotId: 'scene_03',
+    /** 这批用例全是首稿，没有可编辑的上一稿 */
+    revisionBase: null,
     modelAlias: 'main',
     systemText: '你是一个 Agent。',
     userText: '写 scene_03。',

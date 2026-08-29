@@ -154,6 +154,14 @@ export interface FillSlotRevisionInput {
    * 于是它可能在修 S2 的问题时把 S1 的修复改回去——白烧一轮预算。
    */
   priorRounds: readonly PriorRound[];
+  /**
+   * R6 / D-65：系统已降级，本轮放行整篇提交。
+   *
+   * **不进 `context_json`**：它是「这一次尝试怎么问」的策略，不是 D-12 那份
+   * 语义输入的一部分。放进去会让同一轮的两次尝试算成不同的上下文，
+   * 而 contextHash 的含义是「喂给模型的**信息**变没变」，不是「话术变没变」。
+   */
+  degraded: boolean;
 }
 
 export interface FillSlotContextInput extends ContextBuilderCommonInput {
@@ -660,12 +668,58 @@ function renderFillSlotRetry(retry: FillSlotRetryInput, attempt: number, maxAtte
  */
 const NO_DEPENDENCY_CONTENTS: ReadonlyMap<string, string> = new Map();
 
+/**
+ * R6 / D-61：返修提交编辑清单的约定。
+ *
+ * **它取代的那两句话是被实测证伪的**：原文写着「未被指出问题的部分保持原样，
+ * 然后提交完整正文」，而实测里同一次返修改动了 72.8% 的正文
+ * （`probe/revision-granularity.py`），27 条被检出的缺陷里 5 条是返修自己写出来的
+ * （`probe/finding-origin.py`）。与 R0.5 的强制对账实验是同一个教训：
+ * **把话说重救不回来**，只能靠机制。
+ *
+ * 这份文本本身经过重放验证（`probe/edit-contract-replay.ts`，10 次历史返修，
+ * prompt 由本函数生成且 contextHash 与库里 10/10 对账通过）：
+ * 8 次产出的清单**逐字对不上 0 条、不唯一 0 条、超过半篇 0 条**。
+ * 改这段文字之前先看那份结果，它是这段措辞唯一的依据。
+ */
+const EDIT_LIST_CONTRACT = [
+  '请针对尚未解决的问题定点修改。**这一轮不提交完整正文，提交一份编辑清单。**',
+  '',
+  '调用 complete_assignment，参数形如：',
+  '{"kind":"slot_edits","edits":[{"oldText":"要被替换掉的原文","newText":"替换成什么"}]}',
+  '',
+  '规则：',
+  '1. oldText 必须**逐字**出现在上一轮那份正文里，一个字都不能差（标点、语气词都算）。',
+  '   系统会用代码逐字核对，对不上的整份退回。',
+  '2. oldText 必须在正文里**唯一**。可能出现多处时，把它加长到唯一为止。',
+  '3. 没有写进清单的段落**原样保留**，不需要你重复一遍。',
+  '4. 你可以修改没有被判据点名的地方（比如为了衔接通顺），但**必须把它写成一条编辑**——',
+  '   不允许悄悄改动。',
+  '5. 一条编辑的 oldText 不得超过上一稿的一半。',
+  '',
+  '注意：往轮已经改好的地方不要改回去。',
+].join('\n');
+
+/**
+ * D-65 降级后的约定。**由系统决定何时启用，不由模型自选。**
+ *
+ * 实测里模型一次都没主动走过整篇退路——两次失败一次是吐非法 JSON、
+ * 一次是连吐 4 轮到长度上限也不提交。而且那两次恰好是历史上附带改动
+ * 最高的两次（72.8%、42.2%）：**「想整篇重写」的场合，正是编辑清单最难产出的场合。**
+ * 不给系统降级，这两种在生产里就是执行失败 → 重试 → 白烧一轮返修预算，
+ * 最终撞上 D-26 那条铁律要防的东西。
+ */
+const DEGRADED_CONTRACT = [
+  '请针对尚未解决的问题定点修改，未被指出问题的部分保持原样。',
+  '这一轮**可以**提交完整正文（kind 为 "slot_content"），也可以继续提交编辑清单。',
+  '注意：往轮已经改好的地方不要改回去。',
+].join('\n');
+
 function renderFillSlotRevision(revision: FillSlotRevisionInput): string {
   const blocks: string[] = [
     `【返修】第 ${revision.round} 轮`,
     '这一稿由你自己接着改：下面按轮次列出你每一轮的工作过程、当轮提交的正文，以及按判据检出的问题。',
-    '请针对尚未解决的问题定点修改，未被指出问题的部分保持原样，然后提交完整正文。',
-    '注意：往轮已经改好的地方不要改回去。',
+    revision.degraded ? DEGRADED_CONTRACT : EDIT_LIST_CONTRACT,
   ];
 
   revision.priorRounds.forEach((prior, round) => {

@@ -43,6 +43,14 @@ export interface FakeProviderScript {
   readonly callTools?: readonly FakeToolCall[];
   readonly submitStructure?: { rootSlotId: string; slots: readonly unknown[] };
   readonly submitContent?: { slotId: string; content: string };
+  /**
+   * R6：提交编辑清单（complete_assignment kind=slot_edits）。
+   * **未降级的返修轮只接受这一种**——那一轮用 `submitContent` 会被工具层当场拒。
+   */
+  readonly submitEdits?: {
+    slotId: string;
+    edits: readonly { oldText: string; newText: string }[];
+  };
   /** R2：提交审核结果（complete_assignment kind=review_result） */
   readonly submitReview?: {
     slotId: string;
@@ -213,6 +221,14 @@ export class FakeProvider implements ProviderAdapter {
       );
     } else if (script.submitContent !== undefined) {
       calls.push(this.#call('complete_assignment', { kind: 'slot_content', ...script.submitContent }));
+    } else if (script.submitEdits !== undefined) {
+      calls.push(
+        this.#call('complete_assignment', {
+          kind: 'slot_edits',
+          slotId: script.submitEdits.slotId,
+          edits: script.submitEdits.edits,
+        }),
+      );
     }
 
     // R2：审核结果提交

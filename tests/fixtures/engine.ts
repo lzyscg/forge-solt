@@ -172,6 +172,26 @@ export function sceneText(marker: string): string {
   return `${marker}。她推开门，雨声灌了进来。${'屋里没有人回答，只有水滴顺着窗框往下淌。'.repeat(20)}`;
 }
 
+/**
+ * R6：返修轮的提交脚本。
+ *
+ * **未降级的返修轮不接受整篇正文**（`tools/complete-assignment.ts`），
+ * 所以返修那一步的脚本要用这个而不是 `submitContent`。
+ *
+ * 两稿之间只差开头的 marker，一条编辑就能精确产出下一稿——
+ * 于是 `sceneEditsTo(slotId, '第一稿', '第二稿')` 的结果与
+ * `sceneText('第二稿')` **逐字相同**，依赖这一点的断言不用改。
+ */
+export function sceneEditsTo(
+  slotId: string,
+  fromMarker: string,
+  toMarker: string,
+): { submitEdits: { slotId: string; edits: { oldText: string; newText: string }[] } } {
+  return {
+    submitEdits: { slotId, edits: [{ oldText: `${fromMarker}。`, newText: `${toMarker}。` }] },
+  };
+}
+
 /** 满足 chapter_outline 的 minChars=100 */
 export function outlineText(): string {
   return `场景一：雨夜对峙，目标是逼出债主的底牌，冲突是双方都不肯先开口，出场人物为主角与债主。${'场景二：摊牌，目标是让主角做出选择。'.repeat(4)}`;

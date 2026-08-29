@@ -18,6 +18,7 @@ import {
   VALID_STRUCTURE,
   waitFor,
   type EngineHarness,
+  sceneEditsTo,
 } from '../fixtures/engine.ts';
 import { FakeProvider, type FakeProviderScript } from '@server/runtime/provider/fake.ts';
 
@@ -273,7 +274,8 @@ describe('R2 审核返修', () => {
         // S2 审核：no_finding
         { submitReview: { slotId: 'scene_01', verdict: 'no_finding' } },
         // 返修后 scene_01 回到 pending，需要重新 fill_slot
-        { submitContent: { slotId: 'scene_01', content: sceneText('第一场修改稿') } },
+        // R6：未降级的返修轮只收编辑清单
+        sceneEditsTo('scene_01', '第一场', '第一场修改稿'),
         // 第二轮审核：全部 no_finding
         { submitReview: { slotId: 'scene_01', verdict: 'no_finding' } },
         { submitReview: { slotId: 'scene_01', verdict: 'no_finding' } },
@@ -310,7 +312,7 @@ describe('R2 审核返修', () => {
         },
         { submitReview: { slotId: 'scene_01', verdict: 'no_finding' } },
         // 返修后重新 fill_slot
-        { submitContent: { slotId: 'scene_01', content: sceneText('第一稿') } },
+        sceneEditsTo('scene_01', '第一场', '第一稿'),
         // 第 1 轮
         {
           submitReview: {
@@ -321,7 +323,7 @@ describe('R2 审核返修', () => {
         },
         { submitReview: { slotId: 'scene_01', verdict: 'no_finding' } },
         // 返修后重新 fill_slot
-        { submitContent: { slotId: 'scene_01', content: sceneText('第二稿') } },
+        sceneEditsTo('scene_01', '第一稿', '第二稿'),
         // 第 2 轮（= maxRevisionRounds → exhausted）
         {
           submitReview: {

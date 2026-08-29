@@ -21,6 +21,7 @@ import {
   TITLE_TEXT,
   VALID_STRUCTURE,
   type EngineHarness,
+  sceneEditsTo,
 } from '../fixtures/engine.ts';
 import { FakeProvider, type FakeProviderScript } from '@server/runtime/provider/fake.ts';
 
@@ -137,7 +138,7 @@ describe('槽位生产流程读接口', () => {
     const h = createHarness([
       clean, // 第 0 轮 S1
       fired, // 第 0 轮 S2 → 检出
-      { submitContent: { slotId: 'scene_01', content: sceneText('第一场改') } }, // 第 2 稿
+      sceneEditsTo('scene_01', '第一场', '第一场改'), // 第 2 稿（R6：返修轮走编辑清单）
       clean, // 第 1 轮 S1
       clean, // 第 1 轮 S2
     ]);

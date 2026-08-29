@@ -31,6 +31,18 @@ export interface ToolsetContext {
   readonly targetSlotId: string | null;
   /** 白名单：`read_slot` 只认它 */
   readonly allowedDependencySlotIds: readonly string[];
+  /**
+   * R6 / D-61：返修轮里「上一稿」的正文，编辑清单就是对着它做的。
+   *
+   * 首稿为 null，此时 `kind: 'slot_edits'` 不可用——没有上一稿可引。
+   * 取的是 `slots.content_text`：`markForRevision` 刻意不碰正文，
+   * 所以返修轮开始时它仍然是上一稿那份字节。
+   *
+   * `degraded` 为 true 时表示系统已经降级（D-65）：本轮**允许**整篇提交。
+   * 由系统按尝试次数决定，不由模型自己选——实测里模型一次都没主动走过退路，
+   * 两次失败都是硬撞（非法 JSON、输出到长度上限也不提交）。
+   */
+  readonly revisionBase: { readonly round: number; readonly content: string; readonly degraded: boolean } | null;
   readonly skill: SkillSnapshotView;
   readonly taskInput: Readonly<Record<string, string>>;
   readonly gate: SubmissionGate;
