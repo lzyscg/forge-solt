@@ -1,5 +1,14 @@
 # 返修粒度 — 设计 V0.1
 
+> **实现状态（2026-08-29）**：D-60…D-65 已落地。
+> 域函数 `src/server/domain/slot-edits.ts`，接线在 `complete-assignment.ts`
+> （`slot_edits` 就地化成整篇正文，下游看不到它，由 `ResolvedSubmissionPayload`
+> 在类型上钉住），验收 `tests/integration/r6-revision-granularity.test.ts`。
+>
+> **尚未用真模型端到端跑过。** §7 的 8/10 是**重放**结果（同一份 prompt、真模型），
+> 而「拒收整篇 → 系统降级」这条路径只在 FakeProvider 下验过。
+> 真跑一次章节约 71 万 input，还没花。
+
 > **实测依据**：三个零成本探针，数据全部来自已经落库的历史执行，可复跑。
 >
 > - `probe/revision-granularity.py` —— 一次返修改了多少没被点名的正文
