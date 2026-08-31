@@ -38,6 +38,7 @@ function task(partial: Partial<Task> = {}): Task {
     id: 'task_1',
     name: '第 3 章',
     snapshotId: 'snap_1',
+    pinnedProviders: null,
     input: {},
     status: 'ready',
     phase: 'structure',

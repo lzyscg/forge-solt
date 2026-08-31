@@ -51,6 +51,11 @@ export interface Assignment {
   readonly targetSlotId: string | null;
   /** D-03：冻结的别名，晚绑定解析 */
   readonly modelAlias: string;
+  /**
+   * D-67：任务创建时定住的降级档（provider id）。
+   * 给了就只解析那一档；不给则走链首（历史任务、CLI、测试）。
+   */
+  readonly pinnedProviderId?: string | undefined;
   readonly systemText: string;
   readonly userText: string;
   readonly maxToolCalls: number;
@@ -110,7 +115,7 @@ export class AssignmentRunner {
 
     let resolved: ResolvedModel;
     try {
-      resolved = this.deps.registry.resolve(assignment.modelAlias);
+      resolved = this.deps.registry.resolve(assignment.modelAlias, assignment.pinnedProviderId);
     } catch (error) {
       // 别名解析失败不是模型的错，也不该消耗重试配额：重试一百次结果一样，
       // 修复动作是改 config/providers.yaml

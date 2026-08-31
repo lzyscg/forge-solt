@@ -67,8 +67,29 @@ function scopeTraces(
             : undefined,
       };
     }
-    case 'input':
-      return { list: [], note: '冻结任务输入由系统在创建任务时保存，不涉及 Agent 工作，因此没有轨迹。' };
+    /*
+     * 「输入」这一格收 D-70 的 provider_pinned。
+     *
+     * 它是**任务级**事件：不属于任何槽位、任何 execution、任何阶段，
+     * 因此在别的分支里一个家都没有——落到 assembly 会被那条三选一的过滤丢掉，
+     * 落到 structure 会被 `executionId !== null` 丢掉。真让它无家可归的后果是
+     * 「已降级到按量付费的 Provider」写进了库却在界面上完全隐形，
+     * 而那恰恰是最不该看不见的一条。
+     *
+     * 归到这里是因为时机同源：pin 与冻结输入是任务创建时的同一个瞬间决定的。
+     * 与上面 container 分支同一个教训——加了新事件就得同时改那句 note，
+     * 否则界面会用一句已经不成立的话把它盖住。
+     */
+    case 'input': {
+      const list = traces.filter((t) => t.kind === 'provider_pinned');
+      return {
+        list,
+        note:
+          list.length === 0
+            ? '冻结任务输入由系统在创建任务时保存，不涉及 Agent 工作，因此没有轨迹。'
+            : undefined,
+      };
+    }
     case 'structure': {
       const ids = new Set(executions.filter((e) => e.operation === 'create_structure').map((e) => e.id));
       const list = traces.filter((t) => t.executionId !== null && ids.has(t.executionId));

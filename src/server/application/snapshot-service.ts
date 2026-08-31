@@ -54,6 +54,8 @@ import type { UnitOfWork, UnitOfWorkHandle } from '@server/infrastructure/uow.ts
 import type { LoadedSkill, SkillSection } from './skill-loader.ts';
 import type { CompiledTemplate, LoadedTemplate } from './template-loader.ts';
 import type { TemplateCatalog } from './template-catalog.ts';
+import type { ModelAliasChain } from './provider-config.ts';
+import { describePick, pickProvider } from '@server/domain/provider-fallback.ts';
 
 // ---------------------------------------------------------------------------
 // 冻结产物的形状
@@ -276,9 +278,27 @@ export interface CreatedTask {
   skills: readonly TaskSkillSnapshot[];
 }
 
+/**
+ * 挑档所需的最小窗口（D-67）。
+ *
+ * 刻意只要这一个方法，而不是整个 ProviderRegistry：创建任务不需要 adapter、
+ * 不需要 API Key，把整个 Registry 传进来等于让「建任务」依赖「能调模型」——
+ * 那样连建一个任务都要求凭据配好，而凭据没配恰恰是最该能把任务建出来、
+ * 再在界面上看到问题的场景。
+ */
+export interface AliasChains {
+  chainOf(alias: string): ModelAliasChain;
+  listAliases(): { alias: string }[];
+}
+
 export interface SnapshotServiceOptions {
   catalog: TemplateCatalog;
   uow: UnitOfWorkHandle<UnitOfWork>;
+  /**
+   * 有它才做降级挑档。缺省（测试、旧装配）则不写 pin，任务照旧走链首——
+   * 与引入降级链之前的行为逐字一致。
+   */
+  aliases?: AliasChains;
   /** ID 生成器。注入是为了让测试断言确定的 ID，生产用 randomUUID */
   newId?: () => string;
 }
@@ -321,8 +341,43 @@ function parseFrozenSkill(taskId: string, row: TaskSkillSnapshot): FrozenSkill {
   };
 }
 
+/**
+ * 给每个别名挑一档并落成 pin，同时把「跳过了谁、为什么」写进轨迹（D-70）。
+ *
+ * 只记结果的话（`executions.provider` 已经在记），
+ * 「为什么这次跑得比上次贵」在事后是查不出来的——
+ * 那正是最需要解释、也最容易被当成玄学的一类问题。
+ */
+interface PinResult {
+  pinned: Record<string, string>;
+  /** 人话，进轨迹 summary */
+  lines: string[];
+  /** 有任何一个别名没走首选档 */
+  degraded: boolean;
+  /** 有任何一个别名落到了按量付费档（D-69） */
+  paid: boolean;
+}
+
+function pinAliases(aliases: AliasChains, repos: UnitOfWork): PinResult {
+  const pinned: Record<string, string> = {};
+  const lines: string[] = [];
+  let degraded = false;
+  let paid = false;
+
+  for (const { alias } of aliases.listAliases()) {
+    const chain = aliases.chainOf(alias);
+    const pick = pickProvider(chain, (id) => repos.providerHealth.isExhausted(id));
+    pinned[alias] = pick.chosen.provider;
+    lines.push(describePick(alias, pick));
+    if (pick.tier > 0) degraded = true;
+    if (pick.paid) paid = true;
+  }
+
+  return { pinned, lines, degraded, paid };
+}
+
 export function createSnapshotService(options: SnapshotServiceOptions): SnapshotService {
-  const { catalog, uow } = options;
+  const { catalog, uow, aliases } = options;
   const newId = options.newId ?? randomUUID;
 
   return {
@@ -367,6 +422,17 @@ export function createSnapshotService(options: SnapshotServiceOptions): Snapshot
           snapshotHash: prepared.snapshotHash,
         });
         repos.snapshots.insertSkills(prepared.skills);
+        // D-67：任务边界定住降级档。
+        //
+        // 在**事务内**挑档不是随意的：耗尽状态和任务行必须看到同一个瞬间。
+        // 放到事务外的话，两次读之间另一个任务可能刚把某档标成耗尽，
+        // 于是这个任务的 pin 指向一个已知不可用的档——而 pin 一旦写下就不再改。
+        //
+        // 对所有已配置别名都挑一遍（只有三个），而不是去 compiled 里翻这个模板
+        // 用了哪几个：多挑几个别名的成本是零，漏挑一个的代价是运行到一半
+        // 才发现某个别名没有 pin。
+        const pick = aliases === undefined ? null : pinAliases(aliases, repos);
+
         const task = repos.tasks.insert({
           id: taskId,
           name,
@@ -374,7 +440,26 @@ export function createSnapshotService(options: SnapshotServiceOptions): Snapshot
           input,
           status: 'ready',
           phase: 'structure',
+          pinnedProviders: pick?.pinned ?? null,
         });
+
+        // 轨迹必须写在任务行之后：trace_events.task_id 的外键**不是延迟的**
+        // （只有 task_snapshots.task_id 是 DEFERRABLE，D-18）。
+        //
+        // 只在**发生了降级**时写。都走首选档是常态，给常态也发一条事件
+        // 只会把轨迹冲淡，让真正该看见的那条更难被看见。
+        if (pick !== null && pick.degraded) {
+          repos.traces.insert({
+            taskId,
+            executionId: null,
+            actor: 'system',
+            kind: 'provider_pinned',
+            title: pick.paid ? '已降级到按量付费的 Provider' : 'Provider 降级',
+            summary: pick.lines.join('；'),
+            payload: { pinned: pick.pinned, paid: pick.paid },
+          });
+        }
+
         return { task, snapshot, skills: prepared.skills };
       });
     },

@@ -35,6 +35,16 @@ export interface Task extends FailureInfo {
   /** D-10：Token 校验的第二道判据。指向真实 execution 由库层延迟外键保证（D-18） */
   activeExecutionId: string | null;
   artifactId: string | null;
+  /**
+   * D-67：本任务定住的降级档，别名 → provider id。
+   *
+   * 任务创建时沿链选一次并写死，此后每次 resolve 只认它。
+   * `null` = 降级链引入之前创建的任务，照旧走链首。
+   *
+   * 存在的理由是让「一章只由一个模型写成」成为**构造性保证**而不是涌现属性：
+   * 不落库时它成立仅因为耗尽会让任务失败，改一次失败语义就会静默失效。
+   */
+  pinnedProviders: Readonly<Record<string, string>> | null;
   createdAt: string;
   updatedAt: string;
 }

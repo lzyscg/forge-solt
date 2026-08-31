@@ -106,7 +106,8 @@ export function buildApp(options: BuildAppOptions): ForgeApp {
   });
 
   const traces = createTraceService({ uow, publisher: sse });
-  const snapshots = createSnapshotService({ catalog, uow });
+  // registry 当 AliasChains 用：降级挑档只需要 chainOf / listAliases 两个只读方法（D-67）
+  const snapshots = createSnapshotService({ catalog, uow, aliases: registry });
   const assignments = createAssignmentService({ uow, traces });
   const structure = createStructureService({ snapshots, traces });
   const completion = createCompletionService({ uow, snapshots, traces });

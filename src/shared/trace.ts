@@ -46,6 +46,10 @@ export const TRACE_KINDS = [
   'artifact_created',
   'provider_retry', // ← 新增，UX §18.6 要求展示 Attempt 变化
   'task_queued', // ← 新增，D-14
+  // D-70：任务创建时定住了哪一档降级链，以及跳过了谁、为什么。
+  // 单独立一个 kind 而不是塞进 task_state_changed：它记的不是状态迁移，
+  // 是一次**花钱的决定**，而「为什么这次跑得比上次贵」事后必须查得出来。
+  'provider_pinned',
   // R2 审核返修（§4.1）。措辞受 D-30 约束：不得出现「审核通过/质量合格/已校验」。
   'review_started', // 一条判据的审核 execution 建立
   'review_no_finding', // 该判据未检出问题（不是 review_passed，D-30）

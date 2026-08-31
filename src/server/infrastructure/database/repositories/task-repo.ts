@@ -27,6 +27,7 @@ interface TaskRow {
   artifact_id: string | null;
   error_code: string | null;
   error_message: string | null;
+  pinned_providers_json: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -38,6 +39,8 @@ export interface InsertTaskInput {
   input: Readonly<Record<string, string>>;
   status: TaskStatus;
   phase: TaskPhase;
+  /** D-67：本任务定住的降级档。省略/null = 走链首（历史行为） */
+  pinnedProviders?: Readonly<Record<string, string>> | null;
 }
 
 /**
@@ -81,6 +84,10 @@ function toDomain(row: TaskRow): Task {
     phase: row.phase as TaskPhase,
     activeExecutionId: row.active_execution_id,
     artifactId: row.artifact_id,
+    pinnedProviders:
+      row.pinned_providers_json === null
+        ? null
+        : (JSON.parse(row.pinned_providers_json) as Record<string, string>),
     errorCode: row.error_code as ErrorCode | null,
     errorMessage: row.error_message,
     createdAt: row.created_at,
@@ -117,8 +124,9 @@ export function createTaskRepo(db: ForgeDb, clock: Clock): TaskRepo {
   const insertStmt = db.prepare(
     `INSERT INTO tasks
        (id, name, snapshot_id, input_json, status, phase,
-        active_execution_id, artifact_id, error_code, error_message, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, ?, ?)`,
+        active_execution_id, artifact_id, error_code, error_message,
+        pinned_providers_json, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, ?, ?, ?)`,
   );
   const getStmt = db.prepare('SELECT * FROM tasks WHERE id = ?');
   const byStatusStmt = db.prepare('SELECT * FROM tasks WHERE status = ? ORDER BY updated_at DESC');
@@ -155,6 +163,7 @@ export function createTaskRepo(db: ForgeDb, clock: Clock): TaskRepo {
         JSON.stringify(input.input),
         input.status,
         input.phase,
+        input.pinnedProviders == null ? null : JSON.stringify(input.pinnedProviders),
         now,
         now,
       );
@@ -162,6 +171,7 @@ export function createTaskRepo(db: ForgeDb, clock: Clock): TaskRepo {
         ...input,
         activeExecutionId: null,
         artifactId: null,
+        pinnedProviders: input.pinnedProviders ?? null,
         errorCode: null,
         errorMessage: null,
         createdAt: now,

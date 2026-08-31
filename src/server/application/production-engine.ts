@@ -54,6 +54,56 @@ import {
   type SubmissionRecord,
 } from './runtime-ports.ts';
 
+
+/**
+ * D-68 L1：耗尽判定的**与 Provider 无关**的那一层。
+ *
+ * 判据只有一条：重试与退避配额**全部用尽**之后，仍以 Provider 级错误告终。
+ * 满足即把该 Provider 标成耗尽，下一个新任务的挑档会跳过它。
+ *
+ * ## 为什么不去认「额度不足」那种错误码
+ *
+ * 因为我不知道它长什么样。火山方舟与优云智算在额度耗尽时返回什么，
+ * **无法在不真烧掉一份额度的前提下测出来**（见 notes/PROVIDER-FALLBACK-DESIGN-V0.1.md
+ * D-68）。猜一个特征写进去，代价是：猜错时正常的限流会被误判成耗尽，
+ * 好端端的 Provider 被拉黑、任务掉到付费档去烧钱——而且因为它「看起来在工作」，
+ * 没有人会去查。
+ *
+ * 本判据不依赖任何一家的错误形状，因此**必然可用**。代价是慢：
+ * 要先把退避配额（最多 5 次、上限 1 分钟）走完才认输。
+ * 快速通道（L2 特征表）等第一次真撞上、从 exhausted_reason 抄到原文之后再补。
+ *
+ * ## 为什么排除校验失败
+ *
+ * `VALIDATION_*` 是模型没按格式产出，与额度无关。把它算进来，
+ * 一个写不出合法结构树的模型会把整条链一路拉黑到付费档——
+ * 那是在为模型能力问题付钱。
+ */
+const PROVIDER_LEVEL_CODES: ReadonlySet<string> = new Set([
+  'PROVIDER_RATE_LIMITED',
+  'PROVIDER_ERROR',
+  'PROVIDER_TIMEOUT',
+  'PROVIDER_UNAVAILABLE',
+]);
+
+function markProviderExhaustedIfNeeded(
+  repos: UnitOfWork,
+  exhausted: boolean,
+  outcome: { kind: string; code?: string | null; provider?: string | null; message?: string },
+): void {
+  if (!exhausted) return;
+  if (outcome.kind !== 'failed') return;
+  if (outcome.provider == null) return;
+  if (outcome.code == null || !PROVIDER_LEVEL_CODES.has(outcome.code)) return;
+
+  // reason 必须带上游原文。这一列是 L2 特征表**唯一**的数据来源——
+  // 写成自拟的「额度不足」，等于把这次用真钱换来的样本丢了。
+  repos.providerHealth.markExhausted(
+    outcome.provider,
+    `${outcome.code}: ${outcome.message ?? '(无 message)'}`,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // maxTokens 派生（§7.3 的 M3-C 定案）
 // ---------------------------------------------------------------------------
@@ -416,6 +466,7 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
     if (outcome.kind === 'cancelled') return false;
 
     const exhausted = round.budget.consume(key, outcome.consumesRetry);
+    markProviderExhaustedIfNeeded(uow.repositories, exhausted, outcome);
     previous.remember(outcome);
 
     // D-20：无论因为什么失败，收尾都在这里做——被拒的提交不会替引擎收尾
@@ -545,6 +596,7 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
       if (outcome.kind === 'cancelled') return false;
 
       const exhausted = round.budget.consume(reviewKey, outcome.consumesRetry);
+      markProviderExhaustedIfNeeded(uow.repositories, exhausted, outcome);
       previous.remember(outcome);
 
       completion.failSlot({
@@ -712,6 +764,7 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
     if (outcome.kind === 'cancelled') return false;
 
     const exhausted = round.budget.consume(key, outcome.consumesRetry);
+    markProviderExhaustedIfNeeded(uow.repositories, exhausted, outcome);
     previous.remember(outcome);
 
     // D-20：收尾统一在这里。`exhausted` 决定的是「任务是否随之 failed」，
@@ -843,9 +896,15 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
      * 缓存会让「换了模型别名的指向」这件事对一个正在重试的任务不生效，
      * 而 D-03 的整个价值就是「换模型不必重建快照」。
      */
+    // D-67：本任务在创建时定住的那一档。pin 存在就只解析它，不再看链。
+    // 每次 attempt 重读（而不是缓存）与上面 D-03 的理由一致；
+    // 但注意 pin 本身是**不会变的**——变的是链，而 pin 正是用来无视链的。
+    const pinnedProviderId =
+      uow.repositories.tasks.get(taskId)?.pinnedProviders?.[binding.modelAlias];
+
     let resolved;
     try {
-      resolved = registry.resolve(binding.modelAlias);
+      resolved = registry.resolve(binding.modelAlias, pinnedProviderId);
     } catch (error) {
       // 别名解析不出来不是模型的错，也不消耗 maxRetries——但会消耗兜底桶（见 RetryBudget）
       return {
