@@ -1,0 +1,32 @@
+{
+  "baseUrl": "https://cp.compshare.cn/v1",
+  "at": "2026-08-31T13:17:22.133Z",
+  "results": [
+    {
+      "model": "Qwen3.8-27B",
+      "ok": true,
+      "stopReason": "tool_use",
+      "firstCallbackMs": 16052,
+      "totalMs": 19219,
+      "frames": {
+        "frames": 1465,
+        "toolCallFrames": 11,
+        "firstFrameMs": 355
+      },
+      "usage": {
+        "inputTokens": 620,
+        "outputTokens": 1637
+      },
+      "textLength": 141,
+      "outputTokensPerSec": 85.2,
+      "toolCall": {
+        "name": "complete_assignment",
+        "argumentsJson": "{\"kind\": \"slot_edits\", \"slotId\": \"scene_er\", \"edits\": [{\"oldText\": \"赵敏心里觉得很累，她想着这已经是第三个夜班了。\", \"newText\": \"赵敏揉了揉发酸的眼睛，在值班椅上换了个坐姿，打了个哈欠，抬眼瞥了下墙上的挂钟——凌晨三点多，这已经是她连着的第三个夜班了。\"}, {\"oldText\": \"小林很紧张，她害怕自己出错。\", \"newText\": \"小林捏着病历夹的指节微微发白，她把已经核对过的医嘱又默读了一遍，才吸了口气，朝走廊尽头那台还在响的呼叫铃走去。\"}]}",
+        "parsed": true,
+        "shapeOk": true,
+        "editCount": 2,
+        "verbatimHits": 2
+      }
+    }
+  ]
+}

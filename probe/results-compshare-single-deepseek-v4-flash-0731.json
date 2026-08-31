@@ -1,0 +1,32 @@
+{
+  "baseUrl": "https://cp.compshare.cn/v1",
+  "at": "2026-08-31T13:17:02.644Z",
+  "results": [
+    {
+      "model": "deepseek-v4-flash-0731",
+      "ok": true,
+      "stopReason": "tool_use",
+      "firstCallbackMs": 6891,
+      "totalMs": 6891,
+      "frames": {
+        "frames": 654,
+        "toolCallFrames": 128,
+        "firstFrameMs": 2113
+      },
+      "usage": {
+        "inputTokens": 667,
+        "outputTokens": 720
+      },
+      "textLength": 0,
+      "outputTokensPerSec": 104.5,
+      "toolCall": {
+        "name": "complete_assignment",
+        "argumentsJson": "{\"kind\": \"slot_edits\", \"slotId\": \"scene_er\", \"edits\": [{\"oldText\": \"赵敏心里觉得很累，她想着这已经是第三个夜班了。\", \"newText\": \"赵敏揉了揉发酸的太阳穴，靠在走廊墙上长长地呼出一口气，她低头看了看腕表，这已经是她连续上的第三个夜班了。\"}, {\"oldText\": \"小林很紧张，她害怕自己出错。\", \"newText\": \"小林紧紧咬着下唇，两只手不停绞着白大褂的衣角，她拿起输液瓶又放下，反复核对了好几遍标签。\"}]}",
+        "parsed": true,
+        "shapeOk": true,
+        "editCount": 2,
+        "verbatimHits": 2
+      }
+    }
+  ]
+}

@@ -1,5 +1,8 @@
 /**
- * 火山方舟 Coding Plan 接入前的实打验证。
+ * 新 Provider 接入前的实打验证（通用）。
+ *
+ * 已用它接过：火山方舟 Coding Plan（2026-08-31）、优云智算 Coding Plan。
+ * 再接下一家时**改 PROVIDERS 常量即可**，不要复制这个文件。
  *
  * ── 为什么必须先跑这个，而不是直接写 providers.yaml ──────────────
  *
@@ -28,12 +31,14 @@
  *
  * ── 安全 ──────────────────────────────────────────────────────
  *
- * Key 只从 process.env.ARK_API_KEY 读，只进 Authorization 头。
+ * Key 只从各 Provider 声明的环境变量读，只进 Authorization 头。
  * 不打印、不写进结果 JSON（REQ §13 / NFR-005）。
  *
  * 用法：
- *   npx tsx --env-file=.env probe/ark-coding-plan.ts
- *   npx tsx --env-file=.env probe/ark-coding-plan.ts --model glm-5.3
+ *   npx tsx --env-file=.env probe/provider-onboarding.ts --provider ark
+ *   npx tsx --env-file=.env probe/provider-onboarding.ts --provider compshare
+ *   npx tsx --env-file=.env probe/provider-onboarding.ts --provider baseline
+ *   npx tsx --env-file=.env probe/provider-onboarding.ts --provider ark --model glm-5.3
  */
 
 import { writeFileSync } from 'node:fs';
@@ -41,30 +46,88 @@ import { OpenAiCompatibleAdapter, type DroppedChunkSummary } from '../src/server
 import type { ProviderToolCall, ProviderToolDefinition } from '../src/server/runtime/provider/provider-adapter.ts';
 
 /**
- * 文档原文：「兼容 OpenAI 接口协议工具：https://ark.cn-beijing.volces.com/api/coding/v3」
+ * 待验证的 Provider 清单。
  *
- * ⚠️ 绝不能写成 https://ark.cn-beijing.volces.com/api/v3。文档原文：
- *    「请勿使用 …/api/v3：该 Base URL 不会消耗您的 Coding Plan 额度，
- *      而是会产生额外费用。」
+ * ⚠️⚠️ 关于 baseUrl —— 这里已经三家三个坑，形状完全一样：
  *
- *    这与 OpenCode 的 /zen/v1 vs /zen/go/v1 是同一类陷阱，但更阴：
- *    OpenCode 打错会回 401「余额不足」，吵得很大声；
- *    火山打错**不报错、照常返回、账单另算**，除非对账否则跑几周都发现不了。
+ *   Provider     通用地址（错的）              套餐地址（对的）                用错的后果
+ *   OpenCode     /zen/v1                       /zen/go/v1                      401「余额不足」，吵得很大声
+ *   火山方舟     …volces.com/api/v3            …volces.com/api/coding/v3       **静默按量计费，零信号**
+ *   优云智算     api.modelverse.cn/v1          cp.compshare.cn/v1              **不走套餐额度，另计费**
+ *
+ * 三家的文档都把通用地址放在显眼位置、把套餐地址藏在控制台里。
+ * **这一列的每个值都必须来自控制台的原样复制，不许从文档推、不许凭印象写。**
+ *
+ * 优云智算控制台原文：
+ *   「务必使用 Coding Plan 支持的模型及 Base URL；如未使用指定的 Base URL，
+ *     将无法使用 Coding Plan 额度，并可能产生额外 API 请求的费用。」
  */
-const BASE_URL_REF = { value: 'https://ark.cn-beijing.volces.com/api/coding/v3' };
+interface ProviderSpec {
+  id: string;
+  baseUrl: string;
+  keyEnv: string;
+  models: readonly string[];
+  /** 每次调用扣几次额度。按次计费的套餐才有；按 token 的填 null */
+  multipliers?: Readonly<Record<string, number>>;
+}
 
-/** Coding Plan 套餐覆盖的 Model Name（文档「模型配置」一节照录） */
-const PLAN_MODELS = [
-  'deepseek-v4-flash', // ← 我们当前在跑的就是它（官方 deepseek-chat 解析到这个）
-  'deepseek-v4-pro',
-  'glm-5.3',
-  'glm-5.3-flash',
-  'kimi-k2.7-code',
-  'minimax-m3',
-  'doubao-seed-evolving',
-  'doubao-seed-2.1-turbo',
-  'doubao-seed-2.0-lite',
-] as const;
+const PROVIDERS: Readonly<Record<string, ProviderSpec>> = {
+  ark: {
+    id: 'volcengine-ark-coding',
+    baseUrl: 'https://ark.cn-beijing.volces.com/api/coding/v3',
+    keyEnv: 'ARK_API_KEY',
+    // 文档「模型配置」一节照录
+    models: [
+      'deepseek-v4-flash', // ← 我们当前在跑的就是它（官方 deepseek-chat 解析到这个）
+      'deepseek-v4-pro',
+      'glm-5.3',
+      'glm-5.3-flash',
+      'kimi-k2.7-code',
+      'minimax-m3',
+      'doubao-seed-evolving',
+      'doubao-seed-2.1-turbo',
+      'doubao-seed-2.0-lite',
+    ],
+  },
+  compshare: {
+    id: 'compshare-coding',
+    // 控制台「OpenClaw/Hermes/OpenCode/Cursor 等配置」那一行，原样复制。
+    // 加上适配器补的 /chat/completions，正好等于控制台「TRAE/WorkBubby 配置」的完整地址。
+    baseUrl: 'https://cp.compshare.cn/v1',
+    keyEnv: 'MODELVERSE_API_KEY',
+    // 控制台「可用模型」表照录。注意与火山**不是同一批版本**：
+    // 这边 deepseek 是带日期的固定快照 -0731，GLM 是 5.1/5.2（火山是 5.3）。
+    // 「同一个模型换计费通道」这句话对火山成立，对这家不成立。
+    models: [
+      'deepseek-v4-flash-0731',
+      'MiniMax-M2.7',
+      'kimi-k2.6',
+      'glm-5.1',
+      'glm-5.2',
+      'Qwen3.8-27B',
+    ],
+    // 控制台「单次减扣」列。按次计费，与 token 无关——
+    // 我们一章约 143 次工具调用，乘这个倍率才是真实扣减。
+    multipliers: {
+      'deepseek-v4-flash-0731': 3,
+      'MiniMax-M2.7': 2,
+      'kimi-k2.6': 5,
+      'glm-5.1': 6,
+      'glm-5.2': 6,
+      'Qwen3.8-27B': 0.5,
+    },
+  },
+  /** 对照基线：DeepSeek 官方按量付费。给「快了还是慢了」一个可比的数 */
+  baseline: {
+    id: 'deepseek-official',
+    baseUrl: 'https://api.deepseek.com/v1',
+    keyEnv: 'DEEPSEEK_API_KEY',
+    models: ['deepseek-chat'],
+  },
+};
+
+const BASE_URL_REF = { value: PROVIDERS.ark.baseUrl };
+const PROVIDER_ID_REF = { value: PROVIDERS.ark.id };
 
 /**
  * 刻意做成「多参数 + 中文 + 换行 + 嵌套数组」的形状。
@@ -210,7 +273,7 @@ async function probeModel(model: string, apiKey: string): Promise<ProbeResult> {
 
   const adapter = new OpenAiCompatibleAdapter({
     baseUrl: BASE_URL_REF.value,
-    providerId: 'volcengine-ark-coding',
+    providerId: PROVIDER_ID_REF.value,
     fetchImpl: countingFetch(frameStats, () => requestStartedAt),
     onDroppedChunk: (info) => {
       dropped = info;
@@ -316,25 +379,32 @@ async function probeModel(model: string, apiKey: string): Promise<ProbeResult> {
   }
 }
 
+/** 一章的工具调用数，取自 R6 真跑（4 场景，48 次执行 / 143 次工具调用） */
+const TOOL_CALLS_PER_CHAPTER = 143;
+
 async function main(): Promise<void> {
-  // --baseline：拿同一份 prompt 打 DeepSeek 官方，给「快了还是慢了」一个可比的数。
-  // 不做这个，Ark 的 tok/s 就是个孤零零的数字，没法回答换不换。
-  const baseline = process.argv.includes('--baseline');
-  const keyEnv = baseline ? 'DEEPSEEK_API_KEY' : 'ARK_API_KEY';
-  const apiKey = process.env[keyEnv];
-  if (!apiKey) {
-    console.error(`缺少 ${keyEnv}。请在 .env 里配置后用 --env-file=.env 运行。`);
+  const provIdx = process.argv.indexOf('--provider');
+  const provName = provIdx !== -1 ? process.argv[provIdx + 1] : 'ark';
+  const spec = PROVIDERS[provName];
+  if (!spec) {
+    console.error(`未知 provider「${provName}」。可选：${Object.keys(PROVIDERS).join(', ')}`);
     process.exit(1);
   }
-  if (baseline) {
-    BASE_URL_REF.value = 'https://api.deepseek.com/v1';
+
+  const apiKey = process.env[spec.keyEnv];
+  if (!apiKey) {
+    console.error(`缺少 ${spec.keyEnv}。请在 .env 里配置后用 --env-file=.env 运行。`);
+    process.exit(1);
   }
+  BASE_URL_REF.value = spec.baseUrl;
+  PROVIDER_ID_REF.value = spec.id;
 
   const onlyIdx = process.argv.indexOf('--model');
   const only = onlyIdx !== -1 ? process.argv[onlyIdx + 1] : undefined;
-  const models = only ? [only] : baseline ? ['deepseek-chat'] : [...PLAN_MODELS];
+  const models = only ? [only] : [...spec.models];
 
-  console.log(`baseUrl: ${BASE_URL_REF.value}`);
+  console.log(`provider: ${provName}  (${spec.id})`);
+  console.log(`baseUrl:  ${spec.baseUrl}`);
   console.log(`待测模型 ${models.length} 个：${models.join(', ')}\n`);
 
   const results: ProbeResult[] = [];
@@ -357,14 +427,27 @@ async function main(): Promise<void> {
     }
   }
 
+  // 按次计费的套餐，把「一章要扣多少次」直接算出来——
+  // 光看倍率没有体感，乘上 143 才知道一个月能跑几章。
+  if (spec.multipliers) {
+    console.log('\n按次计费折算（一章 ≈ 143 次工具调用）：');
+    for (const m of models) {
+      const mult = spec.multipliers[m];
+      if (mult == null) continue;
+      const perChapter = TOOL_CALLS_PER_CHAPTER * mult;
+      console.log(
+        `  ${m.padEnd(28)} ${String(mult).padStart(4)}× → 一章扣 ${String(perChapter).padStart(5)} 次` +
+          `　Mini(1900) 约 ${(1900 / perChapter).toFixed(1)} 章/月`,
+      );
+    }
+  }
+
   // 输出文件名随运行模式变化。
   // 血的教训（这个坑踩过两次）：子集重跑写回同一个路径，会把整跑的结果**静默冲掉**，
   // 而整跑是花了钱的、子集不是。文件名带上模式，子集就永远盖不住整跑。
-  const out = baseline
-    ? 'probe/results-ark-baseline-deepseek.json'
-    : only
-      ? `probe/results-ark-single-${only}.json`
-      : 'probe/results-ark-coding-plan.json';
+  const out = only
+    ? `probe/results-${provName}-single-${only.replace(/[^\w.-]/g, '_')}.json`
+    : `probe/results-${provName}.json`;
   writeFileSync(out, JSON.stringify({ baseUrl: BASE_URL_REF.value, at: new Date().toISOString(), results }, null, 2));
   console.log(`\n结果已写入 ${out}`);
 

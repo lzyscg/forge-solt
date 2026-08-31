@@ -109,11 +109,81 @@ providers:
       - doubao-seed-2.1-turbo
       - doubao-seed-2.0-lite
 
+  # 优云智算 Coding Plan —— 订阅制套餐，**按调用次数计费**（2026-08-31 接入，备用）
+  #
+  # ⚠️⚠️ baseUrl 必须是 cp.compshare.cn/v1，**不是**文档里那个 api.modelverse.cn/v1。
+  #    控制台原文：「务必使用 Coding Plan 支持的模型及 Base URL；如未使用指定的
+  #    Base URL，将无法使用 Coding Plan 额度，并可能产生额外 API 请求的费用。」
+  #
+  #    这是**第三家**同形状的坑了。规律很清楚：三家都把通用地址放在文档显眼处、
+  #    把套餐地址藏在控制台里。**接下一家时，baseUrl 一律从控制台原样复制，
+  #    不许从文档推、不许凭印象写。**
+  #
+  # ── 与前两家本质不同：这家按「调用次数」扣，与 token 无关 ──────────
+  #
+  # 文档原文：「以调用次数为单位，与 Token 数量无关」「一次调用 = 1 次扣减，
+  # 乘以模型倍率」。而我们一章约 **143 次工具调用**（R6 真跑：48 次执行 /
+  # 143 次工具调用），每次调用都要乘倍率：
+  #
+  #   模型                      倍率   一章实扣   Mini(1900) 能跑
+  #   Qwen3.8-27B               0.5×      72 次    ~26 章/月
+  #   MiniMax-M2.7              2×       286 次    ~6.6 章/月
+  #   deepseek-v4-flash-0731    3×       429 次    ~4.4 章/月
+  #   kimi-k2.6                 5×       715 次    ~2.7 章/月
+  #   glm-5.1 / glm-5.2         6×       858 次    ~2.2 章/月
+  #
+  # **这个计费模型和本项目的用法是错配的。** 我们的 Agent 循环要反复读大纲、
+  # 读 Skill 章节、读依赖正文，这些调用几乎不产出 token 却照样按次扣。
+  # 按 token 算我们一章 63 万 in / 2.7 万 out（重复上下文有缓存优惠空间），
+  # 按次算则每多读一次就多扣一次。同样的活，我们比对话类应用吃亏得多。
+  #
+  # 定位：**备用**。够「火山挂了时把手上这一章跑完」，不够支撑 Skill 迭代
+  # （一轮整跑就是 143 次调用 × 倍率）。
+  #
+  # ── 实测（2026-08-31，n=2，同一份 prompt，与前两家同一个探针）────────
+  #
+  #   deepseek-v4-flash-0731   99.0 / 104.5 tok/s   首帧 1851 / 2113ms   ✅ 逐字命中 2/2
+  #   Qwen3.8-27B              83.7 /  85.2 tok/s   首帧  306 /  355ms   ✅ 逐字命中 2/2
+  #
+  #   对照：火山 deepseek-v4-flash 93~97 tok/s，DeepSeek 官方 106 tok/s。
+  #   吞吐这一项三家基本打平，不是选型依据。
+  #
+  # ⚠️ Qwen3.8-27B 的 tool_calls 几乎整块下发（1465 帧里只有 11 帧带 tool_calls，
+  #    其余模型是几百帧）。拼装结果正确，但用它跑时前端 delta 会长时间没动静、
+  #    然后一次性涌出。与 minimax-m3 是同一类表现。
+  #
+  # models 只列**实打验证过**的两个，不是把控制台的表照抄。
+  # 未测的 MiniMax-M2.7 / kimi-k2.6 / glm-5.1 / glm-5.2 **刻意不列**：
+  # 按上面那张表，5×/6× 档一个月只够两章多，真用上的可能性极低，
+  # 而列进来就等于允许它们在运行期被选中——那时才失败就来不及了。
+  # 要用先跑 probe/provider-onboarding.ts --provider compshare --model <名字>。
+  - id: compshare-coding
+    name: 优云智算 Coding Plan
+    kind: openai-compatible
+    baseUrl: https://cp.compshare.cn/v1
+    apiKeyEnv: MODELVERSE_API_KEY # 只写变量名，值在 .env（REQ §13）
+    models:
+      - deepseek-v4-flash-0731 # 注意是带日期的固定快照，与火山的 deepseek-v4-flash 不是同一版本
+      - Qwen3.8-27B # 0.5× 倍率，这个套餐里唯一跑得起量的档
+
 # 别名是快照冻结的单位，也是切换 Provider 的唯一开关：
 # 模板引用别名，不引用具体 provider/model，所以下面这三处改完，
 # 全部模板立刻换用新 Provider，模板文件一个字都不用动。
 #
-# 【当前】三个别名全部指向 DeepSeek 官方。
+# 【当前】三个别名全部指向火山方舟 Coding Plan（2026-08-31 切换）。
+#
+# 切过来的依据是实打，不是文档（probe/provider-onboarding.ts）：
+#   吞吐  93.1~96.8 tok/s  对照 DeepSeek 官方 106  → 差约 10%
+#   首帧  1.6~1.8s         对照 官方 0.14s        → 约 12 倍，套餐排队
+#   折算  一章约 16 次执行，多等 20~25 秒
+#
+# 关键点：**模型没变**。官方的 deepseek-chat 解析到 deepseek-v4-flash，
+# 套餐里直接就叫 deepseek-v4-flash，是同一个模型换计费通道。
+# 因此切换前后的产物质量可以直接对照，Skill 迭代的历史数据不作废。
+# —— 这一条对火山成立，对优云智算**不成立**（那边是带日期的固定快照 -0731）。
+#
+# 要切回官方：把下面三处的 provider 改回 deepseek、model 改回 deepseek-chat。
+# DeepSeek 官方条目保留，按量付费随时可用，适合「赶时间、不在乎钱」的单次跑。
 #
 # 曾于 2026-08-25 切到 opencode-go，当天切回。原因是实测速度差距过大，
 # 严重影响开发测试节奏（同模板同输入同模型）：
@@ -131,16 +201,17 @@ providers:
 aliases:
   # 通用内容生产
   main:
-    provider: deepseek
-    model: deepseek-chat
+    provider: volcengine-ark-coding
+    model: deepseek-v4-flash
   # 槽位类型可通过 template.yaml 的 modelAlias 覆盖到这里（D-06）
   configured:
-    provider: deepseek
-    model: deepseek-chat
+    provider: volcengine-ark-coding
+    model: deepseek-v4-flash
   # 结构设计。若结构提案一次通过率不达标，这里是 D-17 L3 的调节点
+  # （套餐内的 deepseek-v4-pro 就是 L3 的目标型号，不用换 Provider）
   structure:
-    provider: deepseek
-    model: deepseek-chat
+    provider: volcengine-ark-coding
+    model: deepseek-v4-flash
 
 # 回退链的最后一级（D-06）：模板没写 limits 时用这里的值。
 # 注意没有 defaults.alias——modelAlias 的回退链是
