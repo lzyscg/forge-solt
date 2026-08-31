@@ -31,7 +31,7 @@ const CONFIG: ProviderConfig = {
       models: ['fake-model'],
     },
   ],
-  aliases: { main: { provider: 'fake', model: 'fake-model' } },
+  aliases: { main: [{ provider: 'fake', model: 'fake-model' }] },
   defaults: {
     timeoutMs: 180000,
     maxRetries: 2,

@@ -206,15 +206,32 @@ describe('R0：带数据的重建', () => {
     // 验证 executions 完全一致（无新增列）
     expect(afterExecs).toEqual(beforeExecs);
 
-    // tasks 逐字一致——迁移恰好把 active_execution_id 置 NULL 再恢复，
-    // foreign_key_check 兜不住这种漂移（NULL 也合法），必须逐位断言
-    expect(afterTasks).toEqual(beforeTasks);
+    // tasks 的**旧列**逐字一致——迁移恰好把 active_execution_id 置 NULL 再恢复，
+    // foreign_key_check 兜不住这种漂移（NULL 也合法），必须逐位断言。
+    //
+    // 这里按旧列逐个比，而不是整行 toEqual：005 给 tasks 加了
+    // pinned_providers_json，整行比会把「新增了一列」误报成「数据漂移」。
+    // 与下面 slots 的比法保持一致。
+    expect(afterTasks).toHaveLength(beforeTasks.length);
+    beforeTasks.forEach((raw, i) => {
+      const before = raw as Record<string, unknown>;
+      const after = afterTasks[i];
+      expect(after).toBeDefined();
+      for (const key of Object.keys(before)) {
+        expect(after![key]).toEqual(before[key]);
+      }
+    });
     const t1 = afterTasks.find((t) => t.id === 'task-1');
     const t2 = afterTasks.find((t) => t.id === 'task-2');
     expect(t1).toBeDefined();
     expect(t2).toBeDefined();
     expect(t1?.active_execution_id).toBe('exec-1'); // 非 NULL 的恢复原值
     expect(t2?.active_execution_id).toBeNull(); // 原本就是 NULL 的保持 NULL
+
+    // D-67：降级链之前创建的任务，pin 为 NULL，此后照旧走链首。
+    // 历史任务不会因为引入降级链而改变行为——这正是那一列允许为空的理由。
+    expect(t1?.pinned_providers_json).toBeNull();
+    expect(t2?.pinned_providers_json).toBeNull();
 
     // slots 的旧列完全一致
     for (let i = 0; i < beforeSlots.length; i++) {

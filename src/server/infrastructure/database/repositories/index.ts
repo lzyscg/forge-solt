@@ -24,10 +24,23 @@ import type { SnapshotRepo } from './snapshot-repo.ts';
 import { createSnapshotRepo } from './snapshot-repo.ts';
 import type { TaskRepo } from './task-repo.ts';
 import { createTaskRepo } from './task-repo.ts';
+import type { ProviderHealthRepo } from './provider-health-repo.ts';
+import { createProviderHealthRepo } from './provider-health-repo.ts';
 import type { TraceRepo } from './trace-repo.ts';
 import { createTraceRepo } from './trace-repo.ts';
 
-export type { ArtifactRepo, ExecutionRepo, SlotRepo, SlotReviewsRepo, SnapshotRepo, TaskRepo, TraceRepo };
+export type {
+  ArtifactRepo,
+  ExecutionRepo,
+  ProviderHealthRepo,
+  SlotRepo,
+  SlotReviewsRepo,
+  SnapshotRepo,
+  TaskRepo,
+  TraceRepo,
+};
+export type { ProviderHealthRow, ProviderHealthStatus } from './provider-health-repo.ts';
+export { DEFAULT_EXHAUSTION_COOLDOWN_MS } from './provider-health-repo.ts';
 export type { InsertArtifactInput } from './artifact-repo.ts';
 export type { InsertExecutionInput } from './execution-repo.ts';
 export type { CommitSlotContentInput, InsertSlotInput } from './slot-repo.ts';
@@ -48,6 +61,12 @@ export interface Repositories {
   artifacts: ArtifactRepo;
   snapshots: SnapshotRepo;
   slotReviews: SlotReviewsRepo;
+  /**
+   * Provider 耗尽状态（D-68）。它与其余仓储不同——**不属于任何一个任务**，
+   * 是跨任务的共享状态。放进 UoW 是为了让「标记耗尽」能和「任务失败」
+   * 落在同一个事务里：两者要么一起生效，要么一起不生效。
+   */
+  providerHealth: ProviderHealthRepo;
 }
 
 /**
@@ -64,5 +83,6 @@ export function buildRepositories(db: ForgeDb, clock: Clock = systemClock): Repo
     artifacts: createArtifactRepo(db, clock),
     snapshots: createSnapshotRepo(db, clock),
     slotReviews: createSlotReviewsRepo(db, clock),
+    providerHealth: createProviderHealthRepo(db, clock),
   };
 }

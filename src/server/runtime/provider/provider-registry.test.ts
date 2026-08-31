@@ -32,8 +32,8 @@ const CONFIG: ProviderConfig = {
     },
   ],
   aliases: {
-    main: { provider: 'deepseek', model: 'deepseek-chat' },
-    future: { provider: 'anthropic', model: 'claude' },
+    main: [{ provider: 'deepseek', model: 'deepseek-chat' }],
+    future: [{ provider: 'anthropic', model: 'claude' }],
   },
   defaults: {
     timeoutMs: 1000,

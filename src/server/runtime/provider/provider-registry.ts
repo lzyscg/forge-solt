@@ -17,7 +17,11 @@
 
 import type { ProviderHealth, ProviderView } from '@shared/contracts.ts';
 import { ForgeError } from '@shared/errors.ts';
-import type { ProviderConfig, ProviderEntry } from '@server/application/provider-config.ts';
+import type {
+  ModelAliasChain,
+  ProviderConfig,
+  ProviderEntry,
+} from '@server/application/provider-config.ts';
 import type { ProviderAdapter } from './provider-adapter.ts';
 import { OpenAiCompatibleAdapter } from './openai-compatible.ts';
 
@@ -100,14 +104,48 @@ export class ProviderRegistry {
     return typeof raw === 'string' && raw.trim() !== '';
   }
 
-  /** 晚绑定解析。每次 Execution 创建调用一次，不缓存 */
-  resolve(alias: string): ResolvedModel {
-    const target = this.#config.aliases[alias];
-    if (target === undefined) {
+  /**
+   * 别名的降级链（D-66）。顺序即优先级，至少一档。
+   *
+   * 挑档的**策略**（谁耗尽了、冷却到了没有）不在这里——那要读库，
+   * 属于 application 层。Registry 只回答「这个别名有哪几档可走」。
+   */
+  chainOf(alias: string): ModelAliasChain {
+    const chain = this.#config.aliases[alias];
+    if (chain === undefined) {
       const known = Object.keys(this.#config.aliases).sort().join(', ');
       throw new ForgeError(
         'MODEL_ALIAS_UNRESOLVED',
         `模型别名「${alias}」未在 config/providers.yaml 的 aliases 中配置。已配置的别名：${known || '（无）'}`,
+        `alias:${alias}`,
+      );
+    }
+    return chain;
+  }
+
+  /**
+   * 晚绑定解析。每次 Execution 创建调用一次，不缓存。
+   *
+   * `providerId` 是**任务边界定住的那一档**（D-67）。给了就只解析那一档，
+   * 不再看链——这正是「中途不换」的构造性保证落地的地方：
+   * pin 一旦写进任务，就没有第二条路径可走。
+   * 不给则取链首（无 pin 的历史任务、CLI、测试）。
+   */
+  resolve(alias: string, providerId?: string): ResolvedModel {
+    const chain = this.chainOf(alias);
+    const target =
+      providerId === undefined ? chain[0] : chain.find((t) => t.provider === providerId);
+    if (target === undefined) {
+      throw new ForgeError(
+        'MODEL_ALIAS_UNRESOLVED',
+        providerId === undefined
+          ? `别名「${alias}」的降级链是空的`
+          : // pin 指向的档已经不在链上了——配置在任务跑到一半时被改过。
+            // 这里必须炸而不是悄悄回落到链首：回落等于**在任务中途换了模型**，
+            // 而 D-67 全部的意义就是不允许这件事发生。
+            `任务定住的 Provider「${providerId}」已不在别名「${alias}」的降级链上` +
+            `（当前链：${chain.map((t) => t.provider).join(' → ')}）。` +
+            `配置在任务运行期间被改过，本任务不会自动改用其他档。`,
         `alias:${alias}`,
       );
     }
@@ -166,8 +204,13 @@ export class ProviderRegistry {
    * 让展示走 `resolve()` 会得到一个 500——用户想看的正是「哪里没配好」，
    * 结果整页打不开。别名本身不存在时返回 null，由调用方决定显示成什么。
    */
-  describeAlias(alias: string): { providerId: string; providerName: string; model: string } | null {
-    const target = this.#config.aliases[alias];
+  describeAlias(
+    alias: string,
+  ): { providerId: string; providerName: string; model: string; fallbackCount: number } | null {
+    const chain = this.#config.aliases[alias];
+    // schema 保证 min(1)，但 Registry 也可能拿手工构造的 config 实例化（测试、CLI），
+    // 那条路径绕过了 Zod。空链在这里当成「没配」而不是崩掉展示页。
+    const target = chain?.[0];
     if (target === undefined) return null;
     const entry = this.#byId.get(target.provider);
     return {
@@ -176,6 +219,8 @@ export class ProviderRegistry {
       // 通用词只会把「别名指向了一个不存在的 provider」这件事盖住（D-19 第 4 条）。
       providerName: entry?.name ?? target.provider,
       model: target.model,
+      /** 首档之后还有几档兜底。0 表示没有降级链 */
+      fallbackCount: (chain?.length ?? 1) - 1,
     };
   }
 

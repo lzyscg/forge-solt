@@ -46,21 +46,40 @@ const ModelAliasEntrySchema = z
   .object({
     provider: z.string().min(1),
     model: z.string().min(1),
+    /**
+     * 这一档是按量付费的（D-69）。选中时要在轨迹里重重告警。
+     *
+     * 它不影响解析，只影响**响不响**。存在的理由是：按量付费档永不耗尽，
+     * 一旦滑下去系统会无限期、无提示地持续花钱，而表面上一切正常。
+     */
+    paid: z.boolean().optional(),
   })
   .strict();
 
+/**
+ * 别名 → **有序**降级链（D-66）。数组顺序即优先级，第一档是首选。
+ *
+ * 兼容单对象写法：视为长度 1 的链。历史配置一个字都不用改。
+ */
+const ModelAliasChainSchema = z.union([
+  ModelAliasEntrySchema.transform((entry) => [entry]),
+  z.array(ModelAliasEntrySchema).min(1),
+]);
+
 export const ProvidersFileSchema = z.object({
   providers: z.array(ProviderEntrySchema).min(1),
-  aliases: z.record(ModelAliasEntrySchema),
+  aliases: z.record(ModelAliasChainSchema),
   defaults: ExecutionDefaultsSchema,
 });
 
 export type ProviderEntry = z.infer<typeof ProviderEntrySchema>;
 export type ModelAliasEntry = z.infer<typeof ModelAliasEntrySchema>;
+/** 一条降级链。至少一档，顺序即优先级 */
+export type ModelAliasChain = readonly ModelAliasEntry[];
 
 export interface ProviderConfig {
   providers: readonly ProviderEntry[];
-  aliases: Readonly<Record<string, ModelAliasEntry>>;
+  aliases: Readonly<Record<string, ModelAliasChain>>;
   defaults: ExecutionDefaults;
 }
 
@@ -103,22 +122,40 @@ export function parseProviderConfig(text: string): ProviderConfig {
     throw invalid('providers[].id 存在重复');
   }
 
-  for (const [alias, target] of Object.entries(parsed.data.aliases)) {
-    const provider = byId.get(target.provider);
-    if (provider === undefined) {
-      throw new ForgeError(
-        'MODEL_ALIAS_UNRESOLVED',
-        `别名 ${alias} 指向不存在的 provider：${target.provider}`,
-        `alias:${alias}`,
-      );
-    }
-    if (!provider.models.includes(target.model)) {
-      throw new ForgeError(
-        'MODEL_ALIAS_UNRESOLVED',
-        `别名 ${alias} 指向的模型 ${target.model} 不在 provider ${provider.id} 的 models 列表中`,
-        `alias:${alias}`,
-      );
-    }
+  // 逐档校验整条链，不只校验第一档（D-66）。
+  // 只校验首档的话，配错的兜底档要等到**高优先级档耗尽那一刻**才炸——
+  // 而那正是系统最需要它工作的时刻，也是最难复现的时刻。
+  for (const [alias, chain] of Object.entries(parsed.data.aliases)) {
+    const seen = new Set<string>();
+    chain.forEach((target, index) => {
+      const at = chain.length === 1 ? `别名 ${alias}` : `别名 ${alias} 的第 ${index + 1} 档`;
+      const provider = byId.get(target.provider);
+      if (provider === undefined) {
+        throw new ForgeError(
+          'MODEL_ALIAS_UNRESOLVED',
+          `${at} 指向不存在的 provider：${target.provider}`,
+          `alias:${alias}`,
+        );
+      }
+      if (!provider.models.includes(target.model)) {
+        throw new ForgeError(
+          'MODEL_ALIAS_UNRESOLVED',
+          `${at} 指向的模型 ${target.model} 不在 provider ${provider.id} 的 models 列表中`,
+          `alias:${alias}`,
+        );
+      }
+      // 同一个 provider+model 在一条链里出现两次是配置错误：降级到自己没有意义，
+      // 而且会让「跳过了谁」的轨迹变得没法读。
+      const key = `${target.provider}/${target.model}`;
+      if (seen.has(key)) {
+        throw new ForgeError(
+          'MODEL_ALIAS_UNRESOLVED',
+          `别名 ${alias} 的降级链里 ${key} 出现了多次`,
+          `alias:${alias}`,
+        );
+      }
+      seen.add(key);
+    });
   }
 
   return parsed.data;

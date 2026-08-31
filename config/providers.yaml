@@ -198,20 +198,43 @@ providers:
 # opencode-go 条目**保留**：它适合「能等的批量后台跑」。要切回去改这三处即可。
 # 另一个可选形态（当时评估过没做）：结构走官方、正文走 Go——
 # 结构一失败整章重来，让它走快的那条，其余走便宜的那条。
+# 每个别名是一条**有序降级链**（D-66）。数组顺序即优先级：
+# 第一档用不了（额度耗尽）就往下走，最后一档必须是不会耗尽的那个。
+# 单对象写法仍然接受，视为长度 1 的链。
+#
+# 挑档发生在**任务创建时**，选中的那一档写进 tasks.pinned_providers_json，
+# 该任务此后不再改变（D-67）。中途耗尽 → 本任务失败，下一个任务才降级。
+# 这样一章永远只由一个模型写成——因为下一阶段的 Skill 迭代要比对产物，
+# 混血产物会让对照组静默失效。
 aliases:
   # 通用内容生产
   main:
-    provider: volcengine-ark-coding
-    model: deepseek-v4-flash
+    - provider: volcengine-ark-coding
+      model: deepseek-v4-flash
+    - provider: compshare-coding
+      model: deepseek-v4-flash-0731
+    - provider: deepseek
+      model: deepseek-chat
+      paid: true # 按量付费，永不耗尽也永不停止花钱。选中时轨迹里重重告警（D-69）
   # 槽位类型可通过 template.yaml 的 modelAlias 覆盖到这里（D-06）
   configured:
-    provider: volcengine-ark-coding
-    model: deepseek-v4-flash
+    - provider: volcengine-ark-coding
+      model: deepseek-v4-flash
+    - provider: compshare-coding
+      model: deepseek-v4-flash-0731
+    - provider: deepseek
+      model: deepseek-chat
+      paid: true
   # 结构设计。若结构提案一次通过率不达标，这里是 D-17 L3 的调节点
   # （套餐内的 deepseek-v4-pro 就是 L3 的目标型号，不用换 Provider）
   structure:
-    provider: volcengine-ark-coding
-    model: deepseek-v4-flash
+    - provider: volcengine-ark-coding
+      model: deepseek-v4-flash
+    - provider: compshare-coding
+      model: deepseek-v4-flash-0731
+    - provider: deepseek
+      model: deepseek-chat
+      paid: true
 
 # 回退链的最后一级（D-06）：模板没写 limits 时用这里的值。
 # 注意没有 defaults.alias——modelAlias 的回退链是

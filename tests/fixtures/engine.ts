@@ -41,8 +41,8 @@ export const FAKE_PROVIDERS: ProviderConfig = {
     },
   ],
   aliases: {
-    main: { provider: 'fake', model: 'fake-model' },
-    structure: { provider: 'fake', model: 'fake-model' },
+    main: [{ provider: 'fake', model: 'fake-model' }],
+    structure: [{ provider: 'fake', model: 'fake-model' }],
   },
   defaults: {
     timeoutMs: 5000,
