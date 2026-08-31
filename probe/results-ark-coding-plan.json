@@ -1,0 +1,240 @@
+{
+  "baseUrl": "https://ark.cn-beijing.volces.com/api/coding/v3",
+  "at": "2026-08-31T12:57:51.930Z",
+  "results": [
+    {
+      "model": "deepseek-v4-flash",
+      "ok": true,
+      "stopReason": "tool_use",
+      "firstCallbackMs": 3729,
+      "totalMs": 3729,
+      "frames": {
+        "frames": 281,
+        "toolCallFrames": 118,
+        "firstFrameMs": 1817
+      },
+      "usage": {
+        "inputTokens": 668,
+        "outputTokens": 347
+      },
+      "textLength": 0,
+      "outputTokensPerSec": 93.1,
+      "toolCall": {
+        "name": "complete_assignment",
+        "argumentsJson": "{\"kind\": \"slot_edits\", \"slotId\": \"scene_er\", \"edits\": [{\"oldText\": \"赵敏心里觉得很累，她想着这已经是第三个夜班了。\", \"newText\": \"赵敏揉了揉发酸的眼眶，又按住太阳穴，把第三个夜班的排班表一角捏出了深深的折痕。\"}, {\"oldText\": \"小林很紧张，她害怕自己出错。\", \"newText\": \"小林的手指悬在呼叫铃按钮上方抖了抖，又猛地缩回来，在护士服上反复擦了三遍掌心。\"}]}",
+        "parsed": true,
+        "shapeOk": true,
+        "editCount": 2,
+        "verbatimHits": 2
+      }
+    },
+    {
+      "model": "deepseek-v4-pro",
+      "ok": true,
+      "stopReason": "tool_use",
+      "firstCallbackMs": 9267,
+      "totalMs": 9267,
+      "frames": {
+        "frames": 524,
+        "toolCallFrames": 144,
+        "firstFrameMs": 1212
+      },
+      "usage": {
+        "inputTokens": 668,
+        "outputTokens": 590
+      },
+      "textLength": 0,
+      "outputTokensPerSec": 63.7,
+      "toolCall": {
+        "name": "complete_assignment",
+        "argumentsJson": "{\"kind\": \"slot_edits\", \"slotId\": \"scene_er\", \"edits\": [{\"oldText\": \"赵敏心里觉得很累，她想着这已经是第三个夜班了。\", \"newText\": \"赵敏把后腰抵在护士台边，仰头闭了几秒眼，又抬手揉着太阳穴；她翻开排班表，指尖点在第三个夜班的格子上，轻轻敲了两下。\"}, {\"oldText\": \"小林很紧张，她害怕自己出错。\", \"newText\": \"小林反复核对输液单上的名字，拇指把单子边角捻得卷了起来；她咬着下唇，又把药瓶上的标签凑近灯下看了一遍。\"}]}",
+        "parsed": true,
+        "shapeOk": true,
+        "editCount": 2,
+        "verbatimHits": 2
+      }
+    },
+    {
+      "model": "glm-5.3",
+      "ok": true,
+      "stopReason": "tool_use",
+      "firstCallbackMs": 27785,
+      "totalMs": 27785,
+      "frames": {
+        "frames": 976,
+        "toolCallFrames": 150,
+        "firstFrameMs": 3903
+      },
+      "usage": {
+        "inputTokens": 478,
+        "outputTokens": 992
+      },
+      "textLength": 0,
+      "outputTokensPerSec": 35.7,
+      "toolCall": {
+        "name": "complete_assignment",
+        "argumentsJson": "{\"edits\":[{\"newText\": \"赵敏扶着墙站了一会儿，抬手用力揉了揉眼睛，打了个长长的哈欠，往病房走的时候，鞋底拖在地上，一步比一步慢。\", \"oldText\": \"赵敏心里觉得很累，她想着这已经是第三个夜班了。\"}, {\"newText\": \"小林捏着注射单的手指有点抖，她把床号和药名核对了一遍，又从头再看一遍，咽了口唾沫，才伸手去拿那支安瓿。\", \"oldText\": \"小林很紧张，她害怕自己出错。\"}],\"kind\":\"slot_edits\",\"slotId\":\"scene_er\"}",
+        "parsed": true,
+        "shapeOk": true,
+        "editCount": 2,
+        "verbatimHits": 2
+      }
+    },
+    {
+      "model": "glm-5.3-flash",
+      "ok": true,
+      "stopReason": "tool_use",
+      "firstCallbackMs": 34941,
+      "totalMs": 34941,
+      "frames": {
+        "frames": 1150,
+        "toolCallFrames": 168,
+        "firstFrameMs": 5136
+      },
+      "usage": {
+        "inputTokens": 478,
+        "outputTokens": 1166
+      },
+      "textLength": 0,
+      "outputTokensPerSec": 33.4,
+      "toolCall": {
+        "name": "complete_assignment",
+        "argumentsJson": "{\"edits\":[{\"newText\": \"赵敏扶着护士站的台面闭眼站了几秒，长长打了个哈欠，随后低下头，用指尖点着排班表，一格一格数出连着的三个\\\"夜\\\"字。\", \"oldText\": \"赵敏心里觉得很累，她想着这已经是第三个夜班了。\"}, {\"newText\": \"小林捏着药单来回踱步，单子边角被攥出褶皱又被一点点抚平，她把手心的汗在裤缝上蹭了蹭，重新拿起药盒，把标签从头到尾又念了一遍。\", \"oldText\": \"小林很紧张，她害怕自己出错。\"}],\"kind\":\"slot_edits\",\"slotId\":\"scene_er\"}",
+        "parsed": true,
+        "shapeOk": true,
+        "editCount": 2,
+        "verbatimHits": 2
+      }
+    },
+    {
+      "model": "kimi-k2.7-code",
+      "ok": true,
+      "stopReason": "tool_use",
+      "firstCallbackMs": 11565,
+      "totalMs": 11565,
+      "frames": {
+        "frames": 408,
+        "toolCallFrames": 121,
+        "firstFrameMs": 1086
+      },
+      "usage": {
+        "inputTokens": 296,
+        "outputTokens": 418
+      },
+      "textLength": 0,
+      "outputTokensPerSec": 36.1,
+      "toolCall": {
+        "name": "complete_assignment",
+        "argumentsJson": "{\"kind\": \"slot_edits\", \"slotId\": \"scene_er\", \"edits\": [{\"oldText\": \"赵敏心里觉得很累，她想着这已经是第三个夜班了。\", \"newText\": \"赵敏抬手按住太阳穴，指尖在排班表上第三个“夜班”字样旁停住，肩膀微微塌了下来。\"}, {\"oldText\": \"小林很紧张，她害怕自己出错。\", \"newText\": \"小林的手指攥紧了记录板边缘，指节泛白，笔尖悬在纸面上方，墨水洇出一小团墨渍。\"}]}",
+        "parsed": true,
+        "shapeOk": true,
+        "editCount": 2,
+        "verbatimHits": 2
+      }
+    },
+    {
+      "model": "minimax-m3",
+      "ok": true,
+      "stopReason": "tool_use",
+      "firstCallbackMs": 4141,
+      "totalMs": 4141,
+      "frames": {
+        "frames": 14,
+        "toolCallFrames": 3,
+        "firstFrameMs": 652
+      },
+      "usage": {
+        "inputTokens": 701,
+        "outputTokens": 454
+      },
+      "textLength": 0,
+      "outputTokensPerSec": 109.6,
+      "toolCall": {
+        "name": "complete_assignment",
+        "argumentsJson": "{\"edits\": [{\"newText\": \"赵敏揉了揉太阳穴，又打了一个长长的哈欠，白大褂袖口上还留着前两班没来得及洗掉的咖啡渍。\", \"oldText\": \"赵敏心里觉得很累，她想着这已经是第三个夜班了。\"}, {\"newText\": \"小林把记录本攥得指节发白，眼神不停地在仪器表盘和走廊门之间来回跳动。\", \"oldText\": \"小林很紧张，她害怕自己出错。\"}], \"kind\": \"slot_edits\", \"slotId\": \"scene_er\"}",
+        "parsed": true,
+        "shapeOk": true,
+        "editCount": 2,
+        "verbatimHits": 2
+      }
+    },
+    {
+      "model": "doubao-seed-evolving",
+      "ok": true,
+      "stopReason": "tool_use",
+      "firstCallbackMs": 25225,
+      "totalMs": 25225,
+      "frames": {
+        "frames": 304,
+        "toolCallFrames": 157,
+        "firstFrameMs": 481
+      },
+      "usage": {
+        "inputTokens": 810,
+        "outputTokens": 966
+      },
+      "textLength": 0,
+      "outputTokensPerSec": 38.3,
+      "toolCall": {
+        "name": "complete_assignment",
+        "argumentsJson": "{\"kind\": \"slot_edits\", \"slotId\": \"scene_er\", \"edits\": [{\"oldText\": \"赵敏心里觉得很累，她想着这已经是第三个夜班了。\", \"newText\": \"赵敏的目光落在墙上的排班表上，指尖从连续三个夜班的格子上划过，停在今晚那一格；她撑着台面站起来，揉了揉僵硬的后腰，脚步发沉地往前走。\"}, {\"oldText\": \"小林很紧张，她害怕自己出错。\", \"newText\": \"小林捏着笔的手指越收越紧，指节泛白，笔尖悬在记录单上半天落不下去；她又低头核对了一遍床号，咽了口唾沫，把护士帽往下压了压。\"}]}",
+        "parsed": true,
+        "shapeOk": true,
+        "editCount": 2,
+        "verbatimHits": 2
+      }
+    },
+    {
+      "model": "doubao-seed-2.1-turbo",
+      "ok": true,
+      "stopReason": "tool_use",
+      "firstCallbackMs": 24118,
+      "totalMs": 24118,
+      "frames": {
+        "frames": 384,
+        "toolCallFrames": 165,
+        "firstFrameMs": 562
+      },
+      "usage": {
+        "inputTokens": 722,
+        "outputTokens": 1303
+      },
+      "textLength": 0,
+      "outputTokensPerSec": 54,
+      "toolCall": {
+        "name": "complete_assignment",
+        "argumentsJson": "{\"kind\": \"slot_edits\", \"slotId\": \"scene_er\", \"edits\": [{\"oldText\": \"赵敏心里觉得很累，她想着这已经是第三个夜班了。\", \"newText\": \"赵敏倚着冰冷的墙根慢慢蹲下身，抬手用指节按了按酸胀的眼窝，目光扫过墙上排班表连画的三个红圈，指尖在第三个圈上虚搭了几秒，肩膀垮得厉害。\"}, {\"oldText\": \"小林很紧张，她害怕自己出错。\", \"newText\": \"小林攥着手里的护理记录夹，指节绷得泛白，眼睛一眨不眨盯着走廊尽头的呼叫铃，嘴唇抿得紧紧的，脚不自觉往墙根缩了缩，连呼吸都放得很轻。\"}]}",
+        "parsed": true,
+        "shapeOk": true,
+        "editCount": 2,
+        "verbatimHits": 2
+      }
+    },
+    {
+      "model": "doubao-seed-2.0-lite",
+      "ok": true,
+      "stopReason": "tool_use",
+      "firstCallbackMs": 5481,
+      "totalMs": 5481,
+      "frames": {
+        "frames": 482,
+        "toolCallFrames": 120,
+        "firstFrameMs": 864
+      },
+      "usage": {
+        "inputTokens": 725,
+        "outputTokens": 530
+      },
+      "textLength": 0,
+      "outputTokensPerSec": 96.7,
+      "toolCall": {
+        "name": "complete_assignment",
+        "argumentsJson": "{\"kind\": \"slot_edits\", \"slotId\": \"scene_er\", \"edits\": [{\"oldText\": \"赵敏心里觉得很累，她想着这已经是第三个夜班了。\", \"newText\": \"赵敏靠在冰凉的墙面上，指尖按着发胀的太阳穴，接连打了两个哈欠，这已经是第三个夜班了。\"}, {\"oldText\": \"小林很紧张，她害怕自己出错。\", \"newText\": \"小林攥着记录板的指尖泛着白，反复核对了三遍表格上的内容，指尖悬在笔帽上迟迟没落下。\"}]}",
+        "parsed": true,
+        "shapeOk": true,
+        "editCount": 2,
+        "verbatimHits": 2
+      }
+    }
+  ]
+}

@@ -87,6 +87,31 @@
       }
     },
     {
+      "name": "server-live",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "tsx",
+        "--env-file=.env",
+        "src/server/main.ts"
+      ],
+      "port": 3311,
+      "env": {
+        "DATABASE_PATH": "./data/live-run.sqlite"
+      }
+    },
+    {
+      "name": "view-r6",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "tsx",
+        "src/server/dev-fake.ts"
+      ],
+      "port": 3311,
+      "env": {
+        "DATABASE_PATH": "/private/tmp/claude-501/-Users-lzy-Desktop-forge-solt/9b78e483-107c-4960-9909-cb90b4666f18/scratchpad/view-r6.sqlite"
+      }
+    },
+    {
       "name": "client",
       "runtimeExecutable": "npx",
       "runtimeArgs": [

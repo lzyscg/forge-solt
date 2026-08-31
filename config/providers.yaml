@@ -50,6 +50,65 @@ providers:
       - deepseek-v4-flash # 业务方指定：Go 套餐内额度充裕
       - deepseek-v4-pro # D-17 L3 的目标型号，同样在 Go 套餐内
 
+  # 火山方舟 Coding Plan —— 订阅制套餐（2026-08-31 接入）
+  #
+  # ⚠️⚠️ baseUrl 必须是 /api/coding/v3，**不是** /api/v3。文档原文：
+  #    「请勿使用 https://ark.cn-beijing.volces.com/api/v3：该 Base URL
+  #      不会消耗您的 Coding Plan 额度，而是会产生额外费用。」
+  #
+  #    这和上面 OpenCode 的 /zen/v1 vs /zen/go/v1 是同一类陷阱，但**更阴险**：
+  #      - OpenCode 打错 → 401「余额不足」，吵得很大声，当天就查出来了；
+  #      - 火山打错   → **不报错、照常返回结果、账单另算**。
+  #    也就是说这个错误没有任何运行期信号，除非去对账，否则跑几周都发现不了。
+  #    改这一行之前，先想清楚你是在往哪个口袋里掏钱。
+  #
+  # models 列表照录文档「模型配置」一节，全部实打验证过，不是抄文档。
+  # 验证脚本：probe/ark-coding-plan.ts（结果 probe/results-ark-coding-plan.json）
+  # 每个模型都真发了一次带嵌套数组 + 中文 + 多参数的 complete_assignment 工具调用。
+  #
+  # 实测（2026-08-31，各模型 n=2，同一份 prompt）：
+  #
+  #   模型                    吞吐 tok/s    首帧 ms      tool_calls
+  #   deepseek-v4-flash       93.1 / 96.8   1817 / 1601  ✅ 逐字命中 2/2
+  #   deepseek-v4-pro         63.7 / 55.2   1212 / 1132  ✅
+  #   glm-5.3                 35.7 / 32.2   3903 / 5491  ✅
+  #   glm-5.3-flash           33.4 / 28.8   5136 / 5145  ✅
+  #   kimi-k2.7-code          36.1 / 34.8   1086 / 1089  ✅
+  #   minimax-m3             109.6 /109.9    652 / 1095  ✅（见下方注意）
+  #   doubao-seed-evolving    38.3 / 33.5    481 / 1540  ✅
+  #   doubao-seed-2.1-turbo   54.0 / 49.2    562 /  764  ✅
+  #   doubao-seed-2.0-lite    96.7 / 95.0    864 /  669  ✅
+  #
+  #   对照基线 —— DeepSeek 官方 deepseek-chat：106 tok/s，首帧 139ms。
+  #
+  # 结论：**吞吐不是问题**（v4-flash 93~97 对官方 106，差约 10%），
+  # 这与 OpenCode Go 那次（14.5 字/秒，单章 23 分钟）完全不是一回事。
+  # 代价在**首帧延迟**：1.6~1.8 秒 vs 官方 0.14 秒，约 12 倍，是套餐排队。
+  # 一章约 16 次执行，折算每章多等 20~25 秒，可接受。
+  #
+  # ⚠️ minimax-m3 的 SSE 分帧与众不同：整轮只有 14 帧（其余模型几百帧），
+  #    tool_calls 基本是**整块下发**而不是逐字增量。拼装结果正确，但这意味着
+  #    用它跑时 onTextDelta 会长时间没有动静、然后一次性涌出。
+  #    前端进度呈现若依赖 delta 节奏，在这个模型上会显得像卡住了。
+  #
+  # 全部 9 个模型：0 个丢弃分片（onDroppedChunk 无信号），
+  # oldText 逐字命中 2/2 —— D-62 那条编辑清单契约在这 9 个模型上都成立。
+  - id: volcengine-ark-coding
+    name: 火山方舟 Coding Plan
+    kind: openai-compatible
+    baseUrl: https://ark.cn-beijing.volces.com/api/coding/v3
+    apiKeyEnv: ARK_API_KEY # 只写变量名，值在 .env（REQ §13）
+    models:
+      - deepseek-v4-flash # 与官方 deepseek-chat 同一个模型，换计费通道
+      - deepseek-v4-pro
+      - glm-5.3
+      - glm-5.3-flash
+      - kimi-k2.7-code
+      - minimax-m3
+      - doubao-seed-evolving
+      - doubao-seed-2.1-turbo
+      - doubao-seed-2.0-lite
+
 # 别名是快照冻结的单位，也是切换 Provider 的唯一开关：
 # 模板引用别名，不引用具体 provider/model，所以下面这三处改完，
 # 全部模板立刻换用新 Provider，模板文件一个字都不用动。

@@ -1,0 +1,32 @@
+{
+  "baseUrl": "https://api.deepseek.com/v1",
+  "at": "2026-08-31T12:55:25.427Z",
+  "results": [
+    {
+      "model": "deepseek-chat",
+      "ok": true,
+      "stopReason": "tool_use",
+      "firstCallbackMs": 2224,
+      "totalMs": 2224,
+      "frames": {
+        "frames": 127,
+        "toolCallFrames": 125,
+        "firstFrameMs": 262
+      },
+      "usage": {
+        "inputTokens": 589,
+        "outputTokens": 176
+      },
+      "textLength": 0,
+      "outputTokensPerSec": 79.1,
+      "toolCall": {
+        "name": "complete_assignment",
+        "argumentsJson": "{\"kind\": \"slot_edits\", \"slotId\": \"scene_er\", \"edits\": [{\"oldText\": \"赵敏心里觉得很累，她想着这已经是第三个夜班了。\", \"newText\": \"赵敏靠在椅背上，揉了揉发胀的太阳穴，一下一下地按着，指节泛白。\"}, {\"oldText\": \"小林很紧张，她害怕自己出错。\", \"newText\": \"小林来回搓着双手，指缝间渗出薄汗，一遍遍翻看手里的记录单。\"}]}",
+        "parsed": true,
+        "shapeOk": true,
+        "editCount": 2,
+        "verbatimHits": 2
+      }
+    }
+  ]
+}
