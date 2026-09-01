@@ -12,3 +12,9 @@ data/*.sqlite-wal
 
 # 头脑风暴工具的本地临时状态（含会话 token 与端口），不属于仓库内容
 .superpowers/
+
+# 范文语料：知乎盐选付费作品，多篇自带「下载后 24 小时内删除」声明。
+# 本仓库是公开仓库，正文一个字都不能进。
+# 只有度量结果（fixtures/reference-corpus.json，纯数字与文件名）可以入库。
+知乎短故事示例/
+agent-skills原始/
