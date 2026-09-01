@@ -185,6 +185,8 @@ describe('§5.2 CHECK 约束', () => {
           contextJson: '{}',
           contextHash: 'c',
           promptHash: 'p',
+          replayInputJson: null,
+          replayInputHash: null,
           modelAlias: 'a',
           provider: 'p',
           model: 'm',

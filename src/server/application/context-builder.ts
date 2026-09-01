@@ -46,7 +46,9 @@
  * 于是两份实际喂给模型的文本不同的上下文会算出同一个 hash。
  */
 
+import { z } from 'zod';
 import type { Operation } from '@shared/contracts.ts';
+import { OperationSchema, InputFieldSchema, SlotStatusSchema } from '@shared/contracts.ts';
 import type { StructureViolation } from '@server/domain/structure-validation.ts';
 import { canonicalJson, sha256Hex } from '@server/domain/canonical.ts';
 import { ForgeError } from '@shared/errors.ts';
@@ -194,6 +196,338 @@ export interface ReviewSlotContextInput extends ContextBuilderCommonInput {
 }
 
 export type ContextBuilderInput = StructureContextInput | FillSlotContextInput | ReviewSlotContextInput;
+
+// ---------------------------------------------------------------------------
+// Replay provenance
+// ---------------------------------------------------------------------------
+
+export const REPLAY_INPUT_VERSION = 1 as const;
+
+const CompiledAgentReplaySchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    role: z.string(),
+    modelAlias: z.string().nullable(),
+    systemInstruction: z.string(),
+  })
+  .strict();
+
+const CompiledValidationReplaySchema = z
+  .object({
+    minChars: z.number().int().nullable(),
+    maxChars: z.number().int().nullable(),
+    forbidPattern: z.string().nullable(),
+    forbidPatternFlags: z.string().nullable(),
+    forbidPatternMessage: z.string().nullable(),
+  })
+  .strict();
+
+const CompiledSlotTypeReplaySchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    description: z.string(),
+    contentBearing: z.boolean(),
+    includeInArtifact: z.boolean(),
+    validation: CompiledValidationReplaySchema,
+    guidance: z.array(z.string()),
+    maxRevisionRounds: z.number().int().min(0),
+  })
+  .strict();
+
+const CompiledBindingReplaySchema = z
+  .object({
+    agentId: z.string(),
+    skillId: z.string(),
+    skillVersion: z.string(),
+    modelAlias: z.string(),
+    timeoutMs: z.number().int().positive(),
+    maxRetries: z.number().int().min(0),
+  })
+  .strict();
+
+const CompiledTemplateReplaySchema = z
+  .object({
+    id: z.string(),
+    version: z.string(),
+    name: z.string(),
+    description: z.string(),
+    status: z.enum(['published', 'draft', 'archived']),
+    inputFields: z.array(InputFieldSchema),
+    slotTypes: z.array(CompiledSlotTypeReplaySchema),
+    agents: z.array(CompiledAgentReplaySchema),
+    skills: z.array(
+      z
+        .object({ id: z.string(), version: z.string(), contentHash: z.string() })
+        .strict(),
+    ),
+    bindings: z
+      .object({
+        createStructure: CompiledBindingReplaySchema,
+        fillSlotByType: z.record(CompiledBindingReplaySchema),
+        reviewSlotByType: z.record(CompiledBindingReplaySchema),
+        reviewStructure: CompiledBindingReplaySchema.nullable(),
+      })
+      .strict(),
+    limits: z
+      .object({
+        maxSlots: z.number().int().positive(),
+        maxStructureDepth: z.number().int().positive(),
+        maxExecutionRetries: z.number().int().min(0),
+        executionTimeoutMs: z.number().int().positive(),
+        maxToolCallsPerAssignment: z.number().int().positive(),
+      })
+      .strict(),
+    output: z
+      .object({
+        fileName: z.string(),
+        mediaType: z.string(),
+        assembler: z.literal('markdown_concat_v1'),
+      })
+      .strict(),
+    templateHash: z.string(),
+  })
+  .strict();
+
+const SkillSectionReplaySchema = z
+  .object({ id: z.string(), title: z.string(), content: z.string() })
+  .strict();
+
+const FrozenSkillReplaySchema = z
+  .object({
+    id: z.string(),
+    version: z.string(),
+    contentMarkdown: z.string(),
+    contentHash: z.string(),
+    operation: OperationSchema,
+    slotTypes: z.array(z.string()),
+    summary: z.string(),
+    preamble: z.string(),
+    requiredSections: z.array(z.string()),
+    sections: z.array(SkillSectionReplaySchema),
+    sectionIndex: z.record(SkillSectionReplaySchema),
+  })
+  .strict();
+
+const FrozenSnapshotReplaySchema = z
+  .object({
+    taskId: z.string(),
+    snapshotId: z.string(),
+    templateId: z.string(),
+    templateVersion: z.string(),
+    compiled: CompiledTemplateReplaySchema,
+    snapshotHash: z.string(),
+    skills: z.record(FrozenSkillReplaySchema),
+    input: z.record(z.string()),
+  })
+  .strict();
+
+const SlotProducerReplaySchema = z
+  .object({
+    agentId: z.string(),
+    skillId: z.string(),
+    skillVersion: z.string(),
+    executionId: z.string(),
+  })
+  .strict();
+
+const SlotReplaySchema = z
+  .object({
+    taskId: z.string(),
+    slotId: z.string(),
+    type: z.string(),
+    parentId: z.string().nullable(),
+    sortOrder: z.number().int(),
+    instruction: z.string(),
+    dependsOn: z.array(z.string()),
+    contentBearing: z.boolean(),
+    includeInArtifact: z.boolean(),
+    status: SlotStatusSchema,
+    revisionRound: z.number().int().min(0),
+    reviewExhausted: z.boolean(),
+    contentText: z.string().nullable(),
+    producer: SlotProducerReplaySchema.nullable(),
+    errorCode: z.string().nullable(),
+    errorMessage: z.string().nullable(),
+    createdAt: z.string(),
+    updatedAt: z.string(),
+  })
+  .strict();
+
+const DependencyReplaySchema = z
+  .object({ slotId: z.string(), content: z.string() })
+  .strict();
+
+const FindingReplaySchema = z
+  .object({ criterionId: z.string(), quote: z.string(), problem: z.string() })
+  .strict();
+
+const PriorRoundReplaySchema = z
+  .object({
+    visibleOutput: z.string(),
+    readSlotIds: z.array(z.string()),
+    submittedContent: z.string(),
+    findings: z.array(FindingReplaySchema),
+  })
+  .strict();
+
+const StructureViolationReplaySchema = z
+  .object({
+    rule: z.enum([
+      'EMPTY_STRUCTURE',
+      'TOO_MANY_SLOTS',
+      'DUPLICATE_SLOT_ID',
+      'INVALID_SLOT_ID',
+      'NO_ROOT',
+      'MULTIPLE_ROOTS',
+      'ROOT_MUST_BE_CONTAINER',
+      'PARENT_NOT_FOUND',
+      'PARENT_CYCLE',
+      'DEPTH_EXCEEDED',
+      'DUPLICATE_ORDER',
+      'UNKNOWN_SLOT_TYPE',
+      'MISSING_INSTRUCTION',
+      'DEPENDENCY_NOT_FOUND',
+      'SELF_DEPENDENCY',
+      'DEPENDENCY_CYCLE',
+      'DEPENDENCY_ON_CONTAINER',
+      'NO_CONTENT_SLOT',
+    ]),
+    message: z.string(),
+    agentHint: z.string(),
+    slotIds: z.array(z.string()),
+  })
+  .strict();
+
+const StructureRetryReplaySchema = z
+  .object({
+    previousProposalJson: z.string().nullable(),
+    violations: z.array(StructureViolationReplaySchema),
+    noSubmission: z.boolean(),
+  })
+  .strict();
+
+const StructureReviewReplaySchema = z
+  .object({
+    round: z.number().int().positive(),
+    previousOutline: z.string(),
+    findings: z.array(FindingReplaySchema),
+  })
+  .strict();
+
+const FillRetryReplaySchema = z
+  .object({ noSubmission: z.boolean(), reasons: z.array(z.string()) })
+  .strict();
+
+const FillRevisionReplaySchema = z
+  .object({
+    round: z.number().int().positive(),
+    priorRounds: z.array(PriorRoundReplaySchema),
+    degraded: z.boolean(),
+  })
+  .strict();
+
+const ReplayCommonSchema = z.object({
+  snapshot: FrozenSnapshotReplaySchema,
+  agent: CompiledAgentReplaySchema,
+  skill: FrozenSkillReplaySchema,
+  attemptNumber: z.number().int().positive(),
+  maxAttempts: z.number().int().positive(),
+});
+
+const ReplayContextInputSchema = z.discriminatedUnion('operation', [
+  ReplayCommonSchema.extend({
+    operation: z.literal('create_structure'),
+    retry: StructureRetryReplaySchema.nullable(),
+    review: StructureReviewReplaySchema.nullable(),
+  }).strict(),
+  ReplayCommonSchema.extend({
+    operation: z.literal('fill_slot'),
+    slots: z.array(SlotReplaySchema),
+    targetSlot: SlotReplaySchema,
+    slotType: CompiledSlotTypeReplaySchema,
+    dependencies: z.array(DependencyReplaySchema),
+    retry: FillRetryReplaySchema.nullable(),
+    revision: FillRevisionReplaySchema.nullable(),
+  }).strict(),
+  ReplayCommonSchema.extend({
+    operation: z.literal('review_slot'),
+    targetSlot: SlotReplaySchema,
+    slotType: CompiledSlotTypeReplaySchema,
+    slots: z.array(SlotReplaySchema),
+    dependencies: z.array(DependencyReplaySchema),
+    criterionId: z.string(),
+    contentUnderReview: z.string(),
+  }).strict(),
+]);
+
+export const ReplayInputSchema = z
+  .object({
+    version: z.literal(REPLAY_INPUT_VERSION),
+    contextInput: ReplayContextInputSchema,
+  })
+  .strict();
+
+export type ReplayInput = z.infer<typeof ReplayInputSchema>;
+
+export interface SerializedReplayInput {
+  replayInputJson: string;
+  replayInputHash: string;
+}
+
+function replayInputOf(input: ContextBuilderInput): ReplayInput {
+  return ReplayInputSchema.parse({ version: REPLAY_INPUT_VERSION, contextInput: input });
+}
+
+/** Serialize an immutable, versioned envelope whose hash covers the exact stored bytes. */
+export function serializeReplayInput(input: ContextBuilderInput): SerializedReplayInput {
+  const replayInputJson = canonicalJson(replayInputOf(input));
+  return { replayInputJson, replayInputHash: sha256Hex(replayInputJson) };
+}
+
+/** Parse stored provenance and reject corruption before it can be used for a replay. */
+export function parseReplayInput(replayInputJson: string, expectedHash: string): ReplayInput {
+  if (sha256Hex(replayInputJson) !== expectedHash) {
+    throw new ForgeError('STORAGE_ERROR', 'Execution ReplayInput 校验失败：JSON 与 hash 不一致', null);
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(replayInputJson);
+  } catch (error) {
+    throw new ForgeError('STORAGE_ERROR', 'Execution ReplayInput 无法解析为 JSON', null, undefined, error);
+  }
+
+  const result = ReplayInputSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new ForgeError(
+      'STORAGE_ERROR',
+      `Execution ReplayInput 不符合版本 ${REPLAY_INPUT_VERSION} 的结构`,
+      null,
+      undefined,
+      result.error,
+    );
+  }
+  if (canonicalJson(result.data) !== replayInputJson) {
+    throw new ForgeError('STORAGE_ERROR', 'Execution ReplayInput 不是 canonical JSON', null);
+  }
+  return result.data;
+}
+
+/** Replace only the frozen Skill, retaining every other byte-bearing input to ContextBuilder. */
+export function rebuildContextFromReplay(
+  replayInputJson: string,
+  replayInputHash: string,
+  replacementSkill: FrozenSkill,
+): BuiltAssignmentContext {
+  const replay = parseReplayInput(replayInputJson, replayInputHash);
+  const contextInput = {
+    ...replay.contextInput,
+    skill: replacementSkill,
+  } as ContextBuilderInput;
+  return buildContext(contextInput);
+}
 
 export interface BuiltAssignmentContext {
   operation: Operation;

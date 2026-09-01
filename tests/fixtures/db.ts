@@ -121,6 +121,8 @@ export function seedRunningAssignment(
       contextJson: '{"slotId":"' + slotId + '"}',
       contextHash: 'ctx-hash',
       promptHash: 'prompt-hash',
+      replayInputJson: null,
+      replayInputHash: null,
       modelAlias: 'draft',
       provider: 'deepseek',
       model: 'deepseek-chat',

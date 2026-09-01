@@ -18,6 +18,7 @@ import { dumpAll } from '../fixtures/db.ts';
 import {
   createAppEnv,
   fakeContext,
+  fakeReplayInput,
   seedNewTask,
   startSlotAssignment,
   startStructureAssignment,
@@ -79,6 +80,15 @@ describe('创建 Assignment（§5.5 边界 2 / D-09 / §8.1）', () => {
     expect(env.uow.repositories.executions.getOrThrow(executionId).id).toBe(executionId);
   });
 
+  it('创建事务同落 ReplayInput 两列，且公开 Execution 投影不携带大 JSON', () => {
+    const { executionId } = startStructureAssignment(env, taskId);
+    const replay = env.uow.repositories.executions.getReplayInput(executionId);
+    expect(replay).toEqual(fakeReplayInput('structure'));
+    const execution = env.uow.repositories.executions.getOrThrow(executionId);
+    expect(execution).not.toHaveProperty('replayInputJson');
+    expect(execution).not.toHaveProperty('replayInputHash');
+  });
+
   it('§8.1：明文 Token 不落库，库里只有它的 sha256', () => {
     const { executionId, token } = startStructureAssignment(env, taskId);
     expect(env.uow.repositories.executions.getOrThrow(executionId).tokenHash).toBe(sha256Hex(token));
@@ -87,6 +97,30 @@ describe('创建 Assignment（§5.5 边界 2 / D-09 / §8.1）', () => {
     const dump = JSON.stringify(dumpAll(env.db));
     expect(token.length).toBeGreaterThan(0);
     expect(dump).not.toContain(token);
+  });
+
+  it('旧 execution 的 ReplayInput 两列为 NULL 时独立读取接口返回 null', () => {
+    env.uow.run((repos) => repos.tasks.update(taskId, { status: 'running' }));
+    env.uow.repositories.executions.insert({
+      id: 'legacy-exec',
+      taskId,
+      operation: 'create_structure',
+      targetSlotId: null,
+      agentId: 'structure_designer',
+      skillId: 'chapter-structure-design',
+      skillVersion: '1.0.0',
+      tokenHash: 'legacy-token-hash',
+      contextJson: '{}',
+      contextHash: sha256Hex('{}'),
+      promptHash: 'legacy-prompt-hash',
+      replayInputJson: null,
+      replayInputHash: null,
+      modelAlias: 'structure',
+      provider: 'legacy-provider',
+      model: 'legacy-model',
+      attemptNumber: 1,
+    });
+    expect(env.uow.repositories.executions.getReplayInput('legacy-exec')).toBeNull();
   });
 
   it('回滚：任务已有活动执行时整条边界不落地', () => {
@@ -104,6 +138,7 @@ describe('创建 Assignment（§5.5 边界 2 / D-09 / §8.1）', () => {
         },
         resolved: { provider: 'p', model: 'm' },
         context: fakeContext('second'),
+        replayInput: fakeReplayInput('second'),
         attemptNumber: 2,
       }),
     );
@@ -126,6 +161,7 @@ describe('创建 Assignment（§5.5 边界 2 / D-09 / §8.1）', () => {
         },
         resolved: { provider: 'p', model: 'm' },
         context: fakeContext('early'),
+        replayInput: fakeReplayInput('early'),
         attemptNumber: 1,
       }),
     );

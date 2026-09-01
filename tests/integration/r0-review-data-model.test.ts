@@ -203,8 +203,18 @@ describe('R0：带数据的重建', () => {
     const afterExecs = db.prepare('SELECT * FROM executions ORDER BY id').all() as Record<string, unknown>[];
     const afterTasks = db.prepare('SELECT * FROM tasks ORDER BY id').all() as Record<string, unknown>[];
 
-    // 验证 executions 完全一致（无新增列）
-    expect(afterExecs).toEqual(beforeExecs);
+    // executions 的旧列逐字一致；006 只追加两个 nullable provenance 列。
+    expect(afterExecs).toHaveLength(beforeExecs.length);
+    beforeExecs.forEach((raw, i) => {
+      const before = raw as Record<string, unknown>;
+      const after = afterExecs[i];
+      expect(after).toBeDefined();
+      for (const key of Object.keys(before)) {
+        expect(after![key]).toEqual(before[key]);
+      }
+      expect(after?.replay_input_json).toBeNull();
+      expect(after?.replay_input_hash).toBeNull();
+    });
 
     // tasks 的**旧列**逐字一致——迁移恰好把 active_execution_id 置 NULL 再恢复，
     // foreign_key_check 兜不住这种漂移（NULL 也合法），必须逐位断言。
@@ -416,6 +426,8 @@ function seedTaskAndRunningSlot(db: ForgeDb, slotId = 'scene_01'): { executionId
       contextJson: '{}',
       contextHash: 'ch',
       promptHash: 'ph',
+      replayInputJson: null,
+      replayInputHash: null,
       modelAlias: 'draft',
       provider: 'deepseek',
       model: 'deepseek-chat',
