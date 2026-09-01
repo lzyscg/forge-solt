@@ -202,17 +202,18 @@ describe('skills/scene-review/SKILL.md：上线的那份审核 Skill（R4）', (
   // 夹具过了而真文件没过，等于什么都没验（§6.4 同一条理由）
   const REAL = fileURLToPath(new URL('../../../skills/scene-review/SKILL.md', import.meta.url));
 
-  it('四条判据全部上线（D-28），ID 为 S1..S4', async () => {
+  it('D-87 退役旧 S3 后保留 S1/S2/S4，适用于 section', async () => {
     const skill = await loadSkill(REAL);
     expect(skill.operation).toBe('review_slot');
-    expect(skill.slotTypes).toEqual(['scene']);
-    expect(skill.sections.map((s) => s.id)).toEqual(['S1', 'S2', 'S3', 'S4']);
+    expect(skill.slotTypes).toEqual(['section']);
+    expect(skill.readsSlotTypes).toEqual(['section']);
+    expect(skill.sections.map((s) => s.id)).toEqual(['S1', 'S2', 'S4']);
   });
 
-  it('前两条判据的标题与 zhihu-chapter 的 scene guidance 逐字一致（§6.3）', async () => {
+  it('前两条判据的标题与 zhihu-story 的 section guidance 逐字一致（§6.3）', async () => {
     const skill = await loadSkill(REAL);
     const templateYaml = await readFile(
-      fileURLToPath(new URL('../../../templates/zhihu-chapter/template.yaml', import.meta.url)),
+      fileURLToPath(new URL('../../../templates/zhihu-story/template.yaml', import.meta.url)),
       'utf8',
     );
     // 判据一/二正是实测 3/3 的那两条。它们与模板 guidance 同源，

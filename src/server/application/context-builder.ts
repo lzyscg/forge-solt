@@ -220,6 +220,11 @@ const CompiledValidationReplaySchema = z
     forbidPattern: z.string().nullable(),
     forbidPatternFlags: z.string().nullable(),
     forbidPatternMessage: z.string().nullable(),
+    sourceOverlap: z
+      .object({ privateInputField: z.string(), maxContainment: z.number().min(0).max(1) })
+      .strict()
+      .nullable()
+      .default(null),
   })
   .strict();
 
@@ -283,7 +288,7 @@ const CompiledTemplateReplaySchema = z
       .object({
         fileName: z.string(),
         mediaType: z.string(),
-        assembler: z.literal('markdown_concat_v1'),
+        assembler: z.enum(['markdown_concat_v1', 'numbered_sections_v1']),
       })
       .strict(),
     templateHash: z.string(),
@@ -302,6 +307,8 @@ const FrozenSkillReplaySchema = z
     contentHash: z.string(),
     operation: OperationSchema,
     slotTypes: z.array(z.string()),
+    readsSlotTypes: z.array(z.string()).default([]),
+    status: z.enum(['active', 'archived']).default('active'),
     summary: z.string(),
     preamble: z.string(),
     requiredSections: z.array(z.string()),
@@ -499,6 +506,9 @@ export function parseReplayInput(replayInputJson: string, expectedHash: string):
     throw new ForgeError('STORAGE_ERROR', 'Execution ReplayInput 无法解析为 JSON', null, undefined, error);
   }
 
+  if (canonicalJson(parsed) !== replayInputJson) {
+    throw new ForgeError('STORAGE_ERROR', 'Execution ReplayInput 不是 canonical JSON', null);
+  }
   const result = ReplayInputSchema.safeParse(parsed);
   if (!result.success) {
     throw new ForgeError(
@@ -508,9 +518,6 @@ export function parseReplayInput(replayInputJson: string, expectedHash: string):
       undefined,
       result.error,
     );
-  }
-  if (canonicalJson(result.data) !== replayInputJson) {
-    throw new ForgeError('STORAGE_ERROR', 'Execution ReplayInput 不是 canonical JSON', null);
   }
   return result.data;
 }
@@ -565,6 +572,8 @@ export interface StructuredContextInput {
     forbidPattern: string | null;
     forbidPatternFlags: string | null;
     forbidPatternMessage: string | null;
+    /** S2.5 防抄配置；旧 execution 没有该字段时保持省略，避免改变历史 contextHash。 */
+    sourceOverlap?: { privateInputField: string; maxContainment: number };
   } | null;
   /**
    * R3 / D-31：返修轮的追加语义输入。**刻意进 contextHash**，与 `retry` 相反。
@@ -690,6 +699,7 @@ function renderIdentity(agent: CompiledAgent): string {
 function renderTaskInput(snapshot: FrozenTaskSnapshot): string {
   const lines = ['【任务输入】（已冻结）'];
   for (const field of snapshot.compiled.inputFields) {
+    if (field.visibility === 'system') continue;
     const value = snapshot.input[field.id];
     // 非必填字段可以没有值。写成「（未填写）」而不是省略整行：
     // 省略会让模型以为这个字段不存在，进而自己编一个。
@@ -708,7 +718,7 @@ function formatCharRange(minChars: number | null, maxChars: number | null): stri
 // Structure Context（§7.4）
 // ---------------------------------------------------------------------------
 
-const STRUCTURE_OUTPUT_CONTRACT = [
+const LEGACY_CHAPTER_STRUCTURE_OUTPUT_CONTRACT = [
   '【输出契约】structure_proposal_v1',
   '调用 complete_assignment，参数形如：',
   '{',
@@ -729,6 +739,35 @@ const STRUCTURE_OUTPUT_CONTRACT = [
   '- instruction：这个槽位要完成什么内容目标。内容槽位必填且不可为空',
   '- dependsOn：本槽位开始生产前必须已完成的槽位。只能引用内容承载槽位，不能成环',
 ].join('\n');
+
+function renderStructureOutputContract(template: FrozenTaskSnapshot['compiled']): string {
+  if (template.id === 'zhihu-chapter') return LEGACY_CHAPTER_STRUCTURE_OUTPUT_CONTRACT;
+  const container = template.slotTypes.find((type) => !type.contentBearing);
+  const content = template.slotTypes.find((type) => type.contentBearing);
+  const rootType = container?.id ?? 'root';
+  const contentType = content?.id ?? 'content';
+  return [
+    '【输出契约】structure_proposal_v1',
+    '调用 complete_assignment，参数形如：',
+    '{',
+    '  "kind": "structure",',
+    `  "rootSlotId": "${rootType}",`,
+    '  "slots": [',
+    `    { "id": "${rootType}", "type": "${rootType}", "parentId": null, "order": 0,`,
+    '      "instruction": "容器", "dependsOn": [] },',
+    `    { "id": "${contentType}_01", "type": "${contentType}", "parentId": "${rootType}", "order": 1,`,
+    '      "instruction": "从……切入，完成……，停在……", "dependsOn": [] }',
+    '  ]',
+    '}',
+    '',
+    '字段说明：',
+    '- id：小写字母开头，只含小写字母/数字/下划线，全局唯一',
+    '- parentId：根槽位为 null，其余指向已声明的槽位',
+    '- order：同一父节点下不可重复',
+    '- instruction：这个槽位要完成什么内容目标。内容槽位必填且不可为空',
+    '- dependsOn：本槽位开始生产前必须已完成的槽位。只能引用内容承载槽位，不能成环',
+  ].join('\n');
+}
 
 function renderSlotTypeCatalog(slotTypes: readonly CompiledSlotType[]): string {
   const lines = ['【可用槽位类型】'];
@@ -846,7 +885,7 @@ function buildStructureTexts(input: StructureContextInput): {
       '必须恰好一个根槽位，且根槽位必须是容器类型',
       '至少一个内容承载槽位',
     ].join('\n'),
-    STRUCTURE_OUTPUT_CONTRACT,
+    renderStructureOutputContract(input.snapshot.compiled),
     // 审核意见排在确定性校验之前：两者都在时，前者说的是「这棵树规划得不对」，
     // 后者说的是「这次提交的 JSON 有形式问题」。先看该往哪个方向重新设计，
     // 再看这一版哪里写错了。
@@ -1243,12 +1282,14 @@ function structuredInputOf(
   input: ContextBuilderInput,
   injectedSectionIds: readonly string[],
 ): StructuredContextInput {
-  const taskInput = input.snapshot.compiled.inputFields.map((field) => ({
-    id: field.id,
-    // `?? ''` 而不是省略：`canonicalJson` 会把 undefined 值的键整体剔除，
-    // 于是「没填这个字段」与「模板根本没这个字段」会哈希成同一个值。
-    value: input.snapshot.input[field.id] ?? '',
-  }));
+  const taskInput = input.snapshot.compiled.inputFields
+    .filter((field) => field.visibility !== 'system')
+    .map((field) => ({
+      id: field.id,
+      // `?? ''` 而不是省略：`canonicalJson` 会把 undefined 值的键整体剔除，
+      // 于是「没填这个字段」与「模板根本没这个字段」会哈希成同一个值。
+      value: input.snapshot.input[field.id] ?? '',
+    }));
 
   const skill = {
     id: input.skill.id,
@@ -1285,6 +1326,9 @@ function structuredInputOf(
       forbidPattern: input.slotType.validation.forbidPattern,
       forbidPatternFlags: input.slotType.validation.forbidPatternFlags,
       forbidPatternMessage: input.slotType.validation.forbidPatternMessage,
+      ...(input.slotType.validation.sourceOverlap === null
+        ? {}
+        : { sourceOverlap: input.slotType.validation.sourceOverlap }),
     },
     /**
      * D-32：审核 Agent 每轮全新。`review_slot` 这一支恒为 null，

@@ -39,6 +39,13 @@ const SlotValidationSchema = z
     /** 用户提供的正则。加载期必须过 regex-budget 的时间预算，见 template-loader */
     forbidPattern: z.string().min(1).optional(),
     forbidPatternMessage: z.string().min(1).optional(),
+    sourceOverlap: z
+      .object({
+        privateInputField: IdentifierSchema,
+        maxContainment: z.number().min(0).max(1),
+      })
+      .strict()
+      .optional(),
   })
   .strict()
   .superRefine((value, ctx) => {
@@ -139,7 +146,7 @@ export const RawOutputSchema = z
     fileName: z.string().min(1),
     mediaType: z.string().min(1),
     /** P0 只有一个组装器。写成 literal 而非 string，拼错当场报错而不是组装时才发现 */
-    assembler: z.literal('markdown_concat_v1'),
+    assembler: z.enum(['markdown_concat_v1', 'numbered_sections_v1']),
   })
   .strict();
 
@@ -176,6 +183,8 @@ export const RawInputFieldSchema = z
     label: z.string().min(1),
     type: z.enum(['text', 'textarea']),
     required: z.boolean(),
+    /** agent 进入模型上下文；system 只供确定性校验。 */
+    visibility: z.enum(['agent', 'system']).default('agent'),
     hint: z.string().min(1).optional(),
   })
   .strict();

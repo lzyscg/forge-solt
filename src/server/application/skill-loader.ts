@@ -49,6 +49,10 @@ const SkillFrontmatterSchema = z
     operation: OperationSchema,
     /** 该 Skill 能填哪些槽位类型。`create_structure` 用不上，见下方 superRefine */
     slotTypes: z.array(z.string().min(1)).default([]),
+    /** D-88：本 Skill 会通过 read_slot 读取的槽位类型。散文不可校验，声明可以。 */
+    readsSlotTypes: z.array(z.string().min(1)).default([]),
+    /** D-88：archived Skill 允许不被任何模板引用，但不得再绑定进模板。 */
+    status: z.enum(['active', 'archived']).default('active'),
     /** §4.3 新增约束 1：必填。它是 Context 的 Skill Overview 段与模板详情页 skillSummary 的唯一数据源 */
     summary: z.string().min(1, 'summary 为必填（§4.3 新增约束 1）'),
     /** 自动注入 Context 的章节。其余章节靠模型主动 read_skill_section 取 */
@@ -102,6 +106,9 @@ export interface LoadedSkill {
   version: string;
   operation: Operation;
   slotTypes: readonly string[];
+  /** D-88：通过 read_slot 读取的槽位类型。 */
+  readsSlotTypes: readonly string[];
+  status: 'active' | 'archived';
   summary: string;
   requiredSections: readonly string[];
   /** frontmatter 之后、首个 `## S1` 之前的内容。随 Overview 一起注入（§4.3） */
@@ -262,6 +269,8 @@ export function parseSkill(raw: string, sourcePath: string): LoadedSkill {
     version: meta.version,
     operation: meta.operation,
     slotTypes: meta.slotTypes,
+    readsSlotTypes: meta.readsSlotTypes,
+    status: meta.status,
     summary: meta.summary,
     requiredSections: meta.requiredSections,
     preamble,

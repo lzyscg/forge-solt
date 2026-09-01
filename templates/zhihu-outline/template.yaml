@@ -1,0 +1,104 @@
+id: zhihu-outline
+version: 1.0.0
+name: 知乎短故事全篇大纲提取
+description: 从完整原文提取逐小节执行大纲，供正文模板作为任务输入使用。
+status: published
+
+presentation:
+  outputKind: 全篇执行大纲
+  tags: [两级流水线, 大纲提取, 洗稿]
+  exampleStructure:
+    - { name: outline_document, typeId: outline_document, kind: container, depth: 0 }
+    - { name: story_outline, typeId: story_outline, kind: content, depth: 1 }
+
+inputFields:
+  - id: source_text
+    label: 完整原文
+    type: textarea
+    required: true
+    visibility: agent
+    hint: 只用于提取人物、事件、冲突、反转、节奏与逐小节执行规划
+
+slotTypes:
+  - id: outline_document
+    name: 大纲文档容器
+    description: 承载一份完整故事大纲，不直接产出内容
+    contentBearing: false
+    maxRevisionRounds: 2
+
+  - id: story_outline
+    name: 全篇执行大纲
+    description: 按 8–30 个编号小节组织的全篇规划
+    contentBearing: true
+    validation:
+      minChars: 1000
+      maxChars: 12000
+    guidance:
+      - 每个小节写清出场、目标、冲突、结束状态
+      - 只写规划，不写对白或正文散文
+    maxRevisionRounds: 2
+
+agents:
+  - id: outline_structure_designer
+    name: 大纲任务结构 Agent
+    role: 建立固定的大纲任务槽位结构
+    model: structure
+    systemInstruction: |
+      你只建立大纲任务的固定槽位结构，不分析原文，也不写大纲正文。
+
+  - id: outline_writer
+    name: 全篇大纲写作 Agent
+    role: 从完整原文提取可供正文任务执行的逐小节大纲
+    model: main
+    systemInstruction: |
+      你只提取和组织原文规划，不新增事件，不直接写正文。
+
+  - id: outline_reviewer
+    name: 全篇大纲审核 Agent
+    role: 按指定判据检查大纲是否可供下游使用
+    model: main
+    systemInstruction: |
+      你只审核大纲，不改写原文或正文；每条 finding 必须逐字引用大纲。
+
+skills:
+  - id: outline-structure-design
+    version: 1.0.0
+    source: skills/outline-structure-design/SKILL.md
+  - id: outline-writing
+    version: 1.1.0
+    source: skills/outline-writing/SKILL.md
+  - id: outline-review
+    version: 1.1.0
+    source: skills/outline-review/SKILL.md
+
+bindings:
+  createStructure:
+    agentId: outline_structure_designer
+    skillId: outline-structure-design
+    timeoutMs: 90000
+    maxRetries: 1
+
+  fillSlotByType:
+    story_outline:
+      agentId: outline_writer
+      skillId: outline-writing
+      timeoutMs: 180000
+      maxRetries: 1
+
+  reviewSlotByType:
+    story_outline:
+      agentId: outline_reviewer
+      skillId: outline-review
+      maxRetries: 1
+
+limits:
+  maxSlots: 2
+  maxStructureDepth: 2
+  maxExecutionRetries: 2
+  executionTimeoutMs: 180000
+  maxToolCallsPerAssignment: 24
+
+output:
+  fileName: outline.md
+  mediaType: text/markdown
+  assembler: markdown_concat_v1

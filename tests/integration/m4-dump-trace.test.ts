@@ -26,7 +26,7 @@ beforeAll(async () => {
   writeFileSync(packet, '主角在雨夜与债主对峙，本章需完成摊牌。', 'utf8');
   dbPath = path.join(dir, 'run.sqlite');
   const code = await runTask([
-    '--template', 'zhihu-chapter',
+    '--template', 'zhihu-outline',
     '--input-file', packet,
     '--provider', 'fake',
     '--db', dbPath,

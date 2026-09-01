@@ -1,5 +1,5 @@
 /**
- * R4：仓库里那份**生产模板**（`templates/zhihu-chapter`）与那份**生产审核 Skill**
+ * R4：仓库里那份**生产模板**（`templates/zhihu-story`）与那份**生产审核 Skill**
  * （`skills/scene-review/SKILL.md`）接上之后，审核确实在跑。
  *
  * 为什么不用夹具：R4 唯一的改动就落在这两份真文件上。用 `tests/fixtures` 里的
@@ -36,13 +36,13 @@ interface ReviewRow {
 async function runRealTemplate(): Promise<{ code: number; reviews: ReviewRow[] }> {
   const dir = mkdtempSync(path.join(tmpdir(), 'forge-r4-'));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
-  const packet = path.join(dir, 'packet.txt');
-  writeFileSync(packet, '主角在雨夜与债主对峙，本章需完成摊牌。', 'utf8');
+  const packet = path.join(dir, 'input.json');
+  writeFileSync(packet, JSON.stringify({ outline_blueprint: '完整故事大纲：主角在雨夜与债主对峙，本节需完成摊牌。', source_text: '系统私有原文，不会进入 Agent。' }), 'utf8');
   const dbPath = path.join(dir, 'run.sqlite');
 
   const code = await runTask([
-    '--template', 'zhihu-chapter',
-    '--input-file', packet,
+    '--template', 'zhihu-story',
+    '--input-json', packet,
     '--provider', 'fake',
     '--db', dbPath,
     '--templates-dir', path.join(REPO_ROOT, 'templates'),
@@ -59,17 +59,17 @@ async function runRealTemplate(): Promise<{ code: number; reviews: ReviewRow[] }
 }
 
 describe('R4：生产模板的审核绑定端到端', () => {
-  it('scene 槽位跑满四条判据，各一条 slot_reviews 记录', async () => {
+  it('section 槽位跑满三条判据，各一条 slot_reviews 记录', async () => {
     const { code, reviews } = await runRealTemplate();
-    const scene = reviews.filter((r) => r.slot_id === 'scene_01');
+    const scene = reviews.filter((r) => r.slot_id === 'section_01');
 
     expect(code).toBe(0);
     // 四条判据全部上线（D-28）：三、四实测 0/3 也照样跑，
     // 少一条就说明有人为了「反正测不出来」把它摘了
-    expect(scene.map((r) => r.criterion_id)).toEqual(['S1', 'S2', 'S3', 'S4']);
+    expect(scene.map((r) => r.criterion_id)).toEqual(['S1', 'S2', 'S4']);
     // D-23：一条判据一次 execution，四条各自落一行——
     // 判据 ID 重复会让后一条覆盖前一条，这里就只剩三行
-    expect(scene).toHaveLength(4);
+    expect(scene).toHaveLength(3);
     for (const row of scene) {
       expect(row.round).toBe(0);
       expect(row.verdict).toBe('no_finding');
@@ -86,7 +86,7 @@ describe('R4：生产模板的审核绑定端到端', () => {
    */
   it('根容器跑满结构审核的四条判据，各一条 slot_reviews 记录', async () => {
     const { reviews } = await runRealTemplate();
-    const structure = reviews.filter((r) => r.slot_id === 'chapter');
+    const structure = reviews.filter((r) => r.slot_id === 'story');
 
     expect(structure.map((r) => r.criterion_id)).toEqual(['S1', 'S2', 'S3', 'S4']);
     expect(structure).toHaveLength(4);
@@ -106,6 +106,6 @@ describe('R4：生产模板的审核绑定端到端', () => {
   it('title 不被审：没有绑定的类型不许自己长出审核记录（D-27）', async () => {
     const { reviews } = await runRealTemplate();
     const reviewed = [...new Set(reviews.map((r) => r.slot_id))].sort();
-    expect(reviewed).toEqual(['chapter', 'scene_01']);
+    expect(reviewed).toEqual(['section_01', 'story']);
   });
 });

@@ -29,7 +29,8 @@ import { loadServerConfig } from '@server/config/env.ts';
 
 interface CliArgs {
   template: string;
-  inputFile: string;
+  inputFile: string | null;
+  inputJson: string | null;
   provider: 'fake' | 'real';
   name: string;
   dbPath: string;
@@ -59,10 +60,12 @@ function parseArgs(argv: readonly string[]): CliArgs {
   }
 
   const template = flags.get('template');
-  const inputFile = flags.get('input-file');
-  if (template === undefined || inputFile === undefined) {
+  const inputFile = flags.get('input-file') ?? null;
+  const inputJson = flags.get('input-json') ?? null;
+  if (template === undefined || (inputFile === null && inputJson === null) || (inputFile !== null && inputJson !== null)) {
     throw new Error(
-      '用法：run-task.ts --template <id> --input-file <path> [--provider fake|real]\n' +
+      '用法：run-task.ts --template <id> (--input-file <path> | --input-json <path>) [--provider fake|real]\n' +
+        '  --input-file 只支持模板有一个必填输入字段；多字段模板使用 --input-json\n' +
         '  --provider fake 走脚本化的假 Provider，不联网；real 读 config/providers.yaml',
     );
   }
@@ -77,6 +80,7 @@ function parseArgs(argv: readonly string[]): CliArgs {
   return {
     template,
     inputFile,
+    inputJson,
     provider,
     name: flags.get('name') ?? `${template} CLI 任务`,
     // 默认落到内存库：CLI 的默认行为不该往用户的工作副本里塞数据
@@ -91,7 +95,10 @@ function parseArgs(argv: readonly string[]): CliArgs {
 
 export async function runTask(argv: readonly string[]): Promise<number> {
   const args = parseArgs(argv);
-  const packet = readFileSync(path.resolve(args.inputFile), 'utf8');
+  const packet = args.inputFile === null ? null : readFileSync(path.resolve(args.inputFile), 'utf8');
+  const jsonInput = args.inputJson === null
+    ? null
+    : JSON.parse(readFileSync(path.resolve(args.inputJson), 'utf8')) as unknown;
 
   const db = openDatabase(args.dbPath);
   const migrations = runMigrations(db);
@@ -121,7 +128,9 @@ export async function runTask(argv: readonly string[]): Promise<number> {
   const created = await app.snapshots.createTask({
     templateId: args.template,
     name: args.name,
-    input: singleFieldInput(loaded.compiled.inputFields, packet, args.template),
+    input: packet === null
+      ? objectInput(jsonInput, args.template)
+      : singleFieldInput(loaded.compiled.inputFields, packet, args.template),
   });
   log(`任务已创建：${created.task.id}（${created.task.name}）`);
 
@@ -147,6 +156,18 @@ export async function runTask(argv: readonly string[]): Promise<number> {
   log(`失败原因：${task.errorMessage ?? '（无）'}`, 'error');
   db.close();
   return 1;
+}
+
+function objectInput(value: unknown, templateId: string): Record<string, string> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+    throw new Error(`模板 ${templateId} 的 --input-json 必须是 JSON 对象`);
+  }
+  const result: Record<string, string> = {};
+  for (const [key, field] of Object.entries(value)) {
+    if (typeof field !== 'string') throw new Error(`--input-json 字段 ${key} 必须是字符串`);
+    result[key] = field;
+  }
+  return result;
 }
 
 /**

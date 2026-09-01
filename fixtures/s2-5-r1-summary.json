@@ -1,0 +1,55 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-01",
+  "status": "in_progress",
+  "completion": false,
+  "reason": "真实两级流水线已跑通，但 story.md 汉字数 20491 超过 S2.5 完成判据上限 15850；不放宽门槛，不追加第二个故事。",
+  "sample": {
+    "name": "鸿蒙生两仪",
+    "sourceHan": 6917,
+    "sourceHash": "a946382fa3679508ddd08d7b2ef281e4a6bba3c854bbaf8b3c1e799439c941c6"
+  },
+  "pipeline": {
+    "outlineCompleted": true,
+    "outlineArtifactBytes": 10678,
+    "storyCompleted": true,
+    "storySlots": 27,
+    "sectionSlots": 25,
+    "numberedSections": 25,
+    "numberedAssembler": "真实任务冻结了实现前的 markdown_concat_v1；任务完成后使用同一批槽位内容经 numbered_sections_v1 离线重装配，未再次调用模型。正式 zhihu-story 模板已切换为 numbered_sections_v1。",
+    "storyHan": 20491,
+    "storyBytes": 73350,
+    "inputTokens": 4651118,
+    "outputTokens": 314691,
+    "executions": 202
+  },
+  "antiCopy": {
+    "shingleChars": 14,
+    "step": 1,
+    "temporaryThreshold": 0.3,
+    "acceptedSections": 25,
+    "maxObservedContainment": 0,
+    "meanObservedContainment": 0,
+    "calibrationFormula": "min(0.30, max(0.05, ceil(maxAccepted * 2, 0.01)))",
+    "calibratedThreshold": 0.05,
+    "constructedCopyRejected": true
+  },
+  "privacy": {
+    "privateInputRows": 1,
+    "privateSourceStoredOnlyIn": "task_private_inputs",
+    "sourceMarkerHitsOutsidePrivateTable": 0,
+    "providerPromptHits": 0,
+    "apiTraceReplayHits": 0
+  },
+  "d88": {
+    "preFixReadsSlotTypesFailureObserved": true,
+    "preFixActiveOrphanFailureObserved": true,
+    "finalCatalogTemplates": ["zhihu-outline", "zhihu-story"],
+    "finalCatalogFailures": 0
+  },
+  "interpretation": "这是单故事机制验收，不与 r0 比质量，不声称改善。下一步应在不进入 S3 的前提下解决篇幅超标。",
+  "privateArtifacts": [
+    "bench/runs/s2-5-real/acceptance.sqlite",
+    "bench/runs/s2-5-real/story-numbered.md"
+  ]
+}

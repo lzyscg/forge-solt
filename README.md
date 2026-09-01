@@ -19,8 +19,8 @@
 | **S0 指纹脚本** | ✅ 已由 `05d93af` 完成：`bench/fingerprint.mjs` 建成，并修正语料清单三处口径漏 |
 | **S1 fixture 导出 + 回放器** | ✅ 已完成。旧库 168 个候选中只有 **6 条**双 hash 保真，162 条可审计排除；新增 ReplayInput 后，用当前模板/Skill 完整 capture 3 个故事得到 **114 条新 execution，114/114 逐字保真** |
 | **S2 基线冻结** | ✅ `run r0` 已冻结：15 个 fixture case；四类 `n=3`，场景写作按首跑方差调到 `n=6`；共 54 份、53 成功、1 次未提交。无正文汇总见 `fixtures/s2-r0-summary.json` |
-| 模板/Skill 不一致 | ⚠️ 已作为 **baseline_condition** 进入 r0；下一阶段是 **S2.5**，严格位于 S2 之后、S3 之前 |
-| 当前边界 | **S2.5 尚未开始**；此刻才允许处理模板/Skill 一致性，尚未进入 S3 |
+| 模板/Skill 不一致 | 🚧 **S2.5 机制已落地、真实验收未完成**：两级模板、私有原文、防抄线、readsSlotTypes/孤儿检查均已实现；单故事 25 节跑通，但 20,491 汉字超过 15,850 上限 |
+| 当前边界 | **仍停在 S2.5**；不得进入 S3。无正文验收见 `fixtures/s2-5-r1-summary.json` |
 
 ### 已知的最大问题：产物是流水账
 
@@ -49,15 +49,15 @@ npm run dev:fake          # 全程 FakeProvider，不发任何网络请求
 **headless 跑一个完整任务：**
 
 ```bash
-# 假 Provider，不花钱，用来验证闭环
+# 假 Provider：第一层原文 → 大纲
 npx tsx src/server/cli/run-task.ts \
-  --template zhihu-chapter --input-file fixtures/chapter-packet.txt \
+  --template zhihu-outline --input-file fixtures/chapter-packet.txt \
   --provider fake --db ./data/dev.sqlite
 
-# 真模型。一次章节约 63 万 input token
-npx tsx --env-file=.env src/server/cli/run-task.ts \
-  --template zhihu-chapter --input-file fixtures/chapter-packet-broken.txt \
-  --provider real --db /tmp/run.sqlite
+# 第二层大纲 + 系统私有原文 → 整篇正文，使用 JSON 多字段输入
+npx tsx src/server/cli/run-task.ts \
+  --template zhihu-story --input-json /tmp/story-input.json \
+  --provider fake --db ./data/dev.sqlite
 ```
 
 > **`--db` 不给就是内存库**，进程一退全部丢失。真跑忘了带它，
@@ -82,13 +82,10 @@ REQ §13 / NFR-005：凭据与模型的隐藏推理（`reasoning_content`）
 ## 架构
 
 ```
-执行包 → [结构设计 Agent] → 槽位树 → [结构审核 ×4 判据]
-                                          ↓ 检出问题：整棵树重来
-                                          ↓ 通过
-       每个槽位 → [写作 Agent] → 正文 → [场景审核 ×4 判据]
-                                          ↓ 检出问题：返修（提交编辑清单）
-                                          ↓ 未检出 / 预算耗尽
-                                        原子组装 → 产物
+完整原文 → [zhihu-outline] → outline.md
+outline.md + 系统私有原文 → [zhihu-story] → story → title + 8–30 个 section
+                                      ↓ 结构审核 / 小节审核 / 防抄线
+                                  numbered_sections_v1 → story.md
 ```
 
 | 层 | 位置 | 职责 |
@@ -110,20 +107,21 @@ REQ §13 / NFR-005：凭据与模型的隐藏推理（`reasoning_content`）
 
 ---
 
-## Skill 与模板（S0–S2 先不改）
+## Skill 与模板（S2.5 中间态）
 
 ```
 skills/
-  chapter-structure-design/   写作：把章切成槽位树
-  scene-writing/              写作：写一个场景        ← S5 才主要动这里（S0–S2 不改）
-  title-writing/  outline-writing/
-  scene-review/               审核：4 条判据（S1 承接 / S2 心理解释 / S3 事实矛盾 / S4 停点）
-  structure-review/           审核：4 条判据
-  outline-review/
-templates/zhihu-chapter/template.yaml
+  outline-structure-design/ outline-writing/ outline-review/
+  chapter-structure-design/ title-writing/ scene-writing/
+  structure-review/ scene-review/
+templates/
+  zhihu-outline/template.yaml   原文 → 全篇执行大纲
+  zhihu-story/template.yaml     大纲 + 私有原文 → story.md
 ```
 
-**S0–S2 已完成，当前停在 S2.5 入口。** `notes/SKILL-ITERATION-PLAN-S0-S6.md` 已把内容质量迭代拆成：S0 指纹脚本、S1 fixture/回放器、S2 基线冻结、S2.5 模板层对齐、S3–S6 再做确定性闸门与 Skill 迭代。S2 的 `r0` 已在不修改模板/Skill 的前提下冻结，模板/Skill 不一致也已作为 `baseline_condition` 留在报告里。
+**S0–S2 已完成；S2.5 机制已实现但真实验收未完成。** 两级流水线、system 私有输入、
+14 字片段防抄线、story→section 与 D-88 检查均已落地；真实单故事跑出 25 个编号小节，
+但 20,491 汉字超过 15,850 上限，所以仍停在 S2.5。
 
 **每个 Skill 目录下有一份 `RELIABILITY.md`**，记录这条 Skill / 每条判据
 在真实模型上的实测表现。它**刻意不在 `SKILL.md` 里**——`SKILL.md` 的每个字节

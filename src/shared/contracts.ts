@@ -57,6 +57,8 @@ export const InputFieldSchema = z.object({
   label: z.string(),
   type: z.enum(['text', 'textarea']),
   required: z.boolean(),
+  /** agent = 进入 Prompt/read_task_input；system = 只供服务端确定性校验。 */
+  visibility: z.enum(['agent', 'system']).default('agent'),
   /** 字段说明，null 表示不显示提示行 */
   hint: z.string().nullable(),
 });

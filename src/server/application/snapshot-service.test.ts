@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { canonicalJson, sha256Hex } from '@server/domain/canonical.ts';
 import { createTestEnv, dumpAll, type TestEnv } from '../../../tests/fixtures/db.ts';
 import { parseSkill } from './skill-loader.ts';
-import { createSnapshotService, normalizeTaskInput, prepareSnapshot } from './snapshot-service.ts';
+import { createSnapshotService, normalizeTaskInput, prepareSnapshot, splitTaskInput } from './snapshot-service.ts';
 import type { SnapshotService } from './snapshot-service.ts';
 import { createTemplateCatalog } from './template-catalog.ts';
 import type { TemplateCatalog } from './template-catalog.ts';
@@ -126,8 +126,8 @@ describe('prepareSnapshot（D-02 / D-12）', () => {
 
 describe('normalizeTaskInput', () => {
   const fields = [
-    { id: 'packet', label: '执行包', type: 'textarea' as const, required: true, hint: null },
-    { id: 'note', label: '备注', type: 'text' as const, required: false, hint: null },
+    { id: 'packet', label: '执行包', type: 'textarea' as const, required: true, visibility: 'agent' as const, hint: null },
+    { id: 'note', label: '备注', type: 'text' as const, required: false, visibility: 'agent' as const, hint: null },
   ];
 
   it('required 缺失被拒', () => {
@@ -154,6 +154,18 @@ describe('normalizeTaskInput', () => {
     ]);
   });
 
+  it('system 输入与 agent 输入按 visibility 分区', () => {
+    const privateFields = [
+      fields[0]!,
+      { id: 'source', label: '原文', type: 'textarea' as const, required: true, visibility: 'system' as const, hint: null },
+    ];
+    const normalized = normalizeTaskInput(privateFields, { packet: '大纲', source: '私有原文' }, 'tpl');
+    expect(splitTaskInput(privateFields, normalized)).toEqual({
+      agent: { packet: '大纲' },
+      system: { source: '私有原文' },
+    });
+  });
+
   it('错误码是 TASK_INPUT_INVALID', () => {
     expect(() => normalizeTaskInput(fields, {}, 'tpl')).toThrow(
       expect.objectContaining({ code: 'TASK_INPUT_INVALID' }),
@@ -162,6 +174,34 @@ describe('normalizeTaskInput', () => {
 });
 
 describe('createTask（§5.5 第一行）', () => {
+  it('系统私有输入只落私有表，不进入 Task 或 FrozenSnapshot', async () => {
+    const e = createTestEnv();
+    env = e;
+    const baseCatalog = catalog();
+    const loaded = await baseCatalog.get('zhihu-chapter');
+    const privateCompiled = {
+      ...loaded.compiled,
+      id: loaded.compiled.id,
+      inputFields: [
+        { ...loaded.compiled.inputFields[0]!, visibility: 'agent' as const },
+        { id: 'source_text', label: '原文', type: 'textarea' as const, required: true, visibility: 'system' as const, hint: null },
+      ],
+    };
+    const privateCatalog = { requireUsable: async () => ({ ...loaded, compiled: privateCompiled }) } as never;
+    const privateService = createSnapshotService({ catalog: privateCatalog, uow: e.uow });
+    const secret = '仅系统可见的原文字节-PRIVATE-SOURCE';
+    const created = await privateService.createTask({
+      templateId: loaded.compiled.id,
+      name: '私有输入',
+      input: { chapter_packet: 'Agent 可见大纲', source_text: secret },
+    });
+
+    expect(created.task.input).toEqual({ chapter_packet: 'Agent 可见大纲' });
+    expect(privateService.readSnapshot(created.task.id).input).toEqual({ chapter_packet: 'Agent 可见大纲' });
+    expect(privateService.readPrivateInput(created.task.id, 'source_text')).toBe(secret);
+    expect(JSON.stringify(created)).not.toContain(secret);
+  });
+
   it('三条 INSERT 在一个事务内落库，任务落在 ready / structure', async () => {
     const { env: e, service } = serviceWith();
     const created = await service.createTask({ templateId: 'zhihu-chapter', name: '第一章', input: INPUT });

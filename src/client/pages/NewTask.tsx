@@ -246,6 +246,11 @@ export function NewTask() {
                     <label style={{ display: 'flex', alignItems: 'baseline', gap: 7 }}>
                       <span>{f.label}</span>
                       <ReqBadge required={f.required} />
+                      {f.visibility === 'system' ? (
+                        <span style={{ fontSize: 10.5, color: 'var(--color-neutral-600)', border: '1px solid var(--color-divider)', padding: '0 5px', borderRadius: 2 }}>
+                          系统私有 · 不发送给 Agent
+                        </span>
+                      ) : null}
                       <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--color-neutral-500)', fontVariantNumeric: 'tabular-nums' }}>
                         {f.id}
                       </span>

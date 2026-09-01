@@ -433,8 +433,8 @@ describe('FR-TPL-003：reviewSlotByType 的编译期校验（R4）', () => {
  * R4：仓库里真正会被加载的那份 `templates/zhihu-chapter`。
  * 夹具过了而生产模板没过，等于什么都没验——而这一版的改动恰恰只落在生产模板上。
  */
-describe('templates/zhihu-chapter：审核绑定（R4 / R6 / D-27）', () => {
-  const REAL_TEMPLATE_DIR = fileURLToPath(new URL('../../../templates/zhihu-chapter', import.meta.url));
+describe('templates/zhihu-story：审核绑定（R4 / R6 / D-27）', () => {
+  const REAL_TEMPLATE_DIR = fileURLToPath(new URL('../../../templates/zhihu-story', import.meta.url));
   const REAL_SKILLS_DIR = fileURLToPath(new URL('../../../skills', import.meta.url));
   const realOptions: TemplateLoaderOptions = { ...OPTIONS, skillsDir: REAL_SKILLS_DIR };
 
@@ -450,17 +450,17 @@ describe('templates/zhihu-chapter：审核绑定（R4 / R6 / D-27）', () => {
    */
   it('按类型绑审核的只有 scene，title 不绑', async () => {
     const { compiled } = await loadTemplate(REAL_TEMPLATE_DIR, realOptions);
-    expect(Object.keys(compiled.bindings.reviewSlotByType).sort()).toEqual(['scene']);
+    expect(Object.keys(compiled.bindings.reviewSlotByType).sort()).toEqual(['section']);
   });
 
-  it('scene 绑到 scene-review，且审核 Agent 与写作 Agent 不是同一个', async () => {
+  it('section 绑到 scene-review，且审核 Agent 与写作 Agent 不是同一个', async () => {
     const { compiled } = await loadTemplate(REAL_TEMPLATE_DIR, realOptions);
-    const binding = compiled.bindings.reviewSlotByType['scene'];
+    const binding = compiled.bindings.reviewSlotByType['section'];
     expect(binding?.skillId).toBe('scene-review');
-    expect(binding?.agentId).toBe('scene_reviewer');
+    expect(binding?.agentId).toBe('section_reviewer');
     // 同一个 Agent 既写又审，它的 systemInstruction 会同时装着
     // 「你负责写」和「你负责挑错」——而审核已经有极强的放行先验
-    expect(binding?.agentId).not.toBe(compiled.bindings.fillSlotByType['scene']?.agentId);
+    expect(binding?.agentId).not.toBe(compiled.bindings.fillSlotByType['section']?.agentId);
   });
 
   it('R5：结构审核绑到 structure-review，Agent 与结构设计 Agent 不是同一个', async () => {
@@ -480,8 +480,8 @@ describe('templates/zhihu-chapter：审核绑定（R4 / R6 / D-27）', () => {
    * 结构的那个数落在**容器类型**上，因为轮次记在根槽位的 revision_round 里。
    */
   it.each([
-    ['scene', 2],
-    ['chapter', 3],
+    ['section', 2],
+    ['story', 3],
   ])('%s 的 maxRevisionRounds 是 %i（D-26）', async (type, rounds) => {
     const { compiled } = await loadTemplate(REAL_TEMPLATE_DIR, realOptions);
     expect(compiled.slotTypes.find((s) => s.id === type)?.maxRevisionRounds).toBe(rounds);

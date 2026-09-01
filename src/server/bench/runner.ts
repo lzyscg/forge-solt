@@ -260,7 +260,7 @@ class MemoryCompletionPort implements CompletionPort {
       if (input.operation !== 'fill_slot') {
         return { outcome: invalidSubmission('slot_content 与 fixture operation 不匹配'), payload };
       }
-      const reasons = validateSlotContent(payload.content, input.slotType.validation);
+      const reasons = validateSlotContent(payload.content, input.slotType.validation, null);
       if (reasons.length === 0) return { outcome: { ok: true }, payload };
       return {
         outcome: {
@@ -615,6 +615,8 @@ async function loadBaselineSkills(skillsDir: string): Promise<Record<string, Fro
       contentHash: loaded.contentHash,
       operation: loaded.operation,
       slotTypes: loaded.slotTypes,
+      readsSlotTypes: loaded.readsSlotTypes,
+      status: loaded.status,
       summary: loaded.summary,
       preamble: loaded.preamble,
       requiredSections: loaded.requiredSections,

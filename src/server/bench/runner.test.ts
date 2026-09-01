@@ -11,6 +11,7 @@ import {
 } from '@server/application/context-builder.ts';
 import type { FrozenSkill, FrozenTaskSnapshot } from '@server/application/snapshot-service.ts';
 import { loadTemplate, type LoadedTemplate } from '@server/application/template-loader.ts';
+import { loadProviderConfig } from '@server/application/provider-config.ts';
 import type { Slot } from '@server/domain/types.ts';
 import { FakeProvider, type FakeProviderScript } from '@server/runtime/provider/fake.ts';
 import {
@@ -52,10 +53,11 @@ async function workspace(): Promise<{ dir: string; fixturePath: string; outPath:
   temporaries.push(dir);
   const fixturePath = path.join(dir, 'fixtures.json');
   const outPath = path.join(dir, 'run.json');
-  const loaded = await loadTemplate(path.join(ROOT, 'templates/zhihu-chapter'), {
-    skillsDir: path.join(ROOT, 'skills'),
+  const providers = await loadProviderConfig(path.join(ROOT, 'config/providers.yaml'));
+  const loaded = await loadTemplate(path.join(ROOT, 'tests/fixtures/s2-r0/templates/zhihu-chapter'), {
+    skillsDir: path.join(ROOT, 'tests/fixtures/s2-r0/skills'),
     defaults: CONFIG.defaults,
-    knownAliases: new Set(Object.keys(CONFIG.aliases)),
+    knownAliases: new Set(Object.keys(providers.aliases)),
   });
   return { dir, fixturePath, outPath, loaded };
 }
@@ -70,6 +72,8 @@ function freezeSkill(loaded: LoadedTemplate, skillId: string): FrozenSkill {
     contentHash: skill.contentHash,
     operation: skill.operation,
     slotTypes: skill.slotTypes,
+    readsSlotTypes: skill.readsSlotTypes,
+    status: skill.status,
     summary: skill.summary,
     preamble: skill.preamble,
     requiredSections: skill.requiredSections,
@@ -190,7 +194,7 @@ function options(fixturePath: string, outPath: string) {
     outPath,
     repeats: 3,
     providerId: 'deepseek' as const,
-    skillsDir: path.join(ROOT, 'skills'),
+    skillsDir: path.join(ROOT, 'tests/fixtures/s2-r0/skills'),
     providerConfig: CONFIG,
   };
 }

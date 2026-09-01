@@ -98,7 +98,7 @@ describe('TemplateCatalog', () => {
       patternBudgetMs: 60,
     });
     const failures = await instance.failures();
-    expect(failures.map((f) => f.dirName).sort()).toEqual([
+    expect(failures.map((f) => f.dirName).filter((name) => !name.startsWith('skill:')).sort()).toEqual([
       'catastrophic-forbid-pattern',
       'dirname-mismatch',
       'missing-create-structure-binding',

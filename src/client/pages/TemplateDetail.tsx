@@ -212,6 +212,9 @@ export function TemplateDetail() {
                       {f.label}
                       {f.hint !== null ? <span style={{ color: 'var(--color-neutral-500)' }}> · {f.hint}</span> : null}
                     </span>
+                    {f.visibility === 'system' ? (
+                      <span style={{ fontSize: 10.5, color: 'var(--color-neutral-600)' }}>系统私有 · 不发送给 Agent</span>
+                    ) : null}
                     <ReqBadge required={f.required} />
                   </div>
                 ))}

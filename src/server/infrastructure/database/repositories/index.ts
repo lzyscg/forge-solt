@@ -26,6 +26,8 @@ import type { TaskRepo } from './task-repo.ts';
 import { createTaskRepo } from './task-repo.ts';
 import type { ProviderHealthRepo } from './provider-health-repo.ts';
 import { createProviderHealthRepo } from './provider-health-repo.ts';
+import type { TaskPrivateInputRepo } from './task-private-input-repo.ts';
+import { createTaskPrivateInputRepo } from './task-private-input-repo.ts';
 import type { TraceRepo } from './trace-repo.ts';
 import { createTraceRepo } from './trace-repo.ts';
 
@@ -36,6 +38,7 @@ export type {
   SlotRepo,
   SlotReviewsRepo,
   SnapshotRepo,
+  TaskPrivateInputRepo,
   TaskRepo,
   TraceRepo,
 };
@@ -61,6 +64,7 @@ export interface Repositories {
   artifacts: ArtifactRepo;
   snapshots: SnapshotRepo;
   slotReviews: SlotReviewsRepo;
+  taskPrivateInputs: TaskPrivateInputRepo;
   /**
    * Provider 耗尽状态（D-68）。它与其余仓储不同——**不属于任何一个任务**，
    * 是跨任务的共享状态。放进 UoW 是为了让「标记耗尽」能和「任务失败」
@@ -83,6 +87,7 @@ export function buildRepositories(db: ForgeDb, clock: Clock = systemClock): Repo
     artifacts: createArtifactRepo(db, clock),
     snapshots: createSnapshotRepo(db, clock),
     slotReviews: createSlotReviewsRepo(db, clock),
+    taskPrivateInputs: createTaskPrivateInputRepo(db, clock),
     providerHealth: createProviderHealthRepo(db, clock),
   };
 }

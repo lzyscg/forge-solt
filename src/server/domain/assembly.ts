@@ -84,6 +84,28 @@ export function assembleMarkdownConcatV1(slots: readonly Slot[]): string {
   return `${parts.join('\n\n')}\n`;
 }
 
+export function assembleNumberedSectionsV1(slots: readonly Slot[]): string {
+  const parts = includedContentSlots(slots);
+  if (parts.length === 0) return '';
+  const title = parts.find((part) => part.slot.type === 'title');
+  const sections = parts.filter((part) => part.slot.type === 'section');
+  const other = parts.filter((part) => part.slot.type !== 'title' && part.slot.type !== 'section');
+  const output: string[] = [];
+  if (title !== undefined) output.push(title.content);
+  output.push(...sections.map((part, index) => `${index + 1}.\n\n${part.content}`));
+  output.push(...other.map((part) => part.content));
+  return output.length === 0 ? '' : `${output.join('\n\n')}\n`;
+}
+
+function includedContentSlots(slots: readonly Slot[]): { slot: Slot; content: string }[] {
+  const included = new Set(assemblyOrder(slots));
+  return documentOrder(slots).flatMap((slot) => {
+    if (!included.has(slot.slotId) || slot.contentText === null) return [];
+    const content = normalizeContent(slot.contentText);
+    return content === '' ? [] : [{ slot, content }];
+  });
+}
+
 /**
  * 产物校验和。`sha256:` 前缀是存储格式的一部分（文档 §6.3），
  * 让 artifact 表里的值自解释，未来换算法时旧值仍可辨识。

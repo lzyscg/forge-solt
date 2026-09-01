@@ -296,7 +296,8 @@ function skillFromDisk(dir: string, skillId: string): FrozenSkill {
   for (const s of loaded.sections) sectionIndex[s.id] = s;
   return {
     id: loaded.id, version: loaded.version, operation: loaded.operation,
-    slotTypes: loaded.slotTypes, summary: loaded.summary, preamble: loaded.preamble,
+    slotTypes: loaded.slotTypes, readsSlotTypes: loaded.readsSlotTypes, status: loaded.status,
+    summary: loaded.summary, preamble: loaded.preamble,
     requiredSections: loaded.requiredSections, sections: loaded.sections, sectionIndex,
     contentMarkdown: fs.readFileSync(p, 'utf8'), contentHash: loaded.contentHash,
   };

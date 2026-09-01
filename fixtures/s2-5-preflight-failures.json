@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-01",
+  "stage": "S2.5 pre-fix",
+  "expectedFailures": [
+    {
+      "template": "zhihu-chapter",
+      "skill": "title-writing",
+      "rule": "readsSlotTypes_missing_from_template",
+      "missingSlotTypes": ["chapter_outline"],
+      "observed": true
+    },
+    {
+      "skills": ["outline-writing", "outline-review"],
+      "rule": "active_skill_must_be_referenced",
+      "observed": true,
+      "evidence": "TemplateCatalog red run reported active orphan failures before first-layer template existed."
+    }
+  ],
+  "finalState": {
+    "templates": ["zhihu-outline", "zhihu-story"],
+    "catalogFailures": 0,
+    "readsSlotTypesChecksGreen": true,
+    "activeOrphanChecksGreen": true
+  },
+  "privacy": "仅记录 ID、规则与布尔结果，不含 Skill 正文、任务输入或模型输出。"
+}

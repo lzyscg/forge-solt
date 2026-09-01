@@ -55,6 +55,7 @@ export interface CompiledSlotValidation {
   /** 从内联标志前缀解析出的 flags，配合 forbidPattern 直接 `new RegExp(p, f)` */
   forbidPatternFlags: string | null;
   forbidPatternMessage: string | null;
+  sourceOverlap: { privateInputField: string; maxContainment: number } | null;
 }
 
 export interface CompiledSlotType {
@@ -139,7 +140,7 @@ export interface CompiledTemplate {
     reviewStructure: CompiledBinding | null;
   };
   limits: CompiledLimits;
-  output: { fileName: string; mediaType: string; assembler: 'markdown_concat_v1' };
+  output: { fileName: string; mediaType: string; assembler: 'markdown_concat_v1' | 'numbered_sections_v1' };
   /** `canonicalHash` 本对象（不含此字段）的结果。见 computeTemplateHash */
   templateHash: string;
 }
@@ -379,12 +380,28 @@ export async function compileTemplate(
         forbidPattern: pattern?.source ?? null,
         forbidPatternFlags: pattern?.flags ?? null,
         forbidPatternMessage: s.validation?.forbidPatternMessage ?? null,
+        sourceOverlap: s.validation?.sourceOverlap ?? null,
       },
       guidance: s.guidance ?? [],
       maxRevisionRounds: s.maxRevisionRounds ?? 2,
     };
   });
   const slotTypeById = new Map(slotTypes.map((s) => [s.id, s]));
+  const inputFieldById = new Map(raw.inputFields.map((field) => [field.id, field]));
+  for (const slotType of slotTypes) {
+    const overlap = slotType.validation.sourceOverlap;
+    if (overlap === null) continue;
+    const field = inputFieldById.get(overlap.privateInputField);
+    if (field === undefined) {
+      throw invalid(templateRef, `槽位类型 ${slotType.id} 的 sourceOverlap 引用了不存在的输入字段：${overlap.privateInputField}`);
+    }
+    if (field.visibility !== 'system' || field.type !== 'textarea') {
+      throw invalid(
+        templateRef,
+        `槽位类型 ${slotType.id} 的 sourceOverlap 字段 ${field.id} 必须是 visibility=system 的 textarea`,
+      );
+    }
+  }
   const contentBearingIds = slotTypes.filter((s) => s.contentBearing).map((s) => s.id);
   if (contentBearingIds.length === 0) {
     throw invalid(templateRef, 'slotTypes 中至少要有一个 contentBearing 类型，否则模板产不出任何内容');
@@ -414,6 +431,17 @@ export async function compileTemplate(
       throw invalid(
         templateRef,
         `skills[${ref.id}] 声明 version ${ref.version}，但 SKILL.md 里是 ${skill.version}`,
+      );
+    }
+    if (skill.status === 'archived') {
+      throw invalid(templateRef, `skills[${ref.id}] 已标记 archived，不得再被模板引用`);
+    }
+    const missingReads = skill.readsSlotTypes.filter((id) => !slotTypeById.has(id));
+    if (missingReads.length > 0) {
+      throw invalid(
+        templateRef,
+        `Skill ${skill.id} 的 readsSlotTypes 声明读取 [${missingReads.join(', ')}]，` +
+          '但模板没有这些槽位类型',
       );
     }
     skills[ref.id] = skill;
@@ -596,6 +624,7 @@ export async function compileTemplate(
       label: f.label,
       type: f.type,
       required: f.required,
+      visibility: f.visibility,
       // DTO 侧 hint 是 `string | null`（不是可选），这里就地补齐，
       // 免得每个消费方各自 `?? null` 一次，也免得 canonicalJson 因 undefined 剔除键
       // 而让「有 hint」和「hint 为 null」哈希成同一个值。

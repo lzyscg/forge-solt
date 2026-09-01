@@ -24,7 +24,7 @@ import type { CompiledSlotType, CompiledTemplate } from '@server/application/tem
 import type { LoadedSkill } from '@server/application/skill-loader.ts';
 
 const SCENARIO = process.env['FAKE_SCENARIO'] ?? 'happy';
-const TEMPLATE_ID = process.env['FAKE_TEMPLATE'] ?? 'zhihu-chapter';
+const TEMPLATE_ID = process.env['FAKE_TEMPLATE'] ?? 'zhihu-story';
 
 async function main(): Promise<void> {
   /**

@@ -1,0 +1,146 @@
+id: zhihu-story
+version: 1.0.0
+name: 知乎盐选整篇故事生产
+description: 以上游全篇大纲为可见输入，逐小节写作并装配为完整故事。
+status: published
+
+presentation:
+  outputKind: 完整短故事
+  tags: [两级流水线, 整篇故事, 小节写作]
+  exampleStructure:
+    - { name: story, typeId: story, kind: container, depth: 0 }
+    - { name: title, typeId: title, kind: content, depth: 1 }
+    - { name: section_01, typeId: section, kind: content, depth: 1 }
+
+inputFields:
+  - id: outline_blueprint
+    label: 全篇执行大纲
+    type: textarea
+    required: true
+    visibility: agent
+    hint: 粘贴第一层任务产出的 outline.md
+  - id: source_text
+    label: 完整原文（系统私有）
+    type: textarea
+    required: true
+    visibility: system
+    hint: 仅供确定性防抄校验，不会进入 Prompt 或 Agent 工具
+
+slotTypes:
+  - id: story
+    name: 故事容器
+    description: 承载完整短故事结构，不产出正文
+    contentBearing: false
+    maxRevisionRounds: 3
+
+  - id: title
+    name: 故事标题
+    description: 完整短故事标题
+    contentBearing: true
+    validation:
+      minChars: 4
+      maxChars: 40
+
+  - id: section
+    name: 编号小节正文
+    description: 按全篇大纲推进一个编号小节
+    contentBearing: true
+    validation:
+      minChars: 300
+      maxChars: 1100
+      forbidPattern: '(?m)^#{1,6}\s'
+      forbidPatternMessage: 小节正文不得包含 Markdown 小标题
+      sourceOverlap:
+        privateInputField: source_text
+        maxContainment: 0.05
+    guidance:
+      - 首段需衔接前一小节的结尾状态
+      - 通过可见行动推进，不用心理解释代替事件
+      - 兑现本小节的大纲目标，不自行扩写无关支线
+    maxRevisionRounds: 2
+
+agents:
+  - id: structure_designer
+    name: 故事结构设计 Agent
+    role: 根据全篇执行大纲设计 story → section 槽位结构
+    model: structure
+    systemInstruction: |
+      你负责设计完整故事的标题与编号小节结构，不负责撰写正文。
+
+  - id: story_writer
+    name: 故事写作 Agent
+    role: 根据槽位目标和全篇大纲生产单个标题或小节正文
+    model: main
+    systemInstruction: |
+      你只写当前槽位，不修改结构或其他小节。
+
+  - id: section_reviewer
+    name: 小节审核 Agent
+    role: 按判据检查单个小节正文
+    model: main
+    systemInstruction: |
+      你按指定判据审核当前小节，不改写正文。
+
+  - id: structure_reviewer
+    name: 故事结构审核 Agent
+    role: 按判据检查全篇小节目标
+    model: main
+    systemInstruction: |
+      你只审核 story → section 结构目标，不写正文。
+
+skills:
+  - id: chapter-structure-design
+    version: 1.1.0
+    source: skills/chapter-structure-design/SKILL.md
+  - id: title-writing
+    version: 1.1.0
+    source: skills/title-writing/SKILL.md
+  - id: scene-writing
+    version: 1.1.0
+    source: skills/scene-writing/SKILL.md
+  - id: scene-review
+    version: 1.1.0
+    source: skills/scene-review/SKILL.md
+  - id: structure-review
+    version: 1.3.0
+    source: skills/structure-review/SKILL.md
+
+bindings:
+  createStructure:
+    agentId: structure_designer
+    skillId: chapter-structure-design
+    timeoutMs: 90000
+    maxRetries: 2
+
+  fillSlotByType:
+    title:
+      agentId: story_writer
+      skillId: title-writing
+    section:
+      agentId: story_writer
+      skillId: scene-writing
+      timeoutMs: 180000
+      maxRetries: 1
+
+  reviewSlotByType:
+    section:
+      agentId: section_reviewer
+      skillId: scene-review
+      maxRetries: 1
+
+  reviewStructure:
+    agentId: structure_reviewer
+    skillId: structure-review
+    maxRetries: 1
+
+limits:
+  maxSlots: 34
+  maxStructureDepth: 4
+  maxExecutionRetries: 2
+  executionTimeoutMs: 120000
+  maxToolCallsPerAssignment: 24
+
+output:
+  fileName: story.md
+  mediaType: text/markdown
+  assembler: numbered_sections_v1

@@ -82,6 +82,8 @@ import { describePick, pickProvider } from '@server/domain/provider-fallback.ts'
 export interface FrozenSkillIndex {
   operation: LoadedSkill['operation'];
   slotTypes: readonly string[];
+  readsSlotTypes: readonly string[];
+  status: LoadedSkill['status'];
   summary: string;
   preamble: string;
   requiredSections: readonly string[];
@@ -139,6 +141,8 @@ function freezeSkill(taskId: string, skill: LoadedSkill): TaskSkillSnapshot {
   const index: FrozenSkillIndex = {
     operation: skill.operation,
     slotTypes: skill.slotTypes,
+    readsSlotTypes: skill.readsSlotTypes,
+    status: skill.status,
     summary: skill.summary,
     preamble: skill.preamble,
     requiredSections: skill.requiredSections,
@@ -261,6 +265,20 @@ export function normalizeTaskInput(
   return normalized;
 }
 
+export function splitTaskInput(
+  inputFields: readonly InputField[],
+  normalized: Readonly<Record<string, string>>,
+): { agent: Record<string, string>; system: Record<string, string> } {
+  const agent: Record<string, string> = {};
+  const system: Record<string, string> = {};
+  for (const field of inputFields) {
+    const value = normalized[field.id];
+    if (value === undefined) continue;
+    (field.visibility === 'system' ? system : agent)[field.id] = value;
+  }
+  return { agent, system };
+}
+
 // ---------------------------------------------------------------------------
 // 服务
 // ---------------------------------------------------------------------------
@@ -309,6 +327,8 @@ export interface SnapshotService {
    * 新任务落在 `ready` / `structure`——启动是另一件事（M3 的 lifecycle-service）。
    */
   createTask(input: CreateTaskInput): Promise<CreatedTask>;
+  /** 仅服务端确定性校验可读；返回值不得进入 API/Prompt/ReplayInput/trace。 */
+  readPrivateInput(taskId: string, fieldId: string): string | null;
   /** M3 ContextBuilder 的读入口。同步，因为它只查库（better-sqlite3） */
   readSnapshot(taskId: string): FrozenTaskSnapshot;
 }
@@ -333,6 +353,8 @@ function parseFrozenSkill(taskId: string, row: TaskSkillSnapshot): FrozenSkill {
     contentHash: row.contentHash,
     operation: index.operation,
     slotTypes: index.slotTypes,
+    readsSlotTypes: index.readsSlotTypes,
+    status: index.status,
     summary: index.summary,
     preamble: index.preamble,
     requiredSections: index.requiredSections,
@@ -398,7 +420,8 @@ export function createSnapshotService(options: SnapshotServiceOptions): Snapshot
       // 是为了让状态不对时报 TEMPLATE_NOT_PUBLISHED 而不是 TEMPLATE_NOT_FOUND——
       // 对着一个自己刚建的模板说「不存在」是最令人困惑的错误。
       const loaded = await catalog.requireUsable(request.templateId);
-      const input = normalizeTaskInput(loaded.compiled.inputFields, request.input, loaded.compiled.id);
+      const normalizedInput = normalizeTaskInput(loaded.compiled.inputFields, request.input, loaded.compiled.id);
+      const input = splitTaskInput(loaded.compiled.inputFields, normalizedInput);
 
       const taskId = newId();
       // 冻结的入参只取 compiled + skills：presentation 进不来（D-02）
@@ -437,11 +460,19 @@ export function createSnapshotService(options: SnapshotServiceOptions): Snapshot
           id: taskId,
           name,
           snapshotId: prepared.snapshotId,
-          input,
+          input: input.agent,
           status: 'ready',
           phase: 'structure',
           pinnedProviders: pick?.pinned ?? null,
         });
+        repos.taskPrivateInputs.insertMany(
+          Object.entries(input.system).map(([fieldId, content]) => ({
+            taskId,
+            fieldId,
+            content,
+            contentHash: sha256Hex(content),
+          })),
+        );
 
         // 轨迹必须写在任务行之后：trace_events.task_id 的外键**不是延迟的**
         // （只有 task_snapshots.task_id 是 DEFERRABLE，D-18）。
@@ -462,6 +493,15 @@ export function createSnapshotService(options: SnapshotServiceOptions): Snapshot
 
         return { task, snapshot, skills: prepared.skills };
       });
+    },
+
+    readPrivateInput(taskId, fieldId) {
+      const stored = uow.repositories.taskPrivateInputs.get(taskId, fieldId);
+      if (stored === null) return null;
+      if (sha256Hex(stored.content) !== stored.contentHash) {
+        throw storageError(taskId, `任务 ${taskId} 的系统私有输入 ${fieldId} 与 hash 不一致`);
+      }
+      return stored.content;
     },
 
     readSnapshot(taskId) {

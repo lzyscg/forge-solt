@@ -41,6 +41,7 @@ import { sha256Hex } from '@server/domain/canonical.ts';
 import type { Slot, SlotProducer } from '@server/domain/types.ts';
 import { verifyFindings, type RawFinding } from '@server/domain/review-evidence.ts';
 import type { UnitOfWork, UnitOfWorkHandle } from '@server/infrastructure/uow.ts';
+import { SOURCE_SHINGLE_CHARS, sourceContainment } from '@server/domain/source-overlap.ts';
 import type { CompiledSlotValidation } from './template-loader.ts';
 import { contentUnderReviewOf } from './review-target.ts';
 import type { SnapshotService } from './snapshot-service.ts';
@@ -70,6 +71,7 @@ function countChars(text: string): number {
 export function validateSlotContent(
   content: string,
   validation: CompiledSlotValidation,
+  privateSource: string | null = null,
 ): string[] {
   const reasons: string[] = [];
   const trimmed = content.trim();
@@ -99,6 +101,21 @@ export function validateSlotContent(
       reasons.push(
         validation.forbidPatternMessage ?? '正文命中了本槽位禁止出现的格式（forbidPattern）',
       );
+    }
+  }
+
+  const overlap = validation.sourceOverlap;
+  if (overlap !== null) {
+    if (privateSource === null) {
+      reasons.push('系统缺少防抄校验所需的私有原文，拒绝保存正文');
+    } else {
+      const containment = sourceContainment(trimmed, privateSource);
+      if (containment > overlap.maxContainment) {
+        reasons.push(
+          `正文与私有原文的 ${SOURCE_SHINGLE_CHARS} 字片段重合度为 ` +
+            `${containment.toFixed(4)}，超过上限 ${overlap.maxContainment.toFixed(4)}`,
+        );
+      }
     }
   }
 
@@ -303,7 +320,11 @@ export function createCompletionService(options: CompletionServiceOptions): Comp
         );
       }
 
-      const reasons = validateSlotContent(input.content, slotType.validation);
+      const overlap = slotType.validation.sourceOverlap;
+      const privateSource = overlap === null
+        ? null
+        : snapshots.readPrivateInput(input.taskId, overlap.privateInputField);
+      const reasons = validateSlotContent(input.content, slotType.validation, privateSource);
       if (reasons.length > 0) {
         const reason = joinReasons(reasons);
         // D-20：被拒**只写 trace**，不收敛 execution、不让出 active_execution_id、

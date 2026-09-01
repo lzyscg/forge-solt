@@ -72,7 +72,7 @@ function parseArgs(argv: readonly string[]): MeasureArgs {
   const dbPath = flags.get('db');
   if (dbPath === undefined) throw new Error(USAGE);
   const reportOnly = flags.get('report-only') === 'true';
-  const template = flags.get('template') ?? 'zhihu-chapter';
+  const template = flags.get('template') ?? 'zhihu-outline';
   const inputFile = flags.get('input-file') ?? null;
   if (!reportOnly && inputFile === null) throw new Error(USAGE);
 

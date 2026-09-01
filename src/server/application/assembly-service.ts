@@ -33,6 +33,7 @@ import { randomUUID } from 'node:crypto';
 import { ForgeError } from '@shared/errors.ts';
 import {
   assembleMarkdownConcatV1,
+  assembleNumberedSectionsV1,
   assemblyOrder,
   computeArtifactChecksum,
 } from '@server/domain/assembly.ts';
@@ -117,7 +118,9 @@ export function createAssemblyService(options: AssemblyServiceOptions): Assembly
         );
       }
 
-      const content = assembleMarkdownConcatV1(slots);
+      const content = snapshot.compiled.output.assembler === 'numbered_sections_v1'
+        ? assembleNumberedSectionsV1(slots)
+        : assembleMarkdownConcatV1(slots);
       if (content === '') {
         // D-19：这条判断的全部理由见文件头。给出可执行的诊断而不是一句「组装失败」——
         // 用户能改的只有模板里的 includeInArtifact，报错就该指向它。

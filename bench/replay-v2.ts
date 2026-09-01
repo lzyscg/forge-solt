@@ -56,7 +56,8 @@ function loadSkill(skillId: string, baseDir = 'skills'): FrozenSkill {
   const loaded = parseSkill(raw, source);
   return {
     id: loaded.id, version: loaded.version, contentMarkdown: raw, contentHash: loaded.contentHash,
-    operation: loaded.operation, slotTypes: loaded.slotTypes, summary: loaded.summary,
+    operation: loaded.operation, slotTypes: loaded.slotTypes, readsSlotTypes: loaded.readsSlotTypes,
+    status: loaded.status, summary: loaded.summary,
     preamble: loaded.preamble, requiredSections: loaded.requiredSections,
     sections: loaded.sections, sectionIndex: loaded.sectionIndex,
   };

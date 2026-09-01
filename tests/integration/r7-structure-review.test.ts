@@ -29,10 +29,14 @@ import {
 import { FakeProvider, type FakeProviderScript } from '@server/runtime/provider/fake.ts';
 
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
-const INPUT = { chapter_packet: '主角在雨夜与债主对峙，本章需完成摊牌。' };
+const INPUT = {
+  outline_blueprint: '完整故事大纲：主角在雨夜与债主对峙，本节需完成摊牌。',
+  source_text: '系统私有原文，不会进入模型上下文。',
+};
 
 /** 真模板的四条结构判据 */
 const CRITERIA = ['S1', 'S2', 'S3', 'S4'];
+const SECTION_CRITERIA = ['S1', 'S2', 'S4'];
 
 /**
  * 第 1 版：`scene_02` 的目标没写「停在哪里」，违反 S1。
@@ -46,32 +50,32 @@ const GOOD_GOAL = '让监视的存在从暗处浮出，老周句句闪烁，停�
 /** 生产模板下的一份合法结构。`title` 依赖全部场景（S3 第 2 条） */
 function tree(sceneTwoGoal: string): { rootSlotId: string; slots: unknown[] } {
   return {
-    rootSlotId: 'chapter',
+    rootSlotId: 'story',
     slots: [
-      { id: 'chapter', type: 'chapter', parentId: null, order: 0, instruction: '本章容器', dependsOn: [] },
+      { id: 'story', type: 'story', parentId: null, order: 0, instruction: '本章容器', dependsOn: [] },
       {
         id: 'title',
         type: 'title',
-        parentId: 'chapter',
+        parentId: 'story',
         order: 0,
         instruction: '概括全章，停在让读者想点开的悬念上',
-        dependsOn: ['scene_01', 'scene_02'],
+        dependsOn: ['section_01', 'section_02'],
       },
       {
-        id: 'scene_01',
-        type: 'scene',
-        parentId: 'chapter',
+        id: 'section_01',
+        type: 'section',
+        parentId: 'story',
         order: 1,
         instruction: '林越冒雨赴约，通过反复确认凭证建立孤注一掷，停在他推门与老周目光相接',
         dependsOn: [],
       },
       {
-        id: 'scene_02',
-        type: 'scene',
-        parentId: 'chapter',
+        id: 'section_02',
+        type: 'section',
+        parentId: 'story',
         order: 2,
         instruction: sceneTwoGoal,
-        dependsOn: ['scene_01'],
+        dependsOn: ['section_01'],
       },
     ],
   };
@@ -91,7 +95,7 @@ const clean = (slotId: string): FakeProviderScript => ({
 /** 一条命中 S1 的检出。quote 必须逐字出现在渲染后的结构概要里 */
 const firedOnMissingStop = (): FakeProviderScript => ({
   submitReview: {
-    slotId: 'chapter',
+    slotId: 'story',
     verdict: 'revise' as const,
     findings: [{ criterionId: 'S1', quote: BAD_GOAL, problem: '这条目标没写这一场停在哪里，下一场无从衔接' }],
   },
@@ -99,7 +103,7 @@ const firedOnMissingStop = (): FakeProviderScript => ({
 
 /** 一轮结构审核：四条判据，第 1 条按需检出 */
 function structureRound(fired: boolean): FakeProviderScript[] {
-  return CRITERIA.map((id) => (fired && id === 'S1' ? firedOnMissingStop() : clean('chapter')));
+  return CRITERIA.map((id) => (fired && id === 'S1' ? firedOnMissingStop() : clean('story')));
 }
 
 /**
@@ -111,10 +115,10 @@ function structureRound(fired: boolean): FakeProviderScript[] {
  */
 function tailAfterStructure(): FakeProviderScript[] {
   return [
-    { submitContent: { slotId: 'scene_01', content: sceneText('第一场') } },
-    ...CRITERIA.map(() => clean('scene_01')),
-    { submitContent: { slotId: 'scene_02', content: sceneText('第二场') } },
-    ...CRITERIA.map(() => clean('scene_02')),
+    { submitContent: { slotId: 'section_01', content: sceneText('第一场') } },
+    ...SECTION_CRITERIA.map(() => clean('section_01')),
+    { submitContent: { slotId: 'section_02', content: sceneText('第二场') } },
+    ...SECTION_CRITERIA.map(() => clean('section_02')),
     { submitContent: { slotId: 'title', content: TITLE_TEXT } },
   ];
 }
@@ -130,7 +134,7 @@ function run(turns: readonly FakeProviderScript[]): EngineHarness {
 
 async function start(h: EngineHarness): Promise<string> {
   const created = await h.snapshots.createTask({
-    templateId: 'zhihu-chapter',
+    templateId: 'zhihu-story',
     name: '结构审核',
     input: INPUT,
   });
@@ -150,21 +154,21 @@ describe('结构审核', () => {
     ]);
     const taskId = await start(h);
 
-    const root = h.uow.repositories.slots.getOrThrow(taskId, 'chapter');
+    const root = h.uow.repositories.slots.getOrThrow(taskId, 'story');
     // 轮次继承到了新树的根上。若没继承，这里是 0，而结构会一直有预算重来
     expect(root.revisionRound).toBe(1);
     expect(root.status).toBe('completed');
     expect(root.reviewExhausted).toBe(false);
 
     // 库里是第 2 版，不是被检出的那一版
-    expect(h.uow.repositories.slots.getOrThrow(taskId, 'scene_02').instruction).toBe(GOOD_GOAL);
+    expect(h.uow.repositories.slots.getOrThrow(taskId, 'section_02').instruction).toBe(GOOD_GOAL);
 
     /*
      * `slot_reviews` 里**只剩重来那一轮**：整树替换时旧树的槽位没了，
      * 指向它们的审核行必须跟着删（外键不是 DEFERRABLE，
      * 而根在「删光再插回」的两条语句之间确实不存在）。
      */
-    const rows = h.uow.repositories.slotReviews.listBySlot(taskId, 'chapter');
+    const rows = h.uow.repositories.slotReviews.listBySlot(taskId, 'story');
     expect(rows.map((r) => r.criterionId)).toEqual(CRITERIA);
     expect(rows.every((r) => r.round === 1 && r.verdict === 'no_finding')).toBe(true);
 
@@ -217,7 +221,7 @@ describe('结构审核', () => {
       (t) =>
         t.kind === 'assignment_created' &&
         typeof t.payload?.['targetSlotId'] === 'string' &&
-        t.payload['targetSlotId'] !== 'chapter',
+        t.payload['targetSlotId'] !== 'story',
     );
 
     expect(settled).toBeDefined();
@@ -261,7 +265,7 @@ describe('结构审核', () => {
       ...tailAfterStructure(),
     ]);
     const created = await h.snapshots.createTask({
-      templateId: 'zhihu-chapter',
+      templateId: 'zhihu-story',
       name: '结构审核被打断',
       input: INPUT,
     });
@@ -270,21 +274,21 @@ describe('结构审核', () => {
     h.lifecycle.dispatch('start', taskId);
 
     // 结构已经审完并结算，任务正卡在第一次填槽上
-    await waitFor(() => h.uow.repositories.slots.get(taskId, 'chapter')?.status === 'completed');
+    await waitFor(() => h.uow.repositories.slots.get(taskId, 'story')?.status === 'completed');
     h.lifecycle.stop(taskId);
     await h.engine.drain();
 
     // 造出恢复路径留下的那个状态：审核行还在（第 0 轮四条），根却回到了 pending
-    h.db.prepare("UPDATE slots SET status = 'pending' WHERE task_id = ? AND slot_id = 'chapter'").run(taskId);
-    expect(h.uow.repositories.slotReviews.listByRound(taskId, 'chapter', 0)).toHaveLength(4);
+    h.db.prepare("UPDATE slots SET status = 'pending' WHERE task_id = ? AND slot_id = 'story'").run(taskId);
+    expect(h.uow.repositories.slotReviews.listByRound(taskId, 'story', 0)).toHaveLength(4);
 
     h.lifecycle.dispatch('resume', taskId);
     await h.engine.drain();
 
     // 收口了：根回到 completed，且**没有重跑一轮判据**（仍是 4 行、仍是第 0 轮）。
     // 重跑的话这里会变成 8 行——那是另一种坏法：不空转了，但每次恢复白花四次调用。
-    expect(h.uow.repositories.slots.getOrThrow(taskId, 'chapter').status).toBe('completed');
-    const rows = h.uow.repositories.slotReviews.listBySlot(taskId, 'chapter');
+    expect(h.uow.repositories.slots.getOrThrow(taskId, 'story').status).toBe('completed');
+    const rows = h.uow.repositories.slotReviews.listBySlot(taskId, 'story');
     expect(rows).toHaveLength(4);
     expect(rows.every((r) => r.round === 0)).toBe(true);
   }, 30000);
@@ -309,7 +313,7 @@ describe('结构审核', () => {
     ]);
     const taskId = await start(h);
 
-    const root = h.uow.repositories.slots.getOrThrow(taskId, 'chapter');
+    const root = h.uow.repositories.slots.getOrThrow(taskId, 'story');
     // `reviewExhausted` 放在第一条断言：它是「上限就是 3」的**直接编码**。
     // 上限若被改成 5，第 3 轮结算不会判耗尽，引擎转去要第 5 版，
     // 后面的断言会跟着一起塌——那时报错指向的是级联结果而不是原因。

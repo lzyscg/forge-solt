@@ -26,7 +26,7 @@ describe('cli/run-task.ts', () => {
 
     const code = await runTask([
       '--template',
-      'zhihu-chapter',
+      'zhihu-outline',
       '--input-file',
       packet,
       '--provider',

@@ -21,7 +21,7 @@
  */
 
 import type { Dirent } from 'node:fs';
-import { readdir } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import type { TemplateStatus } from '@shared/contracts.ts';
 import { ForgeError } from '@shared/errors.ts';
@@ -30,6 +30,7 @@ import { compareCodePoints } from '@server/domain/canonical.ts';
 import type { LoadedTemplate, TemplateLoaderOptions } from './template-loader.ts';
 import { loadTemplate, TEMPLATE_FILE_NAME } from './template-loader.ts';
 import { loadProviderConfig, DEFAULT_PROVIDER_CONFIG_PATH } from './provider-config.ts';
+import { parseSkill } from './skill-loader.ts';
 import { loadServerConfig } from '@server/config/env.ts';
 
 export interface TemplateCatalogOptions extends TemplateLoaderOptions {
@@ -138,6 +139,40 @@ export class TemplateCatalog {
         templates.push(loaded);
       } catch (error) {
         failures.push({ dirName, sourcePath, error: toPublicError(error) });
+      }
+    }
+
+    const referencedSkills = new Set(
+      templates.flatMap((template) => Object.keys(template.skills)),
+    );
+    const skillsRoot = path.resolve(this.#options.skillsDir);
+    let skillEntries: Dirent[] = [];
+    try {
+      skillEntries = await readdir(skillsRoot, { withFileTypes: true });
+    } catch (error) {
+      throw new ForgeError(
+        'TEMPLATE_NOT_FOUND',
+        'Skill 根目录不可读',
+        'config:SKILLS_DIR',
+        '确认 .env 的 SKILLS_DIR 指向存在的目录',
+        error,
+      );
+    }
+    for (const entry of skillEntries.filter((item) => item.isDirectory()).sort((a, b) => compareCodePoints(a.name, b.name))) {
+      const sourcePath = path.join(skillsRoot, entry.name, 'SKILL.md');
+      try {
+        const skill = parseSkill(await readFile(sourcePath, 'utf8'), sourcePath);
+        if (skill.status === 'active' && !referencedSkills.has(skill.id)) {
+          const error = new ForgeError(
+            'TEMPLATE_INVALID',
+            `Skill ${skill.id} 是 active，但没有被任何成功加载的模板引用`,
+            `skill:${skill.id}`,
+            '把该 Skill 加入模板，或在 frontmatter 显式标记 status: archived',
+          );
+          failures.push({ dirName: `skill:${skill.id}`, sourcePath, error: error.toPublic() });
+        }
+      } catch (error) {
+        failures.push({ dirName: `skill:${entry.name}`, sourcePath, error: toPublicError(error) });
       }
     }
 

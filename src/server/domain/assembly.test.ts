@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Slot } from './types.ts';
-import { assembleMarkdownConcatV1, assemblyOrder, computeArtifactChecksum } from './assembly.ts';
+import { assembleMarkdownConcatV1, assembleNumberedSectionsV1, assemblyOrder, computeArtifactChecksum } from './assembly.ts';
 import { documentOrder } from './readiness.ts';
 
 /** 造一个槽位。默认是「普通内容槽位」，各用例只覆盖它关心的字段。 */
@@ -53,6 +53,18 @@ function fixtureSlots(): Slot[] {
     slot({ slotId: 'scene_02', parentId: 'chapter', sortOrder: 2, contentText: '第二场' }),
   ];
 }
+
+describe('numbered_sections_v1', () => {
+  it('标题在前，section 按文档序自动编号', () => {
+    const slots = [
+      slot({ slotId: 'story', type: 'story', contentBearing: false }),
+      slot({ slotId: 'title', type: 'title', parentId: 'story', sortOrder: 0, contentText: '雨夜药瓶' }),
+      slot({ slotId: 'section_01', type: 'section', parentId: 'story', sortOrder: 1, contentText: '第一节正文' }),
+      slot({ slotId: 'section_02', type: 'section', parentId: 'story', sortOrder: 2, contentText: '第二节正文' }),
+    ];
+    expect(assembleNumberedSectionsV1(slots)).toBe('雨夜药瓶\n\n1.\n\n第一节正文\n\n2.\n\n第二节正文\n');
+  });
+});
 
 describe('遍历顺序与 readiness.documentOrder 一致', () => {
   it('深度优先前序，同级按 (sortOrder, slotId) 升序', () => {
