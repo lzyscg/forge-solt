@@ -682,3 +682,47 @@ S2 的「场景数由素材密度决定」到底是有效指导还是一句正�
 真要做混合，别名机制天然支持，模板一个字不用改。
 
 ---
+
+## Q-28 模板与 Skill 的耦合只有一半机器可读（S 阶段开工前排查发现）
+
+- **时间**：2026-09-01，S 阶段（Skill 内容质量迭代）
+- **事实**：三个**在用**的 Skill 指挥模型去读一个生产模板里不存在的槽位类型
+  `chapter_outline`：
+  - `skills/title-writing/SKILL.md` S1「用 `read_slot` 读取依赖里的章节骨架」
+  - `skills/scene-writing/SKILL.md` S1「再用 `read_slot` 读章节骨架」
+  - `skills/scene-review/SKILL.md` S3 判据「不与骨架或别的场次撞设定」
+
+  逐 commit 查证：`templates/zhihu-chapter/template.yaml` **从初始提交 `622e62b` 起
+  就没有过这个槽位**（每个 commit 上 `git show $c:… | grep -c` 都是 0）。
+  有它的是**测试夹具** `tests/fixtures/templates/zhihu-chapter/`。
+  所以不是「对齐过后来漂了」，是**两边从未对齐**——Skill 是照着夹具写的。
+
+  > `git log -S 'chapter_outline'` 会匹配到三个 commit，那是**假阳性**
+  > （-S 匹配的是同 commit 里别的文件）。别据此下结论。
+
+  另外 `outline-writing` / `outline-review` 是孤儿：在 `skills/` 里，
+  但没有任何模板的 `skills:` 列表引用它们。
+
+- **根因**：耦合有三条，只有一条在加载期被校验。
+
+  | 耦合 | 现状 |
+  |---|---|
+  | `frontmatter.slotTypes` ↔ 绑定的槽位类型 | ✅ `src/server/application/template-loader.ts:446` |
+  | Skill **正文**里「用 `read_slot` 读 X」 | ❌ 散文，机器看不见 |
+  | `skills/` 下的孤儿 Skill | ❌ 校验从模板出发，模板不引用就看不见 |
+
+- **影响**：模型被指示去读不存在的东西。`scene-review` S3 的判据参照物不存在，
+  且 `AUTOMATED-REVIEW-REVISION-DESIGN-V0.2.md:239` 自记它**召回 0/3、在线但未验证有效**——
+  每次场景审核都在为一条实测无效的判据付 token。
+  （已查证 `probe/cases.json` 每条用例都带完整 `outline`，所以 0/3 **不是**缺参照物造成的。）
+
+- **临时处置**：无。**S3.5 处置**，见 `SKILL-ITERATION-PLAN-S0-S6.md` §3.4b ④⑤（D-86…D-88）：
+  骨架升格为上游任务产物（两级流水线里它就是第一层的 artifact，
+  经 `taskInput` 进来，`read_task_input` 可见）→ 三处改 `read_task_input`；
+  `scene-review` S3 退役；`outline-*` 移到第一层模板。
+  **并补两条加载期检查**：frontmatter 加 `readsSlotTypes:`；孤儿检查。
+
+- **需要你决定**：`scene-review` S3 要不要保留。我的建议是退役（实测 0/3，且生产无参照物），
+  等 S6 的「这一句服务本槽位 instruction 里的哪一条」做出来后再看要不要以新形式回来。
+
+---
