@@ -51,7 +51,7 @@ export default tseslint.config(
   {
     // probe/** 是 R0.5 审核能力预研的实验脚本与回归基线（只读），
     // 非产品代码，与 data/**、coverage/** 同等对待，不进 lint。
-    ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'data/**', 'design_handoff_forge_core_vnext/**', 'probe/**'],
+    ignores: ['dist/**', 'node_modules/**', 'coverage/**', 'data/**', '.claude/worktrees/**', 'design_handoff_forge_core_vnext/**', 'probe/**'],
   },
 
   js.configs.recommended,

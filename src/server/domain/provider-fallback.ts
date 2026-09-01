@@ -8,12 +8,19 @@
  * 它**不决定**什么算耗尽（那是 D-68，在 runtime 层），只消费那个结论。
  */
 
-import type { ModelAliasChain, ModelAliasEntry } from '@server/application/provider-config.ts';
 import { ForgeError } from '@shared/errors.ts';
+
+export interface ProviderFallbackEntry {
+  readonly provider: string;
+  readonly model: string;
+  readonly paid?: boolean | undefined;
+}
+
+export type ProviderFallbackChain = readonly ProviderFallbackEntry[];
 
 export interface FallbackPick {
   /** 选中的那一档 */
-  readonly chosen: ModelAliasEntry;
+  readonly chosen: ProviderFallbackEntry;
   /** 它在链上的位置，0 是首选。>0 即发生了降级 */
   readonly tier: number;
   /** 被跳过的档，按链上顺序。用于 D-70 的轨迹 */
@@ -34,7 +41,7 @@ export interface FallbackPick {
  * 这与 D-26「任务永不因审核卡死」是同一种取舍：机制不该成为新的卡死点。
  */
 export function pickProvider(
-  chain: ModelAliasChain,
+  chain: ProviderFallbackChain,
   isExhausted: (providerId: string) => boolean,
 ): FallbackPick {
   if (chain.length === 0) {

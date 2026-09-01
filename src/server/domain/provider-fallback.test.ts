@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { ModelAliasChain } from '@server/application/provider-config.ts';
+import type { ProviderFallbackChain } from './provider-fallback.ts';
 import { describePick, pickProvider } from './provider-fallback.ts';
 
-const CHAIN: ModelAliasChain = [
+const CHAIN: ProviderFallbackChain = [
   { provider: 'ark', model: 'deepseek-v4-flash' },
   { provider: 'compshare', model: 'deepseek-v4-flash-0731' },
   { provider: 'deepseek', model: 'deepseek-chat', paid: true },
@@ -51,7 +51,7 @@ describe('pickProvider', () => {
   });
 
   it('长度 1 的链（无降级链的别名）照常工作', () => {
-    const single: ModelAliasChain = [{ provider: 'ark', model: 'm' }];
+    const single: ProviderFallbackChain = [{ provider: 'ark', model: 'm' }];
     expect(pickProvider(single, exhausted()).tier).toBe(0);
     // 唯一一档被标耗尽也照样返回它，不抛
     expect(pickProvider(single, exhausted('ark')).chosen.provider).toBe('ark');
