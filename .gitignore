@@ -12,6 +12,14 @@ data/*.sqlite-wal
 
 # 头脑风暴工具的本地临时状态（含会话 token 与端口），不属于仓库内容
 .superpowers/
+.claude/worktrees/
+
+# Skill benchmark 的真实任务输入、正文、模型输出与可浏览报告只留本地。
+# 仓库只提交脚本、合成测试数据和不含正文的汇总元数据。
+bench/fixtures/
+!bench/fixtures/report-synthetic-run.json
+bench/runs/
+bench/reports/
 
 # 范文语料：知乎盐选付费作品，多篇自带「下载后 24 小时内删除」声明。
 # 本仓库是公开仓库，正文一个字都不能进。

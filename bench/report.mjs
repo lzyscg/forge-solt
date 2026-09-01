@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-/* eslint no-console: off */
-/* global console, process */
 /**
  * S2 静态 HTML 报告模块。零外部依赖，复用 bench/fingerprint.mjs 的指标口径。
  *

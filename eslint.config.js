@@ -112,7 +112,15 @@ export default tseslint.config(
   },
 
   {
-    files: ['src/server/cli/**/*.ts', 'src/server/main.ts', 'src/server/dev-fake.ts', 'migrations/**', '*.config.ts', 'eslint.config.js'],
+    files: ['src/server/cli/**/*.ts', 'src/server/main.ts', 'src/server/dev-fake.ts', 'bench/**/*.{js,mjs,ts}', 'migrations/**', '*.config.ts', 'eslint.config.js'],
+    languageOptions: {
+      globals: {
+        Buffer: 'readonly',
+        TextDecoder: 'readonly',
+        console: 'readonly',
+        process: 'readonly',
+      },
+    },
     rules: { 'no-console': 'off' },
   },
 
