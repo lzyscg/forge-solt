@@ -1,5 +1,10 @@
 # 审核返修（R0–R4）开发进度报告
 
+> **历史/过时指针（2026-09-01）**：本文冻结在 R2 开发期，仅用于追溯当时工作区与裁定，
+> 不是当前进度入口。当前请读 `notes/HANDOFF.md` 和 `notes/SKILL-ITERATION-PLAN-S0-S6.md`：
+> S0 已由 `05d93af` 完成，S1 正在实施，S2 尚未冻结；模板/Skill 不一致作为
+> `baseline_condition`，S2.5（严格位于 S2 后、S3 前）再处置。
+
 > 写于 R2 开发完成后、对抗性审查前。供中断恢复用。
 > 实施依据：`notes/REVIEW-IMPLEMENTATION-PLAN-R0-R4.md`（主）、
 > `notes/AUTOMATED-REVIEW-REVISION-DESIGN-V0.2.md`（D-21…D-32、AC-R-001…017）。

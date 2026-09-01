@@ -716,7 +716,9 @@ S2 的「场景数由素材密度决定」到底是有效指导还是一句正�
   每次场景审核都在为一条实测无效的判据付 token。
   （已查证 `probe/cases.json` 每条用例都带完整 `outline`，所以 0/3 **不是**缺参照物造成的。）
 
-- **临时处置**：无。**S3.5 处置**，见 `SKILL-ITERATION-PLAN-S0-S6.md` §3.4b ④⑤（D-86…D-88）：
+- **临时处置**：无代码处置。**S2 基线先把它作为 `baseline_condition` 记录**，不得在 S1/S2 期间修。
+  实际修复阶段改为 **S2.5**，严格位于 S2 后、S3 前，见 `SKILL-ITERATION-PLAN-S0-S6.md`
+  §3.4b ④⑤（D-86…D-88）：
   骨架升格为上游任务产物（两级流水线里它就是第一层的 artifact，
   经 `taskInput` 进来，`read_task_input` 可见）→ 三处改 `read_task_input`；
   `scene-review` S3 退役；`outline-*` 移到第一层模板。

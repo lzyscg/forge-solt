@@ -1,5 +1,11 @@
 # Forge Core vNext — 开发日志
 
+> **当前状态指针（2026-09-01）**：M/R 阶段历史记录保留如下；当前工作已转入 S0–S6。
+> S0 已由 `05d93af` 完成，S1 正在实施（168 个历史候选中，当前未提交草稿只有 6 条
+> `contextHash` / `promptHash` 双 hash 保真；旧记录缺完整 prompt 输入，不能补造），S2 尚未冻结。
+> 模板/Skill 不一致先作为 `baseline_condition`，到 S2.5（严格位于 S2 后、S3 前）再处置；
+> S0–S2 不改 `skills/`。当前权威入口见 `notes/SKILL-ITERATION-PLAN-S0-S6.md`。
+
 > 记的是**决策与代价**，不是「今天写了什么文件」。
 > 文件写了什么看 git diff 就行；日志要回答的是「为什么是这样，以及试过什么别的」。
 >
