@@ -1,0 +1,72 @@
+{
+  "run_id": "r0",
+  "label": "基线合成自检",
+  "created_at": "2026-09-01T00:00:00.000Z",
+  "provider": "synthetic",
+  "model": "fixture-offline",
+  "baseline_conditions": {
+    "temperature": 0,
+    "prompt": "固定合成输入，仅用于报告模块自检",
+    "corpus_manifest": "fixtures/reference-corpus.json"
+  },
+  "skills": [
+    {
+      "id": "scene-writing",
+      "name": "场景写作",
+      "baseline": { "ref": "r0", "hash": "sha256:base-scene-0001", "label": "基线" },
+      "variants": [
+        { "id": "v1", "hash": "sha256:variant-scene-0002", "label": "密度约束" }
+      ]
+    },
+    {
+      "id": "scene-review",
+      "name": "场景复核",
+      "baseline": { "ref": "r0", "hash": "sha256:base-review-0001", "label": "基线" },
+      "variants": []
+    }
+  ],
+  "samples": [
+    {
+      "id": "s1",
+      "skill": "scene-writing",
+      "story": "雨夜诊室",
+      "variant": "r0",
+      "status": "success",
+      "usage": { "input_tokens": 1200, "output_tokens": 900 },
+      "elapsed_ms": 8120,
+      "output": "1\n我把伞收在诊室门口，水顺着伞骨滴到瓷砖上。护士抬头看我一眼，又低头去核对病历。\n我说：「林医生还在吗？」\n她把笔尖停住，声音压得很低：「在，但你最好先想清楚，今晚来的人都没法装作没听见。」\n2\n走廊尽头的灯坏了一半，越往里走越像踩进一条潮湿的河。\n我听见门里有人咳嗽，接着是玻璃瓶轻轻碰撞。林医生开门时，白大褂袖口沾着一点暗红。\n「你带来了？」他问。\n我把牛皮纸袋递过去，指节还在发抖。\n3\n纸袋里不是钱，是我母亲二十年前的手术记录。\n林医生只翻了两页，脸色就变了：「这些东西不该还在。」\n我看着他，把录音笔从口袋里推到桌面中央：「所以今晚，你要亲口告诉我，她到底死在谁手里。」"
+    },
+    {
+      "id": "s2",
+      "skill": "scene-writing",
+      "story": "雨夜诊室",
+      "variant": "v1",
+      "status": "failure",
+      "error": "合成失败：模型返回空段落",
+      "usage": { "input_tokens": 1200, "output_tokens": 24 },
+      "elapsed_ms": 2200,
+      "output": "他来到诊室。\n医生说：\"你来了。\"\n事情结束了。"
+    },
+    {
+      "id": "s3",
+      "skill": "scene-review",
+      "story": "旧巷来信",
+      "variant": "r0",
+      "status": "success",
+      "usage": { "input_tokens": 980, "output_tokens": 760 },
+      "elapsed_ms": 6400,
+      "output": "1\n我在旧巷口等到第三场雨停，邮筒里的铁锈味被水汽泡得发甜。\n阿婆把信递给我，说：「别在这里拆，墙也会听。」\n我笑了一下，信封却在掌心发烫。\n2\n信是父亲写的，落款日期停在他失踪后的第七年。\n他说院墙后有一棵槐树，树根压着我出生那晚的秘密。\n我跑回老宅，撬开潮湿的青砖，下面果然有一只玻璃药瓶。\n3\n瓶口封着蜡，蜡里嵌着母亲断掉的银耳环。\n我终于明白，父亲不是离家，他是在替一个死人守口。\n巷尾又响起脚步声时，我把信塞进怀里，听见有人轻声说：「孩子，别回头。」"
+    },
+    {
+      "id": "s4",
+      "skill": "scene-review",
+      "story": "旧巷来信",
+      "variant": "r0",
+      "status": "excluded",
+      "excluded_reason": "非目标长度：候选输出不足 200 汉字",
+      "usage": { "input_tokens": 980, "output_tokens": 30 },
+      "elapsed_ms": 900,
+      "output": "我收到一封旧信。"
+    }
+  ]
+}
