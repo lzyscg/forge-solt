@@ -28,6 +28,8 @@ interface ExecutionRow {
   context_json: string;
   context_hash: string;
   prompt_hash: string;
+  replay_input_json: string | null;
+  replay_input_hash: string | null;
   model_alias: string;
   provider: string;
   model: string;
@@ -62,6 +64,10 @@ export interface InsertExecutionInput {
   contextJson: string;
   contextHash: string;
   promptHash: string;
+  /** canonical JSON ReplayInput envelope; null only for callers intentionally creating legacy rows */
+  replayInputJson: string | null;
+  /** sha256 of replayInputJson; both replay fields are either populated or null */
+  replayInputHash: string | null;
   modelAlias: string;
   provider: string;
   model: string;
@@ -95,11 +101,21 @@ function toDomain(row: ExecutionRow): Execution {
   };
 }
 
+export interface ExecutionReplayInputRecord {
+  replayInputJson: string;
+  replayInputHash: string;
+}
+
 export interface ExecutionRepo {
   /** 新建 execution，status = 'created'（§5.5「创建 Assignment」） */
   insert(input: InsertExecutionInput): Execution;
   get(id: string): Execution | null;
   getOrThrow(id: string): Execution;
+  /**
+   * Read the potentially large ReplayInput separately; legacy executions return null.
+   * A half-populated pair is storage corruption and is rejected rather than hidden.
+   */
+  getReplayInput(id: string): ExecutionReplayInputRecord | null;
   /**
    * 取 `context_json` 原文。刻意与 `get()` 分开：
    * 上下文可能有几十 KB，任务详情页每次渲染都带上它是纯粹的浪费，
@@ -147,14 +163,18 @@ export function createExecutionRepo(db: ForgeDb, clock: Clock): ExecutionRepo {
     `INSERT INTO executions
        (id, task_id, operation, target_slot_id, agent_id, skill_id, skill_version,
         token_hash, context_json, context_hash, prompt_hash,
+        replay_input_json, replay_input_hash,
         model_alias, provider, model, attempt_number, status,
         input_tokens, output_tokens, error_code, error_message,
         started_at, finished_at, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'created',
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'created',
              NULL, NULL, NULL, NULL, NULL, NULL, ?)`,
   );
   const getStmt = db.prepare('SELECT * FROM executions WHERE id = ?');
   const contextStmt = db.prepare('SELECT context_json FROM executions WHERE id = ?');
+  const replayStmt = db.prepare(
+    'SELECT replay_input_json, replay_input_hash FROM executions WHERE id = ?',
+  );
   const byTaskStmt = db.prepare('SELECT * FROM executions WHERE task_id = ? ORDER BY created_at DESC');
   const finishStmt = db.prepare(
     `UPDATE executions
@@ -195,6 +215,8 @@ export function createExecutionRepo(db: ForgeDb, clock: Clock): ExecutionRepo {
         input.contextJson,
         input.contextHash,
         input.promptHash,
+        input.replayInputJson,
+        input.replayInputHash,
         input.modelAlias,
         input.provider,
         input.model,
@@ -240,6 +262,21 @@ export function createExecutionRepo(db: ForgeDb, clock: Clock): ExecutionRepo {
         throw new ForgeError('EXECUTION_STALE', `Execution ${id} 不存在`, null);
       }
       return toDomain(row);
+    },
+
+    getReplayInput(id) {
+      const row = replayStmt.get(id) as
+        | { replay_input_json: string | null; replay_input_hash: string | null }
+        | undefined;
+      if (row === undefined) return null;
+      if (row.replay_input_json === null && row.replay_input_hash === null) return null;
+      if (row.replay_input_json === null || row.replay_input_hash === null) {
+        throw new ForgeError('STORAGE_ERROR', `Execution ${id} 的 ReplayInput 列不完整`, null);
+      }
+      return {
+        replayInputJson: row.replay_input_json,
+        replayInputHash: row.replay_input_hash,
+      };
     },
 
     getContextJson(id) {

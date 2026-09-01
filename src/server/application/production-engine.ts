@@ -34,8 +34,9 @@ import type { StructureService } from './structure-service.ts';
 import type { SlotScheduler } from './slot-scheduler.ts';
 import type { AssemblyService } from './assembly-service.ts';
 import type { TraceService } from './trace-service.ts';
-import { buildContext } from './context-builder.ts';
+import { buildContext, serializeReplayInput } from './context-builder.ts';
 import type {
+  ContextBuilderInput,
   StructureRetryInput,
   StructureReviewInput,
   FillSlotRetryInput,
@@ -843,9 +844,9 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
     }
 
     const attemptNumber = assignments.nextAttemptNumber(taskId, targetSlotId);
-    const context =
+    const contextInput: ContextBuilderInput =
       operation === 'create_structure'
-        ? buildContext({
+        ? {
             operation: 'create_structure',
             snapshot,
             agent,
@@ -854,9 +855,9 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
             maxAttempts: binding.maxRetries + 1,
             retry: input.contextRetry as StructureRetryInput | null,
             review: input.structureReview ?? null,
-          })
+          }
         : operation === 'fill_slot'
-          ? buildContext({
+          ? {
               operation: 'fill_slot',
               snapshot,
               agent,
@@ -870,8 +871,8 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
               dependencies: input.dependencies ?? [],
               retry: input.contextRetry as FillSlotRetryInput | null,
               revision: input.revision ?? null,
-            })
-          : buildContext({
+            }
+          : {
               operation: 'review_slot',
               snapshot,
               agent,
@@ -889,7 +890,10 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
                 mustHave(input.targetSlot, 'targetSlot'),
                 input.slots ?? [],
               ),
-            });
+            };
+    // One object is the source for both the live prompt and persisted replay provenance.
+    const context = buildContext(contextInput);
+    const replayInput = serializeReplayInput(contextInput);
 
     /**
      * D-03：**每次 attempt 重新解析**别名，不缓存。
@@ -933,6 +937,7 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
       },
       resolved: { provider: resolved.providerId, model: resolved.model },
       context,
+      replayInput,
       attemptNumber,
     });
     record.proposalJson = null;

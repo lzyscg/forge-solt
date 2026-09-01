@@ -10,7 +10,7 @@
 import type { SseDeltaEvent } from '@shared/contracts.ts';
 import type { TraceEvent } from '@shared/trace.ts';
 import type { StructureProposal } from '@server/domain/structure-validation.ts';
-import type { BuiltAssignmentContext } from '@server/application/context-builder.ts';
+import type { BuiltAssignmentContext, SerializedReplayInput } from '@server/application/context-builder.ts';
 import { createAssemblyService, type AssemblyService } from '@server/application/assembly-service.ts';
 import { createAssignmentService, type AssignmentService } from '@server/application/assignment-service.ts';
 import { createCompletionService, type CompletionService } from '@server/application/completion-service.ts';
@@ -147,6 +147,13 @@ export function fakeContext(tag: string): BuiltAssignmentContext {
   };
 }
 
+export function fakeReplayInput(tag: string): SerializedReplayInput {
+  return {
+    replayInputJson: `{"tag":"${tag}","version":1}`,
+    replayInputHash: `replay-${tag}`,
+  };
+}
+
 /** 把任务推进到 running/structure 并建好结构 Assignment */
 export function startStructureAssignment(env: AppEnv, taskId: string): { executionId: string; token: string } {
   env.uow.run((uow) => uow.tasks.update(taskId, { status: 'running' }));
@@ -162,6 +169,7 @@ export function startStructureAssignment(env: AppEnv, taskId: string): { executi
     },
     resolved: { provider: 'deepseek', model: 'deepseek-chat' },
     context: fakeContext('structure'),
+    replayInput: fakeReplayInput('structure'),
     attemptNumber: env.assignments.nextAttemptNumber(taskId, null),
   });
   return { executionId: assignment.id, token: assignment.token };
@@ -211,6 +219,7 @@ export function startSlotAssignment(
     binding,
     resolved: { provider: 'deepseek', model: 'deepseek-chat' },
     context: { ...fakeContext(slotId), operation: 'fill_slot' },
+    replayInput: fakeReplayInput(slotId),
     attemptNumber: env.assignments.nextAttemptNumber(taskId, slotId),
   });
   return { executionId: assignment.id, token: assignment.token };

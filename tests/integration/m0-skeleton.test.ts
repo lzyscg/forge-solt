@@ -1,5 +1,7 @@
 import { describe, expect, it, afterEach } from 'vitest';
-import { rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { openDatabase } from '@server/infrastructure/database/db.ts';
 import { runMigrations } from '@server/infrastructure/database/migrate.ts';
 import { ERROR_CODES, ERROR_HTTP_STATUS, ForgeError } from '@shared/errors.ts';
@@ -31,6 +33,51 @@ describe('M0 骨架自证', () => {
     const second = runMigrations(db);
     expect(second.applied).toEqual([]);
     expect(second.total).toBe(result.total);
+  });
+
+  it('006 迁移为已有 executions 表增加 nullable ReplayInput 两列，旧行保持 NULL', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'forge-migration-'));
+    cleanup.push(() => rmSync(dir, { recursive: true, force: true }));
+    for (const name of [
+      '001_initial.sql',
+      '002_indexes.sql',
+      '003_review.sql',
+      '004_review_unique.sql',
+      '005_provider_fallback.sql',
+    ]) {
+      writeFileSync(path.join(dir, name), readFileSync(path.join('migrations', name), 'utf8'));
+    }
+
+    const db = openDatabase(':memory:');
+    cleanup.push(() => db.close());
+    runMigrations(db, dir);
+    // A deliberately parentless historical execution is enough to test ALTER TABLE preservation.
+    db.pragma('foreign_keys = OFF');
+    db.prepare(
+      `INSERT INTO executions
+        (id, task_id, operation, target_slot_id, agent_id, skill_id, skill_version,
+         token_hash, context_json, context_hash, prompt_hash, model_alias, provider, model,
+         attempt_number, status, created_at)
+       VALUES ('legacy', 'task', 'create_structure', NULL, 'agent', 'skill', '1.0.0',
+               'token-hash', '{}', 'context-hash', 'prompt-hash', 'alias', 'provider', 'model',
+               1, 'created', '2026-01-01T00:00:00.000Z')`,
+    ).run();
+
+    writeFileSync(
+      path.join(dir, '006_execution_replay_input.sql'),
+      readFileSync('migrations/006_execution_replay_input.sql', 'utf8'),
+    );
+    const result = runMigrations(db, dir);
+    expect(result.applied).toEqual(['006_execution_replay_input.sql']);
+    const columns = db.prepare('PRAGMA table_info(executions)').all() as Array<{
+      name: string;
+      notnull: number;
+    }>;
+    expect(columns.find((c) => c.name === 'replay_input_json')?.notnull).toBe(0);
+    expect(columns.find((c) => c.name === 'replay_input_hash')?.notnull).toBe(0);
+    expect(
+      db.prepare("SELECT replay_input_json, replay_input_hash FROM executions WHERE id = 'legacy'").get(),
+    ).toEqual({ replay_input_json: null, replay_input_hash: null });
   });
 
   it('foreign_keys 必须是 ON —— 延迟外键在 OFF 时静默失效', () => {

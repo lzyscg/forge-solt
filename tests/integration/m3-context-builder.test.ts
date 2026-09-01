@@ -14,9 +14,15 @@ import type { StructureViolation } from '@server/domain/structure-validation.ts'
 import type { Slot } from '@server/domain/types.ts';
 import type {
   FillSlotContextInput,
+  ReviewSlotContextInput,
   StructureContextInput,
 } from '@server/application/context-builder.ts';
-import { buildContext } from '@server/application/context-builder.ts';
+import {
+  buildContext,
+  parseReplayInput,
+  rebuildContextFromReplay,
+  serializeReplayInput,
+} from '@server/application/context-builder.ts';
 import type { FrozenTaskSnapshot } from '@server/application/snapshot-service.ts';
 import { createAppEnv, seedNewTask, startStructureAssignment, VALID_PROPOSAL, type AppEnv } from '../fixtures/app.ts';
 
@@ -101,6 +107,118 @@ function fillSlotInput(overrides: Partial<FillSlotContextInput> = {}): FillSlotC
     ...overrides,
   };
 }
+
+function reviewSlotInput(overrides: Partial<ReviewSlotContextInput> = {}): ReviewSlotContextInput {
+  const fill = fillSlotInput();
+  return {
+    operation: 'review_slot',
+    snapshot,
+    agent: agent('chapter_writer'),
+    skill: skill('scene-writing'),
+    attemptNumber: 1,
+    maxAttempts: 2,
+    slots: fill.slots,
+    targetSlot: fill.targetSlot,
+    slotType: fill.slotType,
+    dependencies: fill.dependencies,
+    criterionId: fill.skill.requiredSections[0] ?? 'S1',
+    contentUnderReview: '待审正文逐字内容',
+    ...overrides,
+  };
+}
+
+function expectReplayRebuildsExactly(input: StructureContextInput | FillSlotContextInput | ReviewSlotContextInput): void {
+  const live = buildContext(input);
+  const replay = serializeReplayInput(input);
+  const rebuilt = rebuildContextFromReplay(replay.replayInputJson, replay.replayInputHash, input.skill);
+  expect(rebuilt).toEqual(live);
+}
+
+describe('ReplayInput provenance', () => {
+  it('同一 ContextBuilderInput 产出稳定 canonical JSON 与 hash', () => {
+    const a = serializeReplayInput(fillSlotInput());
+    const b = serializeReplayInput(fillSlotInput());
+    expect(a).toEqual(b);
+    expect(a.replayInputHash).toBe(sha256Hex(a.replayInputJson));
+    expect(parseReplayInput(a.replayInputJson, a.replayInputHash).version).toBe(1);
+  });
+
+  it('hash 或 JSON 被篡改时拒绝解析', () => {
+    const replay = serializeReplayInput(structureInput());
+    expect(() => parseReplayInput(replay.replayInputJson, '0'.repeat(64))).toThrow(/hash 不一致/);
+    const tampered = replay.replayInputJson.replace('create_structure', 'fill_slot');
+    expect(() => parseReplayInput(tampered, replay.replayInputHash)).toThrow(/hash 不一致/);
+  });
+
+  it('逐字重建 create_structure retry + review', () => {
+    expectReplayRebuildsExactly(
+      structureInput({
+        attemptNumber: 2,
+        retry: {
+          previousProposalJson: '{"rootSlotId":"chapter"}',
+          violations: VIOLATIONS,
+          noSubmission: false,
+        },
+        review: {
+          round: 1,
+          previousOutline: 'chapter\n  scene_01：雨夜对峙',
+          findings: [{ criterionId: 'S1', quote: '雨夜对峙', problem: '冲突升级不清楚' }],
+        },
+      }),
+    );
+  });
+
+  it('逐字重建 fill slots/target/deps/retry/revision', () => {
+    expectReplayRebuildsExactly(
+      fillSlotInput({
+        attemptNumber: 2,
+        retry: { noSubmission: false, reasons: ['正文长度不足'] },
+        revision: {
+          round: 1,
+          degraded: true,
+          priorRounds: [
+            {
+              visibleOutput: '先检查与上游的衔接。',
+              readSlotIds: ['outline'],
+              submittedContent: '上一稿逐字正文',
+              findings: [{ criterionId: 'S1', quote: '上一稿', problem: '开头承接不足' }],
+            },
+          ],
+        },
+      }),
+    );
+  });
+
+  it('逐字重建 review criterion/content', () => {
+    expectReplayRebuildsExactly(reviewSlotInput({ criterionId: 'S1', contentUnderReview: '正文 A\n正文 B' }));
+  });
+
+  it('解析后可替换 Skill，并重建与直接 buildContext 逐字相同的上下文', () => {
+    const input = fillSlotInput();
+    const replacementSkill = {
+      ...input.skill,
+      version: '9.9.9',
+      summary: `${input.skill.summary}（替换版）`,
+    };
+    const replay = serializeReplayInput(input);
+    const rebuilt = rebuildContextFromReplay(
+      replay.replayInputJson,
+      replay.replayInputHash,
+      replacementSkill,
+    );
+    expect(rebuilt).toEqual(buildContext({ ...input, skill: replacementSkill }));
+    expect(rebuilt.systemText).toContain('scene-writing v9.9.9');
+    expect(rebuilt.systemText).toContain('（替换版）');
+  });
+
+  it('JSON 不含 token/apiKey/provider 输出或运行时解析结果', () => {
+    const replay = serializeReplayInput(fillSlotInput());
+    expect(replay.replayInputJson).not.toMatch(/token|api[_-]?key|authorization|bearer/i);
+    expect(replay.replayInputJson).not.toContain('sk-fake-not-a-real-key');
+    expect(replay.replayInputJson).not.toContain('providerOutput');
+    expect(replay.replayInputJson).not.toContain('reasoning_content');
+  });
+});
 
 describe('确定性（§7.4「确定性保证」/ NFR-004）', () => {
   it('同一输入两次调用逐字节相同', () => {

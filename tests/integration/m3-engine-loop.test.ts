@@ -11,6 +11,7 @@
 
 import { afterEach, describe, expect, it } from 'vitest';
 import { ForgeError } from '@shared/errors.ts';
+import { rebuildContextFromReplay } from '@server/application/context-builder.ts';
 import { FakeProvider } from '@server/runtime/provider/fake.ts';
 import {
   createEngineHarness,
@@ -146,6 +147,31 @@ describe('M3 主路径：结构 → 槽位 → 组装', () => {
       expect(execution.outputTokens).toBeGreaterThan(0);
       expect(execution.inputTokens).toBe((execution.outputTokens ?? 0) * 2);
     }
+  });
+
+  it('每条 execution 都可从独立 ReplayInput 读取接口逐字重建 buildContext', async () => {
+    const provider = happyPathProvider();
+    harness = createEngineHarness({ provider });
+    const taskId = await createAndStart(harness);
+    const snapshot = harness.snapshots.readSnapshot(taskId);
+    const executions = harness.uow.repositories.executions.listByTask(taskId);
+
+    expect(executions).toHaveLength(provider.observations.length);
+    executions.forEach((execution) => {
+      const replay = harness!.uow.repositories.executions.getReplayInput(execution.id);
+      expect(replay, `${execution.id} 缺 ReplayInput`).not.toBeNull();
+      const replacementSkill = snapshot.skills[execution.skillId];
+      expect(replacementSkill).toBeDefined();
+      const rebuilt = rebuildContextFromReplay(
+        replay!.replayInputJson,
+        replay!.replayInputHash,
+        replacementSkill!,
+      );
+      const observed = provider.observations.find(
+        (item) => item.system === rebuilt.systemText && item.messages[0]?.content === rebuilt.userText,
+      );
+      expect(observed, `${execution.operation} 未逐字重建 Provider 收到的上下文`).toBeDefined();
+    });
   });
 
   it('每次 attempt 都重新解析别名（D-03 的晚绑定不被缓存）', async () => {

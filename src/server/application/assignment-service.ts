@@ -37,7 +37,7 @@ import { ForgeError } from '@shared/errors.ts';
 import { sha256Hex } from '@server/domain/canonical.ts';
 import type { Execution } from '@server/domain/types.ts';
 import type { UnitOfWork, UnitOfWorkHandle } from '@server/infrastructure/uow.ts';
-import type { BuiltAssignmentContext } from './context-builder.ts';
+import type { BuiltAssignmentContext, SerializedReplayInput } from './context-builder.ts';
 import type { TraceService } from './trace-service.ts';
 
 /** 绑定信息。只取本层用得上的字段，不把整个 `CompiledBinding` 拖进签名 */
@@ -63,6 +63,7 @@ export interface CreateAssignmentInput {
   binding: AssignmentBinding;
   resolved: ResolvedModel;
   context: BuiltAssignmentContext;
+  replayInput: SerializedReplayInput;
   /** 从 1 起。用 `nextAttemptNumber()` 取 */
   attemptNumber: number;
 }
@@ -148,6 +149,8 @@ export function createAssignmentService(options: AssignmentServiceOptions): Assi
           contextJson: input.context.contextJson,
           contextHash: input.context.contextHash,
           promptHash: input.context.promptHash,
+          replayInputJson: input.replayInput.replayInputJson,
+          replayInputHash: input.replayInput.replayInputHash,
           modelAlias: input.binding.modelAlias,
           provider: input.resolved.provider,
           model: input.resolved.model,
