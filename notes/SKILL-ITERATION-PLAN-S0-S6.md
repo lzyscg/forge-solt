@@ -4,8 +4,8 @@
 > 读完这一份 + `notes/SKILL-ITERATION-BENCH-DESIGN-V0.1.md`，应该能直接开始 S0，
 > 并且**不会跑偏**——本文档的一半篇幅是在说「什么不能做」。
 >
-> 最后更新：2026-09-01，S0 已由 `05d93af` 完成；S1 正在实施；S2 尚未冻结。
-> 基线说明：S0 提交已有当时的检查记录；本轮文档更新未重跑，不补填测试数。
+> 最后更新：2026-09-01，S0–S2 已完成并冻结 `run r0`；下一阶段是 S2.5。
+> 基线检查：2026-09-01 最终重跑，`typecheck` / `lint` 通过，63 个测试文件 / 959 条测试全绿；S0 自检 12 条全过，153 篇清单逐字段 0 差异。
 
 ---
 
@@ -294,14 +294,13 @@ k=0 时退化成 rule of three。
 
 ---
 
-### §3.2 S1：fixture 导出 + 回放器 🚧 **正在实施**
+### §3.2 S1：fixture 导出 + 回放器 ✅ **已完成**
 
-**当前事实（2026-09-01）**：现有未提交草稿从历史执行里取到 **168 个候选**，但只有
-**6 条**同时满足 `contextHash` / `promptHash` 双 hash 保真。旧记录缺完整 prompt 输入，
-因此不能事后补造 prompt 来“补齐”保真样本；S1 的产出必须如实记录这个边界。
-
-模板/Skill 不一致（生产模板无 `chapter_outline`，三个在用 Skill 指向它）在 S1 不修，
-只作为后续 S2 基线报告里的 `baseline_condition`。S0–S2 期间仍然不改 `skills/`。
+**实测结果（2026-09-01）**：旧库 **168 个候选**中只有 **6 条**双 hash 保真，
+162 条保留审计并排除，未事后补造 prompt。新增版本化 ReplayInput provenance 后，
+用当前模板/Skill 完整 capture 3 个唯一故事，得到 **114 条新 execution，114/114**
+同时命中 `contextHash` / `promptHash`；五类当前生产 binding 每类均覆盖 3 个故事。
+真实输入、正文与模型输出只存于 gitignored benchmark 目录。
 
 **D-72：fixture 取自 `executions.context_json`，不另造。**
 自己编的 fixture 会编成「Skill 应该能处理的样子」，而历史执行是真实分布，
@@ -328,7 +327,17 @@ k=0 时退化成 rule of three。
 
 ---
 
-### §3.3 S2：报告 + 基线冻结
+### §3.3 S2：报告 + 基线冻结 ✅ **已完成**
+
+**`run r0`（2026-09-01）**：15 个冻结 case；四类每 case `n=3`，`scene-writing`
+因首跑组内方差与 1/9 未提交追加到 `n=6`。最终 **54 份 / 53 成功 / 1 失败**，
+固定 DeepSeek 官方 `deepseek-chat`，共 675,241 input token、90,679 output token、
+167 次工具调用。`scene-writing` 成功 17 份中：17/17 第三人称、17/17 无编号小节、
+9/17 使用双引号、1/17 无对白引号告警，汉字 720–2109。两类审核 18/18 都报
+`no_finding`，这里只冻结现状，不声称准确。无正文汇总见 `fixtures/s2-r0-summary.json`，
+本地可浏览报告为 `bench/reports/s2-r0-final.html`。
+
+模板/Skill 不一致已作为 `baseline_condition` 写入 r0；下一阶段明确停在 S2.5。
 
 **报告页结构已经设计完并验证过**：https://claude.ai/code/artifact/82b3bc3e-1c15-4f3c-8a7a-3db7c97be0fd
 

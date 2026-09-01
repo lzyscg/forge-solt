@@ -30,6 +30,7 @@ import {
   type ReplayInput,
 } from '@server/application/context-builder.ts';
 import { deriveMaxTokens } from '@server/application/production-engine.ts';
+import { reviewBindingOf } from '@server/application/review-binding.ts';
 import { parseSkill } from '@server/application/skill-loader.ts';
 import type { FrozenSkill } from '@server/application/snapshot-service.ts';
 import { verifyFindings } from '@server/domain/review-evidence.ts';
@@ -109,6 +110,14 @@ interface RecordedError {
   message: string;
 }
 
+interface ReviewFilterAudit {
+  submittedVerdict: 'no_finding' | 'revise';
+  finalVerdict: 'no_finding' | 'revise' | 'discarded';
+  submittedFindings: number;
+  keptFindings: number;
+  discardedFindings: number;
+}
+
 export interface BenchmarkSample {
   id: string;
   case_id: string;
@@ -128,6 +137,8 @@ export interface BenchmarkSample {
   source_execution_id: string;
   raw_submission: ResolvedSubmissionPayload | null;
   submissions: ResolvedSubmissionPayload[];
+  accepted_submissions: ResolvedSubmissionPayload[];
+  review_filter_audit: ReviewFilterAudit | null;
   rejections: RecordedRejection[];
   errors: RecordedError[];
   trace: TraceRecord[];
@@ -182,8 +193,6 @@ class MemoryTracePort implements TracePort {
   }
 
   bufferOutput(_taskId: string, _executionId: string, delta: string): void {
-    const last = this.records.at(-1);
-    void last;
     this.output += delta;
   }
 
@@ -207,6 +216,8 @@ class FixtureStructurePort implements StructurePort {
 
 class MemoryCompletionPort implements CompletionPort {
   readonly submissions: CompletionRequest[] = [];
+  readonly acceptedSubmissions: ResolvedSubmissionPayload[] = [];
+  readonly reviewFilterAudits: ReviewFilterAudit[] = [];
   readonly rejections: RecordedRejection[] = [];
   readonly errors: RecordedError[] = [];
 
@@ -216,8 +227,9 @@ class MemoryCompletionPort implements CompletionPort {
     this.submissions.push(structuredClone(request));
     try {
       const result = this.validate(request.payload);
-      if (!result.ok) this.rejections.push(structuredClone(result));
-      return result;
+      if (!result.outcome.ok) this.rejections.push(structuredClone(result.outcome));
+      else this.acceptedSubmissions.push(structuredClone(result.payload));
+      return result.outcome;
     } catch (error) {
       const recorded = toError(error);
       this.errors.push(recorded);
@@ -225,45 +237,63 @@ class MemoryCompletionPort implements CompletionPort {
     }
   }
 
-  private validate(payload: ResolvedSubmissionPayload): CompletionOutcome {
+  private validate(payload: ResolvedSubmissionPayload): {
+    outcome: CompletionOutcome;
+    payload: ResolvedSubmissionPayload;
+  } {
     const input = this.prepared.replay.contextInput;
     if (payload.kind === 'structure') {
       const result = validateConcreteStructure(payload, input.snapshot.compiled);
-      if (result.ok) return { ok: true };
+      if (result.ok) return { outcome: { ok: true }, payload };
       return {
-        ok: false,
-        code: 'STRUCTURE_INVALID',
-        message: result.violations.map((violation) => violation.message).join('；'),
-        violations: result.violations,
+        outcome: {
+          ok: false,
+          code: 'STRUCTURE_INVALID',
+          message: result.violations.map((violation) => violation.message).join('；'),
+          violations: result.violations,
+        },
+        payload,
       };
     }
 
     if (payload.kind === 'slot_content') {
       if (input.operation !== 'fill_slot') {
-        return invalidSubmission('slot_content 与 fixture operation 不匹配');
+        return { outcome: invalidSubmission('slot_content 与 fixture operation 不匹配'), payload };
       }
       const reasons = validateSlotContent(payload.content, input.slotType.validation);
-      if (reasons.length === 0) return { ok: true };
+      if (reasons.length === 0) return { outcome: { ok: true }, payload };
       return {
-        ok: false,
-        code: 'SLOT_CONTENT_INVALID',
-        message: reasons.join('；'),
-        violations: [],
+        outcome: {
+          ok: false,
+          code: 'SLOT_CONTENT_INVALID',
+          message: reasons.join('；'),
+          violations: [],
+        },
+        payload,
       };
     }
 
     if (input.operation !== 'review_slot') {
-      return invalidSubmission('review_result 与 fixture operation 不匹配');
+      return { outcome: invalidSubmission('review_result 与 fixture operation 不匹配'), payload };
     }
-    const verified = verifyFindings(input.contentUnderReview, payload.findings);
-    if (verified.discardedCount > 0) {
-      this.rejections.push({
-        code: 'ASSIGNMENT_OUTPUT_INVALID',
-        message: `${verified.discardedCount} 条审核 finding 的引文未通过 verifyFindings，已按生产规则丢弃`,
-        violations: [],
-      });
-    }
-    return { ok: true };
+    const findingsForVerification = payload.verdict === 'revise' ? payload.findings : [];
+    const verified = verifyFindings(input.contentUnderReview, findingsForVerification);
+    const finalVerdict = payload.verdict === 'revise' && verified.kept.length === 0
+      ? 'discarded'
+      : payload.verdict;
+    this.reviewFilterAudits.push({
+      submittedVerdict: payload.verdict,
+      finalVerdict,
+      submittedFindings: payload.findings.length,
+      keptFindings: verified.kept.length,
+      discardedFindings: payload.findings.length - verified.kept.length,
+    });
+    const finalPayload: ResolvedSubmissionPayload = {
+      ...payload,
+      verdict: finalVerdict === 'discarded' ? 'no_finding' : finalVerdict,
+      findings: [...verified.kept],
+    };
+    return { outcome: { ok: true }, payload: finalPayload };
   }
 }
 
@@ -276,8 +306,21 @@ export async function runBenchmark(
   deps: BenchmarkDeps = {},
 ): Promise<BenchmarkReport> {
   validateOptions(options);
+  const outPath = path.resolve(options.outPath);
+  await fs.mkdir(path.dirname(outPath), { recursive: true });
+  const outHandle = await fs.open(outPath, 'wx');
 
+  try {
   const fixtures = await loadFixtureCases(options.fixturesPath);
+  for (const fixture of fixtures) {
+    const replay = parseReplayInput(fixture.replayInputJson, fixture.replayInputHash);
+    const replaySupported = SUPPORTED_BINDINGS.some(
+      (binding) => binding.operation === replay.contextInput.operation && binding.skillId === replay.contextInput.skill.id,
+    );
+    if (replaySupported !== isSupportedCase(fixture)) {
+      throw new Error(`case ${fixture.caseId}: execution metadata 与 ReplayInput 的 binding scope 不一致`);
+    }
+  }
   const selected = fixtures.filter(isSupportedCase);
   if (selected.length === 0) throw new Error('fixture 中没有当前生产五个 binding scope 内的 case');
   ensureUniqueCaseIds(selected);
@@ -333,9 +376,14 @@ export async function runBenchmark(
     samples,
   };
 
-  await fs.mkdir(path.dirname(path.resolve(options.outPath)), { recursive: true });
-  await fs.writeFile(options.outPath, `${JSON.stringify(report, null, 2)}\n`, { flag: 'wx' });
+  await outHandle.writeFile(`${JSON.stringify(report, null, 2)}\n`);
+  await outHandle.close();
   return report;
+  } catch (error) {
+    await outHandle.close();
+    await fs.rm(outPath, { force: true });
+    throw error;
+  }
 }
 
 async function runOne(
@@ -407,10 +455,18 @@ async function runOne(
     };
   }
   const elapsedMs = Math.round((performance.now() - started) * 1000) / 1000;
-  const submissions = completion.submissions.map((submission) => submission.payload);
-  const rawSubmission = submissions.at(-1) ?? null;
+  const rawSubmissions = completion.submissions.map((submission) => submission.payload);
+  const acceptedSubmissions = completion.acceptedSubmissions;
+  const rawSubmission = rawSubmissions.at(-1) ?? null;
+  const acceptedSubmission = acceptedSubmissions.at(-1) ?? null;
   const outcomeError = outcome.kind === 'failed' ? { code: outcome.code, message: outcome.message } : null;
-  const errors = [...completion.errors, ...(outcomeError === null ? [] : [outcomeError])];
+  const errors = [...completion.errors];
+  if (
+    outcomeError !== null &&
+    !errors.some((entry) => entry.code === outcomeError.code && entry.message === outcomeError.message)
+  ) {
+    errors.push(outcomeError);
+  }
   const rejections = [...completion.rejections];
   if (outcome.kind === 'failed' && !outcome.noSubmission && !rejections.some((entry) => entry.code === outcome.code && entry.message === outcome.message)) {
     rejections.push({ code: outcome.code, message: outcome.message, violations: outcome.violations });
@@ -425,7 +481,7 @@ async function runOne(
     variant: 'r0',
     operation: fixture.execution.operation,
     status: outcome.kind === 'succeeded' ? 'success' : 'failure',
-    output: outputOf(rawSubmission, trace.output),
+    output: outputOf(acceptedSubmission, trace.output),
     usage: outcome.usage === null
       ? null
       : { input_tokens: outcome.usage.inputTokens, output_tokens: outcome.usage.outputTokens },
@@ -436,7 +492,9 @@ async function runOne(
     execution_id: executionId,
     source_execution_id: fixture.execution.id,
     raw_submission: rawSubmission,
-    submissions,
+    submissions: rawSubmissions,
+    accepted_submissions: acceptedSubmissions,
+    review_filter_audit: completion.reviewFilterAudits.at(-1) ?? null,
     rejections,
     errors,
     trace: trace.records,
@@ -460,8 +518,14 @@ function prepareCase(
   if (execution.agentId !== input.agent.id || execution.skillId !== input.skill.id || execution.skillVersion !== input.skill.version || execution.attemptNumber !== input.attemptNumber) {
     throw new Error(`case ${fixture.caseId}: execution metadata 与 ReplayInput 的 agent/skill/attempt 不一致`);
   }
-  if (execution.modelAlias !== bindingForInput(input).modelAlias) {
-    throw new Error(`case ${fixture.caseId}: execution modelAlias 与冻结 binding 不一致`);
+  const binding = bindingForInput(input);
+  if (
+    execution.modelAlias !== binding.modelAlias ||
+    execution.agentId !== binding.agentId ||
+    execution.skillId !== binding.skillId ||
+    execution.skillVersion !== binding.skillVersion
+  ) {
+    throw new Error(`case ${fixture.caseId}: execution 与冻结 binding 的 model/agent/skill/version 不一致`);
   }
 
   const frozenRef = input.snapshot.compiled.skills.find((skill) => skill.id === input.skill.id);
@@ -532,9 +596,9 @@ function bindingForInput(input: ReplayInput['contextInput']) {
     if (binding === undefined) throw new Error(`冻结模板没有 ${input.targetSlot.type} 的 fill binding`);
     return binding;
   }
-  const binding = input.snapshot.compiled.bindings.reviewSlotByType[input.targetSlot.type]
-    ?? input.snapshot.compiled.bindings.reviewStructure;
-  if (binding === null || binding === undefined) throw new Error(`冻结模板没有 ${input.targetSlot.type} 的 review binding`);
+  const slot = input.targetSlot as Parameters<typeof reviewBindingOf>[1];
+  const binding = reviewBindingOf(input.snapshot.compiled, slot);
+  if (binding === null) throw new Error(`冻结模板没有 ${input.targetSlot.type} 的 review binding`);
   return binding;
 }
 

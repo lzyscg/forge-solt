@@ -16,7 +16,7 @@ data/*.sqlite-wal
 
 # Skill benchmark 的真实任务输入、正文、模型输出与可浏览报告只留本地。
 # 仓库只提交脚本、合成测试数据和不含正文的汇总元数据。
-bench/fixtures/
+bench/fixtures/*
 !bench/fixtures/report-synthetic-run.json
 bench/runs/
 bench/reports/

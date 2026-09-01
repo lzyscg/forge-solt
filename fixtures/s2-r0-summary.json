@@ -1,0 +1,79 @@
+{
+  "schemaVersion": 1,
+  "runId": "r0",
+  "status": "frozen",
+  "date": "2026-09-01",
+  "scope": {
+    "template": "zhihu-chapter v1.0.0",
+    "templateHash": "16aede8d496e2959142a09503d4030008fa6158c1e54b90e2435f4d71013f227",
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "stories": 3,
+    "fixtureCases": 15,
+    "repeats": {
+      "chapter-structure-design": 3,
+      "title-writing": 3,
+      "scene-writing": 6,
+      "scene-review": 3,
+      "structure-review": 3
+    }
+  },
+  "replay": {
+    "freshExecutions": 114,
+    "freshExactHashMatches": 114,
+    "legacyCandidates": 168,
+    "legacyExactHashMatches": 6,
+    "legacyExcluded": 162
+  },
+  "methodology": {
+    "initialRun": "前 45 份由首版内存 runner 执行；复用同一 buildContext、AssignmentRunner、工具链与确定性校验。",
+    "sceneSupplement": "后 9 份 scene-writing 补跑由正式模块化 runner 执行；同样固定 DeepSeek 官方 deepseek-chat。",
+    "compatibility": "事后审查修复了输出预检、binding 守卫、审核结果归一化和报告指纹范围；这些修复不改变已选 case 的 Provider prompt 或 54 份已记录的模型原始提交。为控制额度，本轮不重复调用模型；后续 r1 起统一使用正式 runner。"
+  },
+  "results": {
+    "samples": 54,
+    "success": 53,
+    "failure": 1,
+    "inputTokens": 675241,
+    "outputTokens": 90679,
+    "toolCalls": 167,
+    "elapsedMs": 953665,
+    "bySkill": {
+      "chapter-structure-design": { "samples": 9, "success": 9, "failure": 0 },
+      "title-writing": { "samples": 9, "success": 9, "failure": 0 },
+      "scene-writing": { "samples": 18, "success": 17, "failure": 1 },
+      "scene-review": { "samples": 9, "success": 9, "failure": 0 },
+      "structure-review": { "samples": 9, "success": 9, "failure": 0 }
+    }
+  },
+  "sceneWriting": {
+    "successfulSamples": 17,
+    "failedNoSubmission": 1,
+    "fingerprintGates": {
+      "thirdPerson": 17,
+      "doubleQuote": 9,
+      "noNumberedSections": 17,
+      "noDialogueQuoteWarning": 1
+    },
+    "hanRange": [720, 2109],
+    "withinStory": {
+      "1f1f62994f16": { "success": 6, "failure": 0, "hanMin": 1185, "hanMax": 2109, "hanMean": 1613.8, "hanVariance": 93414.5 },
+      "584727b3d5f2": { "success": 5, "failure": 1, "hanMin": 720, "hanMax": 1131, "hanMean": 977.8, "hanVariance": 22404.6 },
+      "d4d02b8e9090": { "success": 6, "failure": 0, "hanMin": 1266, "hanMax": 1911, "hanMean": 1484.7, "hanVariance": 45269.2 }
+    }
+  },
+  "reviewBaseline": {
+    "sceneReviewNoFinding": 9,
+    "structureReviewNoFinding": 9,
+    "note": "r0 只冻结当前表现，不据此声称审核准确；模板与 Skill 的已知不一致在 S2.5 处理。"
+  },
+  "baselineConditions": {
+    "templateHasChapterOutline": false,
+    "sceneMaxChars": 8000,
+    "skillsStillReadSkeleton": ["title-writing", "scene-writing", "scene-review"],
+    "sceneSkillForbidsNumbering": true,
+    "knownDefectsFixed": false,
+    "nextStage": "S2.5"
+  },
+  "privacy": "本文只有 hash、计数和聚合指标。真实任务输入、正文、模型输出、SQLite 与 live HTML 仅保存在 gitignored 的 bench 目录。"
+}

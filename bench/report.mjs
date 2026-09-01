@@ -153,7 +153,8 @@ function normalizeSamples(rawRun, manifest) {
   return source.map((raw, index) => {
     const status = normalizeStatus(raw.status);
     const output = String(raw.output ?? raw.text ?? raw.content ?? '');
-    const fp = output.trim() ? fingerprint(output) : null;
+    const fingerprintComparable = (raw.fingerprint_comparable ?? raw.skill ?? raw.skill_id) === 'scene-writing';
+    const fp = fingerprintComparable && output.trim() ? fingerprint(output) : null;
     return {
       id: safeId(raw.id ?? raw.sample_id, `s${index + 1}`),
       skill: safeId(raw.skill ?? raw.skill_id, 'unknown-skill'),
@@ -162,10 +163,15 @@ function normalizeSamples(rawRun, manifest) {
       status,
       included: status === 'success',
       excluded_reason: raw.excluded_reason ?? raw.exclusion_reason ?? raw.reason ?? null,
-      error: raw.error ?? null,
+      error: typeof raw.error === 'string'
+        ? raw.error
+        : raw.error && typeof raw.error === 'object'
+          ? [raw.error.code, raw.error.message].filter(Boolean).join(': ')
+          : null,
       usage: raw.usage ?? {},
       elapsed_ms: typeof raw.elapsed_ms === 'number' ? raw.elapsed_ms : raw.elapsedMs ?? null,
       output,
+      fingerprint_comparable: fingerprintComparable,
       fingerprint: fp,
       judgement: fp ? judge(fp, manifest) : null,
     };
@@ -182,6 +188,10 @@ function normalizeRun(rawRun, sourceFile, manifest) {
   const excluded = samples.filter((sample) => sample.status === 'excluded').length;
   const elapsedValues = samples.map((sample) => sample.elapsed_ms).filter((value) => typeof value === 'number' && Number.isFinite(value));
   const elapsedTotal = elapsedValues.reduce((sum, value) => sum + value, 0);
+  const declaredRepeats = rawRun.selection?.repeats ?? rawRun.repeats ?? null;
+  const matrixLabel = declaredRepeats === null
+    ? `${stories.size} stories × ${variants.size} variants`
+    : `${rawRun.selection?.fixture_cases ?? stories.size} cases；${String(declaredRepeats)}`;
 
   return {
     run_id: safeId(rawRun.run_id ?? rawRun.id, path.basename(sourceFile, path.extname(sourceFile))),
@@ -195,7 +205,7 @@ function normalizeRun(rawRun, sourceFile, manifest) {
     excluded,
     failures: samples.filter((sample) => sample.status === 'failure').length,
     exclusion_reasons: exclusionReasons(samples),
-    n_cross: { stories: stories.size, variants: variants.size, label: `${stories.size}×${variants.size}` },
+    n_cross: { stories: stories.size, variants: variants.size, label: matrixLabel },
     usage: rawRun.usage ?? sumUsage(samples),
     elapsed_ms: typeof rawRun.elapsed_ms === 'number' ? rawRun.elapsed_ms : elapsedTotal,
     within_group_variance: varianceByGroup(samples, distributionKeys),
@@ -470,7 +480,7 @@ ${SCRIPT_CLOSE}
     const grid = el('div', { class: 'grid' });
     grid.append(
       card('候选 / 纳入 / 排除', \`\${fmt(run.candidates)} / \${fmt(run.included)} / \${fmt(run.excluded)}\`, \`当前筛选显示 \${samples.length} 条\`),
-      card('N×n', run.n_cross?.label || '未提供', 'story 数 × variant 数'),
+      card('N×n', run.n_cross?.label || '未提供', '冻结 case × 每 case 重复数'),
       card('Provider / Model', \`\${text(run.provider)} / \${text(run.model)}\`),
       card('Usage', Object.entries(run.usage || {}).map(([k, v]) => \`\${k}=\${fmt(v)}\`).join(' · ') || '未提供'),
       card('Elapsed', ms(run.elapsed_ms), '样本 elapsed 汇总或 run elapsed'),

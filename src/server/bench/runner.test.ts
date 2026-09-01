@@ -232,6 +232,12 @@ describe('S2 单槽位 benchmark runner', () => {
     expect(report.samples.filter((sample) => sample.operation === 'create_structure').every((sample) => sample.raw_submission?.kind === 'structure')).toBe(true);
     expect(report.samples.filter((sample) => sample.operation === 'fill_slot').every((sample) => sample.raw_submission?.kind === 'slot_content')).toBe(true);
     expect(report.samples.filter((sample) => sample.operation === 'review_slot').every((sample) => sample.raw_submission?.kind === 'review_result')).toBe(true);
+    const reviewSamples = report.samples.filter((sample) => sample.operation === 'review_slot');
+    expect(reviewSamples.every((sample) => sample.review_filter_audit?.submittedVerdict === 'revise')).toBe(true);
+    expect(reviewSamples.every((sample) => sample.review_filter_audit?.finalVerdict === 'revise')).toBe(true);
+    expect(reviewSamples.every((sample) => sample.review_filter_audit?.keptFindings === 1)).toBe(true);
+    expect(reviewSamples.every((sample) => sample.accepted_submissions[0]?.kind === 'review_result')).toBe(true);
+    expect(reviewSamples.every((sample) => sample.rejections.length === 0)).toBe(true);
     expect(report.samples.every((sample) => sample.provider === 'deepseek' && sample.model === 'deepseek-chat')).toBe(true);
     expect(report.samples.every((sample) => sample.usage?.input_tokens === 100 && sample.usage.output_tokens === 50)).toBe(true);
     expect(report.samples.every((sample) => sample.tool_calls === 1)).toBe(true);
@@ -243,6 +249,32 @@ describe('S2 单槽位 benchmark runner', () => {
     });
     expect(JSON.parse(await fs.readFile(ws.outPath, 'utf8'))).toEqual(report);
     expect((await fs.readdir(ws.dir)).sort()).toEqual(['fixtures.json', 'run.json']);
+  });
+
+  it('审核引文无效时按生产语义接受提交并降级，原始与归一化结果分开审计', async () => {
+    const ws = await workspace();
+    await writeFixture(ws.fixturePath, [fixtureCase(ws.loaded, 'review_slot')]);
+    const provider = new FakeProvider({
+      turns: Array.from({ length: 3 }, () => ({
+        submitReview: {
+          slotId: 'scene_01',
+          verdict: 'revise' as const,
+          findings: [{ criterionId: 'S2', quote: '正文中不存在的引文', problem: '虚构问题' }],
+        },
+      })),
+    });
+
+    const report = await runBenchmark(options(ws.fixturePath, ws.outPath), {
+      adapterFactory: () => provider,
+      env: { DEEPSEEK_API_KEY: 'test-key' },
+    });
+
+    expect(report.samples.every((sample) => sample.status === 'success')).toBe(true);
+    expect(report.samples.every((sample) => sample.raw_submission?.kind === 'review_result')).toBe(true);
+    expect(report.samples.every((sample) => sample.review_filter_audit?.finalVerdict === 'discarded')).toBe(true);
+    expect(report.samples.every((sample) => sample.review_filter_audit?.discardedFindings === 1)).toBe(true);
+    expect(report.samples.every((sample) => sample.accepted_submissions[0]?.kind === 'review_result')).toBe(true);
+    expect(report.samples.every((sample) => sample.rejections.length === 0)).toBe(true);
   });
 
   it('保留 Provider 失败、错误和 trace，且失败样本仍按 repeats 输出', async () => {
@@ -258,7 +290,7 @@ describe('S2 单槽位 benchmark runner', () => {
     expect(report.samples).toHaveLength(3);
     expect(report.samples.every((sample) => sample.status === 'failure')).toBe(true);
     expect(report.samples.every((sample) => sample.error?.code === 'PROVIDER_ERROR')).toBe(true);
-    expect(report.samples.every((sample) => sample.errors.length > 0)).toBe(true);
+    expect(report.samples.every((sample) => sample.errors.length === 1)).toBe(true);
     expect(report.samples.every((sample) => sample.trace.some((event) => event.kind === 'assignment_started'))).toBe(true);
   });
 
@@ -275,6 +307,20 @@ describe('S2 单槽位 benchmark runner', () => {
     })).rejects.toThrow(/provider\/model.*漂移/i);
     expect(provider.observations).toHaveLength(0);
     await expect(fs.stat(ws.outPath)).rejects.toMatchObject({ code: 'ENOENT' });
+  });
+
+  it('输出文件已存在时在任何 Provider 调用前失败且保留原文件', async () => {
+    const ws = await workspace();
+    await writeFixture(ws.fixturePath, [fixtureCase(ws.loaded, 'fill_slot')]);
+    await fs.writeFile(ws.outPath, 'original\n');
+    const provider = new FakeProvider();
+
+    await expect(runBenchmark(options(ws.fixturePath, ws.outPath), {
+      adapterFactory: () => provider,
+      env: { DEEPSEEK_API_KEY: 'test-key' },
+    })).rejects.toMatchObject({ code: 'EEXIST' });
+    expect(provider.observations).toHaveLength(0);
+    expect(await fs.readFile(ws.outPath, 'utf8')).toBe('original\n');
   });
 
   it('拒绝小于三次的重复数', async () => {

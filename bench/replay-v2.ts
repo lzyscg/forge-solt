@@ -36,6 +36,17 @@ interface ReplayCase {
 }
 
 interface Bundle { schemaVersion: 2; exportedFrom: string; cases: ReplayCase[] }
+interface RunnerFixtureCase {
+  caseId: string;
+  execution: {
+    id: string; taskId: string; operation: ReplayCase['operation']; targetSlotId: string | null;
+    agentId: string; skillId: string; skillVersion: string; modelAlias: string;
+    provider: string; model: string; attemptNumber: number;
+  };
+  replayInputJson: string;
+  replayInputHash: string;
+  expected: { contextHash: string; promptHash: string };
+}
 
 function hash(text: string): string { return createHash('sha256').update(text).digest('hex'); }
 
@@ -141,6 +152,47 @@ function cmdControl(skillId: string): void {
   if (rows.length === 0 || rows.some((r) => !r.contextSame || !r.promptDifferent)) process.exitCode = 1;
 }
 
+function selectRunnerCases(bundle: Bundle): RunnerFixtureCase[] {
+  const selected: RunnerFixtureCase[] = [];
+  for (const skillId of CURRENT_SKILLS) {
+    const byStory = new Map<string, ReplayCase>();
+    for (const item of bundle.cases) {
+      if (item.skillId !== skillId || item.status !== 'succeeded') continue;
+      const old = byStory.get(item.inputHash);
+      if (old === undefined || item.attemptNumber < old.attemptNumber || (item.attemptNumber === old.attemptNumber && item.execId < old.execId)) {
+        byStory.set(item.inputHash, item);
+      }
+    }
+    const cases = [...byStory].sort(([a], [b]) => a.localeCompare(b)).slice(0, 3).map(([, item]) => item);
+    if (cases.length < 3) throw new Error(`${skillId} 只有 ${cases.length} 个保真故事，不能冻结三故事 selection`);
+    for (const item of cases) {
+      const replay = parseReplayInput(item.replayInputJson, item.replayInputHash);
+      selected.push({
+        caseId: `${item.skillId}-${item.inputHash.slice(0, 12)}`,
+        execution: {
+          id: item.execId, taskId: item.taskId, operation: item.operation, targetSlotId: item.targetSlotId,
+          agentId: replay.contextInput.agent.id, skillId: item.skillId, skillVersion: item.skillVersion,
+          modelAlias: replay.contextInput.operation === 'create_structure'
+            ? replay.contextInput.snapshot.compiled.bindings.createStructure.modelAlias
+            : replay.contextInput.agent.modelAlias ?? 'main',
+          provider: item.provider, model: item.model, attemptNumber: item.attemptNumber,
+        },
+        replayInputJson: item.replayInputJson,
+        replayInputHash: item.replayInputHash,
+        expected: { contextHash: item.contextHash, promptHash: item.promptHash },
+      });
+    }
+  }
+  return selected;
+}
+
+function cmdSelect(): void {
+  const bundle = loadBundle();
+  const cases = selectRunnerCases(bundle);
+  fs.writeFileSync(path.join(FIXTURE_DIR, 'runner-r0-selection.json'), `${JSON.stringify({ version: 1, cases }, null, 1)}\n`);
+  console.log(`冻结 runner selection：${cases.length} cases（5 bindings × 3 stories）`);
+}
+
 function cmdList(): void {
   const bundle = loadBundle();
   const groups = new Map<string, Set<string>>();
@@ -158,8 +210,9 @@ async function main(): Promise<void> {
     if (command === '--export') cmdExport(arg ?? DEFAULT_DB);
     else if (command === '--verify') cmdVerify();
     else if (command === '--control' && arg !== undefined) cmdControl(arg);
+    else if (command === '--select-r0') cmdSelect();
     else if (command === '--list') cmdList();
-    else throw new Error('用法：replay.ts --export [db] | --verify | --control <skillId> | --list');
+    else throw new Error('用法：replay-v2.ts --export [db] | --verify | --select-r0 | --control <skillId> | --list');
   } catch (error) { console.error(error instanceof Error ? error.message : String(error)); process.exitCode = 2; }
 }
 

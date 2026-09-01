@@ -17,10 +17,10 @@
 |---|---|
 | 平台闭环 | ✅ M0–M7 + R0–R6 已能真实模型跑通、审核返修链路已落地 |
 | **S0 指纹脚本** | ✅ 已由 `05d93af` 完成：`bench/fingerprint.mjs` 建成，并修正语料清单三处口径漏 |
-| **S1 fixture 导出 + 回放器** | 🚧 正在实施。当前未提交草稿从历史执行里取到 168 个候选，但只有 **6 条**同时满足 `contextHash` / `promptHash` 保真；旧记录缺完整 prompt 输入，不能事后补造 |
-| **S2 基线冻结** | ⏳ 尚未冻结；不得提前写成完成，也不得写“变好了”这类结论 |
-| 模板/Skill 不一致 | ⚠️ 作为 **baseline_condition** 记录：处置阶段改为 **S2.5**，严格位于 S2 之后、S3 之前 |
-| S0–S2 边界 | **不改 `skills/`、模板或生产规则**；先把尺子和“之前”建稳 |
+| **S1 fixture 导出 + 回放器** | ✅ 已完成。旧库 168 个候选中只有 **6 条**双 hash 保真，162 条可审计排除；新增 ReplayInput 后，用当前模板/Skill 完整 capture 3 个故事得到 **114 条新 execution，114/114 逐字保真** |
+| **S2 基线冻结** | ✅ `run r0` 已冻结：15 个 fixture case；四类 `n=3`，场景写作按首跑方差调到 `n=6`；共 54 份、53 成功、1 次未提交。无正文汇总见 `fixtures/s2-r0-summary.json` |
+| 模板/Skill 不一致 | ⚠️ 已作为 **baseline_condition** 进入 r0；下一阶段是 **S2.5**，严格位于 S2 之后、S3 之前 |
+| 当前边界 | **S2.5 尚未开始**；此刻才允许处理模板/Skill 一致性，尚未进入 S3 |
 
 ### 已知的最大问题：产物是流水账
 
@@ -123,7 +123,7 @@ skills/
 templates/zhihu-chapter/template.yaml
 ```
 
-**当前阶段不是直接改 Skill。** `notes/SKILL-ITERATION-PLAN-S0-S6.md` 已把内容质量迭代拆成：S0 指纹脚本、S1 fixture/回放器、S2 基线冻结、S2.5 模板层对齐、S3–S6 再做确定性闸门与 Skill 迭代。S0 已由 `05d93af` 完成；S1 正在实施；S2 尚未冻结。
+**S0–S2 已完成，当前停在 S2.5 入口。** `notes/SKILL-ITERATION-PLAN-S0-S6.md` 已把内容质量迭代拆成：S0 指纹脚本、S1 fixture/回放器、S2 基线冻结、S2.5 模板层对齐、S3–S6 再做确定性闸门与 Skill 迭代。S2 的 `r0` 已在不修改模板/Skill 的前提下冻结，模板/Skill 不一致也已作为 `baseline_condition` 留在报告里。
 
 **每个 Skill 目录下有一份 `RELIABILITY.md`**，记录这条 Skill / 每条判据
 在真实模型上的实测表现。它**刻意不在 `SKILL.md` 里**——`SKILL.md` 的每个字节
@@ -190,9 +190,6 @@ templates/zhihu-chapter/template.yaml
 
 ## 下一步
 
-1. **完成 S1 fixture 导出 + 回放器。** 当前未提交草稿从历史执行里识别出 168 个候选，
-   但只有 6 条双 hash 保真；旧记录缺完整 prompt 输入，不能补造。S1 要如实记录这个边界。
-2. **S2 冻结当前版本基线。** 首跑只建立“之前”，测出组内方差；不要提前写 S2 完成，
-   也不要把首跑解释成“变好了”。
-3. **S2.5 再处理模板/Skill 不一致。** `chapter_outline` 不存在这件事先作为
-   `baseline_condition` 进入基线；处置严格放在 S2 后、S3 前。S0–S2 期间不要改 `skills/`。
+1. **进入 S2.5，先上模板/Skill 一致性检查。** 增加 `readsSlotTypes` 与孤儿 Skill 检查，先保存当前配置的预期失败证据。
+2. **再实施 D-82…D-88。** 处理两级流水线、story→section、骨架改从上游 `taskInput` 读取、退役 `scene-review` 旧 S3 与防抄线。
+3. **修复后另开 r1 与 r0 并排。** 不覆盖 `fixtures/s2-r0-summary.json`，S2.5 完成后才进入 S3 确定性 validation。

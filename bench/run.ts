@@ -2,8 +2,12 @@
 import path from 'node:path';
 import process from 'node:process';
 
+import { fileURLToPath } from 'node:url';
+
 import { loadProviderConfig } from '../src/server/application/provider-config.ts';
 import { runBenchmark } from '../src/server/bench/runner.ts';
+
+const ROOT = fileURLToPath(new URL('../', import.meta.url));
 
 interface CliArgs {
   fixturesPath: string;
@@ -79,7 +83,7 @@ function parseArgs(argv: readonly string[]): CliArgs {
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
-  const providerConfig = await loadProviderConfig(path.resolve('config/providers.yaml'));
+  const providerConfig = await loadProviderConfig(path.join(ROOT, 'config/providers.yaml'));
   const report = await runBenchmark({ ...args, providerConfig });
   const succeeded = report.samples.filter((sample) => sample.status === 'success').length;
   console.log(
