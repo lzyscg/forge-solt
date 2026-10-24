@@ -19,8 +19,12 @@
 | **S0 指纹脚本** | ✅ 已由 `05d93af` 完成：`bench/fingerprint.mjs` 建成，并修正语料清单三处口径漏 |
 | **S1 fixture 导出 + 回放器** | ✅ 已完成。旧库 168 个候选中只有 **6 条**双 hash 保真，162 条可审计排除；新增 ReplayInput 后，用当前模板/Skill 完整 capture 3 个故事得到 **114 条新 execution，114/114 逐字保真** |
 | **S2 基线冻结** | ✅ `run r0` 已冻结：15 个 fixture case；四类 `n=3`，场景写作按首跑方差调到 `n=6`；共 54 份、53 成功、1 次未提交。无正文汇总见 `fixtures/s2-r0-summary.json` |
-| 模板/Skill 不一致 | 🚧 **S2.5 机制已落地、真实验收未完成**：两级模板、私有原文、防抄线、readsSlotTypes/孤儿检查均已实现；单故事 25 节跑通，但 20,491 汉字超过 15,850 上限 |
-| 当前边界 | **仍停在 S2.5**；不得进入 S3。无正文验收见 `fixtures/s2-5-r1-summary.json` |
+| 模板/Skill 不一致 | ✅ **S2.5 已完成**：两级模板、私有原文、防抄线、动态整篇预算、readsSlotTypes/孤儿检查均已实现；同一故事 r2 产出 25 节 / 14,844 汉字，防抄重合 0、私有原文表外 0 命中 |
+| **S3 确定性产物闸门** | ✅ 人称/引号/编号 hard-warn 已接入 artifact validation；合成 parity 3/3，r2 为第一人称/直角引号/25 编号节 |
+| **S4 分节粒度** | ✅ 第三轮真实 ReplayInput variant 达到 3/3，`outline-writing 1.2.0` 已提升生产；自动粒度审核因正常样本 1/3 误报未上线 |
+| **S5 写作取舍/段落颗粒** | ✅ `scene-writing 1.2.0` + `numbered_sentence_paragraphs_v1` 已提升；18/18 文字不变，段长中位 44.5→20 |
+| **S6 有效信息密度** | 🚧 写作 A/B 36/36 完成、局部审核探针 r2 9/9；写作变体未证明稳定改善，2000 汉字趋势窗口不足，未提升生产 Skill |
+| 当前边界 | **S2.5–S5 完成；S6 机制部分验证但阶段未完成。** 缺口转入多故事整篇仿写验收。无正文证据见 `fixtures/s2-5-r1-summary.json`、`fixtures/s3-summary.json`、`fixtures/s4-summary.json`、`fixtures/s5-summary.json`、`fixtures/s6-summary.json` |
 
 ### 已知的最大问题：产物是流水账
 
@@ -119,9 +123,12 @@ templates/
   zhihu-story/template.yaml     大纲 + 私有原文 → story.md
 ```
 
-**S0–S2 已完成；S2.5 机制已实现但真实验收未完成。** 两级流水线、system 私有输入、
-14 字片段防抄线、story→section 与 D-88 检查均已落地；真实单故事跑出 25 个编号小节，
-但 20,491 汉字超过 15,850 上限，所以仍停在 S2.5。
+**S0–S5 已完成；S6 已完成机制实验但未达生产提升门槛。** 两级流水线、system 私有输入、14 字片段防抄线、
+story→section、动态整篇预算与 D-88 检查均已落地；同一真实故事 r2 为 25 个编号小节、
+14,844 汉字，且第一人称/直角引号产物闸门全绿。S4 `outline-writing 1.2.0` 已提升；
+S5 `scene-writing 1.2.0` 与句末段落 assembler 已提升，18/18 不改文字、段长中位 44.5→20。
+S6 已完成 36 份当前快照写作 A/B 与 9 次局部审核探针，但写作变体未证明跨 case 稳定改善，
+且单节/三节拼接不足固定 2000 汉字冗余窗口，因此未提升生产 S6 Skill；缺口留到多故事整篇仿写验收。
 
 **每个 Skill 目录下有一份 `RELIABILITY.md`**，记录这条 Skill / 每条判据
 在真实模型上的实测表现。它**刻意不在 `SKILL.md` 里**——`SKILL.md` 的每个字节
@@ -188,6 +195,6 @@ templates/
 
 ## 下一步
 
-1. **进入 S2.5，先上模板/Skill 一致性检查。** 增加 `readsSlotTypes` 与孤儿 Skill 检查，先保存当前配置的预期失败证据。
-2. **再实施 D-82…D-88。** 处理两级流水线、story→section、骨架改从上游 `taskInput` 读取、退役 `scene-review` 旧 S3 与防抄线。
-3. **修复后另开 r1 与 r0 并排。** 不覆盖 `fixtures/s2-r0-summary.json`，S2.5 完成后才进入 S3 确定性 validation。
+1. **完成 S5 写作取舍实验。** 当前可恢复 checkpoint 运行 3 个固定 section × 两条件 × n=6；不读取半成品作结论。
+2. **S6 完整回归只跑一次。** 局部 S5 判据 r2 已 9/9；等 S5 写作侧通过后再跑版本化 116 次回归。
+3. **保持 r0/r1/r2 与 S4 三轮并排。** 不覆盖失败；S4 自动审核 1/3 误报证据继续保留。

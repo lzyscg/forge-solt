@@ -1,9 +1,13 @@
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { createTemplateCatalog, createTemplateCatalogFromEnv } from './template-catalog.ts';
 
 const FIXTURES = fileURLToPath(new URL('../../../tests/fixtures/', import.meta.url));
+const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+const CANDIDATE_ROOT = path.join(REPO_ROOT, 'templates-variants', 'i1-answer-contract-v2');
+const CANDIDATE_SKILLS = path.join(REPO_ROOT, 'skills-variants', 'i1-answer-contract-v2');
 
 const catalog = (): ReturnType<typeof createTemplateCatalog> =>
   createTemplateCatalog({
@@ -68,6 +72,52 @@ describe('TemplateCatalog', () => {
     await expect(instance.requireUsable('archived-chapter')).rejects.toMatchObject({
       code: 'TEMPLATE_NOT_PUBLISHED',
     });
+  });
+
+  it('NarrativePlan v2 候选以隔离 draft 模板加载，Skill 只保留业务回答职责', async () => {
+    const instance = createTemplateCatalog({
+      templatesDir: CANDIDATE_ROOT,
+      skillsDir: CANDIDATE_SKILLS,
+      defaults: { timeoutMs: 180000, maxRetries: 2 },
+    });
+
+    const list = await instance.list();
+    expect(list.map((template) => template.compiled.id)).toEqual(['zhihu-outline-v2-candidate']);
+    const candidate = await instance.get('zhihu-outline-v2-candidate');
+    expect(candidate.compiled.status).toBe('draft');
+    await expect(instance.requireUsable('zhihu-outline-v2-candidate')).rejects.toMatchObject({
+      code: 'TEMPLATE_NOT_PUBLISHED',
+    });
+
+    const outlineSlot = candidate.compiled.slotTypes.find((slotType) => slotType.id === 'story_outline');
+    expect(outlineSlot?.answerContract).toEqual({
+      kind: 'narrative-plan',
+      version: 2,
+      sourceField: 'source_text',
+      sourceSegmentation: 'preserve-numbered-sections',
+      expansionPolicy: 'source-length-quantiles-v1',
+      storyBudget: { minHan: 8000, targetHan: 10000, maxHan: 12000 },
+    });
+
+    const candidateSkill = candidate.compiled.skills.find((skill) => skill.id === 'outline-writing');
+    expect(candidateSkill?.contentHash).toMatch(/^[0-9a-f]{64}$/u);
+    const production = createTemplateCatalog({
+      templatesDir: path.join(REPO_ROOT, 'templates'),
+      skillsDir: path.join(REPO_ROOT, 'skills'),
+      defaults: { timeoutMs: 180000, maxRetries: 2 },
+    });
+    const baseline = await production.get('zhihu-outline');
+    const baselineSkill = baseline.compiled.skills.find((skill) => skill.id === 'outline-writing');
+    expect(candidateSkill?.contentHash).not.toBe(baselineSkill?.contentHash);
+    const baselineSource = await readFile(path.join(REPO_ROOT, 'skills', 'outline-writing', 'SKILL.md'), 'utf8');
+    const candidateSource = await readFile(path.join(CANDIDATE_SKILLS, 'outline-writing', 'SKILL.md'), 'utf8');
+    expect(candidateSource).toContain('调用 `submit_answer`');
+    expect(candidateSource).toContain('因果、关系变化、反转准备、关键选择、结局和必要余波');
+    expect(candidateSource).not.toContain('complete_assignment');
+    expect(candidateSource).not.toContain('P001');
+    expect(candidateSource).not.toContain('轻过渡');
+    expect(candidateSource).not.toContain('```text');
+    expect(candidateSource).not.toBe(baselineSource);
   });
 
   it('reload 后结果一致（模板未变则 hash 不变）', async () => {

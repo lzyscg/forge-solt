@@ -27,6 +27,7 @@ function slotOf(overrides: Partial<Slot> = {}): Slot {
     dependsOn: ['outline'],
     contentBearing: true,
     includeInArtifact: true,
+    narrativeUnitId: null,
     status: 'pending',
     revisionRound: 1,
     reviewExhausted: false,

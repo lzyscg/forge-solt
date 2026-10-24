@@ -58,6 +58,8 @@ export interface TaskSnapshot {
    */
   compiledJson: string;
   snapshotHash: string;
+  narrativePlanJson: string | null;
+  narrativePlanHash: string | null;
   createdAt: string;
 }
 

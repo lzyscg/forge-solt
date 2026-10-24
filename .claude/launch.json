@@ -133,6 +133,18 @@
       "port": 5273
     },
     {
+      "name": "bench-report",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "--directory",
+        "bench/reports"
+      ],
+      "port": 8765
+    },
+    {
       "name": "preview",
       "runtimeExecutable": "npx",
       "runtimeArgs": [

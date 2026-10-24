@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-02",
+  "status": "complete",
+  "completion": true,
+  "scope": "单个真实 outline-writing ReplayInput；不代表跨故事结论。",
+  "runs": [
+    {
+      "id": "s4-outline-granularity",
+      "baseline": { "n": 3, "accepted": 2, "rejected": 1 },
+      "variant": { "n": 3, "accepted": 2, "rejected": 1 },
+      "observedSectionCounts": { "baseline": [26, 23, 25], "variant": [25, 24, 18] },
+      "failure": "variant 一份将妻子番外与警察后记合并，粒度过粗。"
+    },
+    {
+      "id": "s4-outline-granularity-r2",
+      "condition": "variant-only",
+      "variant": { "n": 3, "accepted": 2, "rejected": 1 },
+      "observedSectionCounts": [23, 24, 26],
+      "failure": "一份仍将新学生线与妻子番外合并；未达 3/3。"
+    },
+    {
+      "id": "s4-outline-granularity-r3",
+      "condition": "variant-only",
+      "variant": { "n": 3, "accepted": 3, "rejected": 0 },
+      "observedSectionCounts": [24, 23, 21],
+      "fieldCompleteness": "3/3 每节出场/目标/冲突/结束状态齐全",
+      "boundary": "3/3 将新学生主线、妻子番外与警察后记拆成独立小节"
+    }
+  ],
+  "qualityAudit": {
+    "quoteVerified": true,
+    "rejectedSamplesVisible": true,
+    "bestOf": false
+  },
+  "outlineReviewProbe": {
+    "overcoarseRecall": "3/3",
+    "overfineRecall": "3/3",
+    "shortEffectiveFalsePositive": "0/3",
+    "cleanSplitFalsePositive": "1/3",
+    "decision": "误报会触发整份大纲重写，S6/S7 不进入生产；仅保留实验变体。"
+  },
+  "decision": "r3 达到 3/3，outline-writing 1.2.0 已提升生产；outline-review 粒度判据因 1/3 正常样本误报未提升。单故事证据限制保留，待多故事仿写验收复核泛化。",
+  "privateArtifacts": [
+    "bench/runs/s4-outline-writing-audited.json",
+    "bench/runs/s4-outline-writing-r2-audited.json",
+    "bench/runs/s4-outline-writing-r3-audited.json"
+  ]
+}

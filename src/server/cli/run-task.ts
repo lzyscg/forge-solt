@@ -23,8 +23,11 @@ import { runMigrations } from '@server/infrastructure/database/migrate.ts';
 import { FakeProvider } from '@server/runtime/provider/fake.ts';
 import { buildApp } from '@server/application/composition.ts';
 import { loadProviderConfig } from '@server/application/provider-config.ts';
-import type { LoadedSkill } from '@server/application/skill-loader.ts';
-import type { CompiledSlotType, CompiledTemplate } from '@server/application/template-loader.ts';
+import type { FrozenTaskSnapshot } from '@server/application/snapshot-service.ts';
+import type { CompiledSlotType } from '@server/application/template-loader.ts';
+import { bindNarrativeUnitsToSections } from '@server/domain/narrative-plan-binding.ts';
+import { countNumberedOutlineSections } from '@server/domain/output-validation.ts';
+import { resolveSlotProductionPolicy } from '@server/application/narrative-production-policy.ts';
 import { loadServerConfig } from '@server/config/env.ts';
 
 interface CliArgs {
@@ -124,14 +127,17 @@ export async function runTask(argv: readonly string[]): Promise<number> {
   });
 
   const loaded = await app.catalog.requireUsable(args.template);
-  if (args.provider === 'fake') scriptFakeFromTemplate(fake, loaded.compiled, loaded.skills);
+  const taskInput = packet === null
+    ? objectInput(jsonInput, args.template)
+    : singleFieldInput(loaded.compiled.inputFields, packet, args.template);
   const created = await app.snapshots.createTask({
     templateId: args.template,
     name: args.name,
-    input: packet === null
-      ? objectInput(jsonInput, args.template)
-      : singleFieldInput(loaded.compiled.inputFields, packet, args.template),
+    input: taskInput,
   });
+  if (args.provider === 'fake') {
+    scriptFakeFromSnapshot(fake, app.snapshots.readSnapshot(created.task.id));
+  }
   log(`任务已创建：${created.task.id}（${created.task.name}）`);
 
   await app.lifecycle.start(created.task.id);
@@ -205,8 +211,9 @@ function singleFieldInput(
  * 是**整条流水线**，包括那些只有在内容满足约束时才会走到的分支：
  * 确定性校验、组装、checksum、产物落库。回一句「好的」只能证明工具循环没崩。
  *
- * 结构上刻意贴着模板：每个 `contentBearing` 类型出一个槽位，长度按 `minChars` 撑够。
- * 于是换一个模板，这个脚本自动跟着变——写死一份结构的话，CLI 就只对当前这个模板有效。
+ * 结构上刻意贴着冻结模板：每个 `contentBearing` 类型出一个槽位；占位长度统一由
+ * `SlotProductionPolicy` 决定。于是 plan-enabled section 使用冻结 unit 预算，旧模板继续走
+ * 原有静态/整篇均分规则，FakeProvider 不会另造一套生产口径。
  *
  * **R4：绑了审核的槽位类型还要补审核轮的脚本。**
  * 填槽提交之后槽位进 `reviewing`，引擎会按判据逐条跑 `review_slot` execution（D-23）。
@@ -216,11 +223,11 @@ function singleFieldInput(
  * 一律回 `no_finding`：这个脚本要证明的是流水线跑得通，不是审核判得准——
  * 让它回 `revise` 会把 CLI 变成返修循环的测试，而返修循环有自己的集成用例。
  */
-function scriptFakeFromTemplate(
+function scriptFakeFromSnapshot(
   fake: FakeProvider,
-  compiled: CompiledTemplate,
-  skills: Readonly<Record<string, LoadedSkill>>,
+  snapshot: FrozenTaskSnapshot,
 ): void {
+  const { compiled, input: taskInput, skills } = snapshot;
   const container = compiled.slotTypes.find((t) => !t.contentBearing);
   const contentTypes = compiled.slotTypes.filter((t) => t.contentBearing);
   if (container === undefined || contentTypes.length === 0) {
@@ -228,17 +235,54 @@ function scriptFakeFromTemplate(
   }
 
   const rootId = container.id;
-  const slots = [
-    { id: rootId, type: container.id, parentId: null, order: 0, instruction: '', dependsOn: [] },
-    ...contentTypes.map((type, index) => ({
-      id: `${type.id}_01`,
+  const contentSlots = contentTypes.flatMap((type) => {
+    let count = compiled.output.validation?.slotCounts[type.id]?.min ?? 1;
+    const outlineRule = compiled.output.validation?.outlineCount;
+    if (outlineRule?.slotType === type.id) {
+      count = countNumberedOutlineSections(taskInput[outlineRule.inputField] ?? '');
+    }
+    return Array.from({ length: count }, (_, index) => ({
+      id: `${type.id}_${String(index + 1).padStart(2, '0')}`,
       type: type.id,
       parentId: rootId,
-      order: index,
+      order: index + 1,
       instruction: `〔占位〕${type.name}`,
-      dependsOn: [],
-    })),
+      dependsOn: index === 0 ? [] : [`${type.id}_${String(index).padStart(2, '0')}`],
+    }));
+  });
+  contentSlots.forEach((slot, index) => {
+    slot.order = index + 1;
+  });
+  const slots = [
+    { id: rootId, type: container.id, parentId: null, order: 0, instruction: '', dependsOn: [] },
+    ...contentSlots,
   ];
+  const narrativeUnitBySlot = new Map<string, string>();
+  const planRule = compiled.output.validation?.narrativePlan ?? null;
+  const plan = snapshot.narrativePlan ?? null;
+  if (planRule !== null && plan !== null) {
+    const binding = bindNarrativeUnitsToSections({
+      slots: slots.map((slot) => ({
+        slotId: slot.id,
+        type: slot.type,
+        parentId: slot.parentId,
+        sortOrder: slot.order,
+      })),
+      plan,
+      sectionSlotType: planRule.slotType,
+    });
+    if (!binding.ok) {
+      throw new Error(`模板 ${compiled.id} 无法生成 NarrativePlan 假脚本：${binding.message}`);
+    }
+    for (const item of binding.bindings) {
+      narrativeUnitBySlot.set(item.slotId, item.narrativeUnitId);
+    }
+  }
+  const policySlots = slots.map((slot) => ({
+    slotId: slot.id,
+    type: slot.type,
+    narrativeUnitId: narrativeUnitBySlot.get(slot.id) ?? null,
+  }));
 
   fake.script({ submitStructure: { rootSlotId: rootId, slots } });
 
@@ -255,9 +299,18 @@ function scriptFakeFromTemplate(
     }
   }
 
-  for (const type of contentTypes) {
-    const slotId = `${type.id}_01`;
-    fake.script({ submitContent: { slotId, content: fillerFor(type) } });
+  for (const slot of contentSlots) {
+    const type = contentTypes.find((candidate) => candidate.id === slot.type);
+    if (type === undefined) throw new Error(`模板 ${compiled.id} 缺少槽位类型 ${slot.type}`);
+    const targetSlot = policySlots.find((candidate) => candidate.slotId === slot.id);
+    if (targetSlot === undefined) throw new Error(`模板 ${compiled.id} 缺少策略槽位 ${slot.id}`);
+    const policy = resolveSlotProductionPolicy({
+      snapshot,
+      targetSlot,
+      allSlots: policySlots,
+      slotType: type,
+    });
+    fake.script({ submitContent: { slotId: slot.id, content: fillerFor(type, policy.han?.targetHan ?? policy.han?.minHan ?? null) } });
 
     const reviewBinding = compiled.bindings.reviewSlotByType[type.id];
     if (reviewBinding === undefined) continue;
@@ -266,7 +319,7 @@ function scriptFakeFromTemplate(
       throw new Error(`模板 ${compiled.id} 的审核绑定引用了未加载的 Skill：${reviewBinding.skillId}`);
     }
     for (const _criterion of reviewSkill.sections) {
-      fake.script({ submitReview: { slotId, verdict: 'no_finding' } });
+      fake.script({ submitReview: { slotId: slot.id, verdict: 'no_finding' } });
     }
   }
 }
@@ -278,14 +331,21 @@ function scriptFakeFromTemplate(
  * 被确定性校验拒掉——而那看起来像是系统坏了，实际是假脚本自己没守模板的规矩。
  * 刻意不含 Markdown 小标题：那是模板里最常见的 `forbidPattern`。
  */
-function fillerFor(type: CompiledSlotType): string {
-  const min = type.validation.minChars ?? 0;
+function fillerFor(type: CompiledSlotType, minHan: number | null = null): string {
+  const min = Math.max(type.validation.minChars ?? 0, minHan ?? 0);
   const max = type.validation.maxChars ?? Number.POSITIVE_INFINITY;
 
+  if (minHan !== null) {
+    const prefix = '我说：「这是占位内容。」';
+    const needed = Math.max(0, minHan - [...prefix].filter((char) => /[㐀-鿿]/u.test(char)).length);
+    const text = prefix + '我'.repeat(needed);
+    return [...text].length > max ? [...text].slice(0, max).join('') : text;
+  }
+
   // 短槽位（标题这类）放不下完整说明，退化成一个仍然一眼可辨的短标记
-  let text = max < 30 ? '〔占位〕' : '〔占位〕本段由 --provider fake 生成，用于验证流水线，不是真实内容。';
+  let text = max < 30 ? '我与占位' : '我说：「这是占位内容。」本段由假 Provider 生成，只用于验证流水线。';
   while ([...text].length < min) {
-    text += max < 30 ? '占位' : `${type.name}的占位文字，仅用于让确定性校验有东西可校验。`;
+    text += max < 30 ? '占位' : `我继续写${type.name}占位文字，只用于让确定性校验有东西可校验。`;
   }
   const chars = [...text];
   return chars.length > max ? chars.slice(0, max).join('') : text;

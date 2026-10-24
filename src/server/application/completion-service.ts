@@ -37,12 +37,19 @@
 
 import type { ErrorCode } from '@shared/errors.ts';
 import { ForgeError } from '@shared/errors.ts';
-import { sha256Hex } from '@server/domain/canonical.ts';
+import { canonicalJson, sha256Hex } from '@server/domain/canonical.ts';
 import type { Slot, SlotProducer } from '@server/domain/types.ts';
+import type { DomainArtifactSubmission } from '@server/runtime/ports.ts';
 import { verifyFindings, type RawFinding } from '@server/domain/review-evidence.ts';
 import type { UnitOfWork, UnitOfWorkHandle } from '@server/infrastructure/uow.ts';
 import { SOURCE_SHINGLE_CHARS, sourceContainment } from '@server/domain/source-overlap.ts';
+import { countHan } from '@server/domain/output-validation.ts';
 import type { CompiledSlotValidation } from './template-loader.ts';
+import {
+  resolveSlotProductionPolicy,
+  type SlotHanPolicy,
+  type SlotProductionPolicy,
+} from './narrative-production-policy.ts';
 import { contentUnderReviewOf } from './review-target.ts';
 import type { SnapshotService } from './snapshot-service.ts';
 import type { TraceService } from './trace-service.ts';
@@ -72,6 +79,7 @@ export function validateSlotContent(
   content: string,
   validation: CompiledSlotValidation,
   privateSource: string | null = null,
+  hanPolicy: Pick<SlotHanPolicy, 'minHan' | 'maxHan'> | null = null,
 ): string[] {
   const reasons: string[] = [];
   const trimmed = content.trim();
@@ -90,6 +98,16 @@ export function validateSlotContent(
   }
   if (maxChars !== null && chars > maxChars) {
     reasons.push(`正文有 ${chars} 字，超过本槽位允许的最多 ${maxChars} 字`);
+  }
+
+  if (hanPolicy !== null) {
+    const han = countHan(trimmed);
+    if (han < hanPolicy.minHan) {
+      reasons.push(`正文有 ${han} 个汉字，低于整篇预算分配给本槽位的最少 ${hanPolicy.minHan} 个汉字`);
+    }
+    if (han > hanPolicy.maxHan) {
+      reasons.push(`正文有 ${han} 个汉字，超过整篇预算分配给本槽位的最多 ${hanPolicy.maxHan} 个汉字`);
+    }
   }
 
   const { forbidPattern } = validation;
@@ -137,10 +155,16 @@ export interface SubmitSlotContentInput {
   token: string;
   slotId: string;
   content: string;
+  domainArtifact?: DomainArtifactSubmission | undefined;
   /** 四件套捆成一个对象（AC-009）：类型上不存在「只有 agentId」这种半截 producer */
   producer: Omit<SlotProducer, 'executionId'>;
   /** Provider 报的用量，没有就传 null */
   usage?: { inputTokens: number | null; outputTokens: number | null } | null;
+  /**
+   * 引擎在创建 execution 时冻结进 Replay 的同一份策略。
+   * 省略仅供非生产引擎调用兼容；服务会从冻结快照确定性重建。
+   */
+  productionPolicy?: SlotProductionPolicy | null;
   /**
    * R2：为 true 时走 commitContentForReview（status → 'reviewing'），
    * 为 false 时走 commitContent（status → 'completed'）。
@@ -220,9 +244,10 @@ export interface CompletionService {
    * 提交事务内：
    * 1. D-10 token 闸门（与 fill_slot 同一条路径，AC-R-006）
    * 2. verifyFindings 校验引文（AC-R-003）
-   * 3. 全部 findings 被丢弃 → verdict 降级为 discarded（AC-R-004）
-   * 4. 插入 slot_reviews 行
-   * 5. 写 trace
+   * 3. 与工具可读系统私有输入存在 14 字片段重合的 finding 整条丢弃
+   * 4. 全部 findings 被丢弃 → verdict 降级为 discarded（AC-R-004）
+   * 5. 插入 slot_reviews 行
+   * 6. 写 trace
    */
   submitReviewResult(input: ReviewResultInput): ReviewResultOutcome;
 }
@@ -268,6 +293,20 @@ export interface CompletionServiceOptions {
 
 function joinReasons(reasons: readonly string[]): string {
   return reasons.length === 1 ? (reasons[0] ?? '') : `内容校验未通过：${reasons.join('；')}`;
+}
+
+function excludePrivateSourceFindings(
+  findings: readonly RawFinding[],
+  privateSources: readonly string[],
+): { kept: readonly RawFinding[]; discardedCount: number } {
+  const kept = findings.filter((finding) =>
+    privateSources.every(
+      (source) =>
+        sourceContainment(finding.quote, source) === 0
+        && sourceContainment(finding.problem, source) === 0,
+    ),
+  );
+  return { kept, discardedCount: findings.length - kept.length };
 }
 
 export function createCompletionService(options: CompletionServiceOptions): CompletionService {
@@ -324,7 +363,76 @@ export function createCompletionService(options: CompletionServiceOptions): Comp
       const privateSource = overlap === null
         ? null
         : snapshots.readPrivateInput(input.taskId, overlap.privateInputField);
-      const reasons = validateSlotContent(input.content, slotType.validation, privateSource);
+      const allSlots = uow.repositories.slots.listByTask(input.taskId);
+      const resolvedPolicy = resolveSlotProductionPolicy({
+        snapshot,
+        targetSlot: slot,
+        allSlots,
+        slotType,
+      });
+      if (
+        input.productionPolicy !== undefined
+        && input.productionPolicy !== null
+        && canonicalJson(input.productionPolicy) !== canonicalJson(resolvedPolicy)
+      ) {
+        throw new ForgeError(
+          'STORAGE_ERROR',
+          `槽位 ${input.slotId} 的 execution 生产策略与冻结快照不一致`,
+          `slot:${input.slotId}`,
+          '请重建任务',
+        );
+      }
+      const productionPolicy = input.productionPolicy ?? resolvedPolicy;
+      if (input.domainArtifact !== undefined) {
+        if (
+          slotType.answerContract?.kind !== input.domainArtifact.kind
+          || slotType.answerContract.version !== input.domainArtifact.version
+        ) {
+          throw new ForgeError(
+            'SLOT_CONTENT_INVALID',
+            `槽位 ${input.slotId} 的领域产物与冻结 Answer Contract 不一致`,
+            `slot:${input.slotId}`,
+          );
+        }
+        let parsedArtifact: unknown;
+        try {
+          parsedArtifact = JSON.parse(input.domainArtifact.json);
+        } catch (error) {
+          throw new ForgeError(
+            'SLOT_CONTENT_INVALID',
+            `槽位 ${input.slotId} 的领域产物无法解析为 JSON`,
+            `slot:${input.slotId}`,
+            undefined,
+            error,
+          );
+        }
+        if (canonicalJson(parsedArtifact) !== input.domainArtifact.json) {
+          throw new ForgeError(
+            'SLOT_CONTENT_INVALID',
+            `槽位 ${input.slotId} 的领域产物不是 canonical JSON`,
+            `slot:${input.slotId}`,
+          );
+        }
+        if (sha256Hex(input.domainArtifact.json) !== input.domainArtifact.hash) {
+          throw new ForgeError(
+            'SLOT_CONTENT_INVALID',
+            `槽位 ${input.slotId} 的领域产物 hash 与 canonical JSON 不一致`,
+            `slot:${input.slotId}`,
+          );
+        }
+      } else if (slotType.answerContract !== undefined && slotType.answerContract !== null) {
+        throw new ForgeError(
+          'SLOT_CONTENT_INVALID',
+          `槽位 ${input.slotId} 启用了 Answer Contract，提交时必须携带完整领域产物`,
+          `slot:${input.slotId}`,
+        );
+      }
+      const reasons = validateSlotContent(
+        input.content,
+        slotType.validation,
+        privateSource,
+        productionPolicy.han,
+      );
       if (reasons.length > 0) {
         const reason = joinReasons(reasons);
         // D-20：被拒**只写 trace**，不收敛 execution、不让出 active_execution_id、
@@ -375,6 +483,7 @@ export function createCompletionService(options: CompletionServiceOptions): Comp
               taskId: input.taskId,
               slotId: input.slotId,
               content: input.content,
+              ...(input.domainArtifact === undefined ? {} : { domainArtifact: input.domainArtifact }),
               producer,
               tokenHash,
             });
@@ -383,6 +492,7 @@ export function createCompletionService(options: CompletionServiceOptions): Comp
               taskId: input.taskId,
               slotId: input.slotId,
               content: input.content,
+              ...(input.domainArtifact === undefined ? {} : { domainArtifact: input.domainArtifact }),
               producer,
               tokenHash,
             });
@@ -534,10 +644,18 @@ export function createCompletionService(options: CompletionServiceOptions): Comp
             contentUnderReviewOf(slot, repos.slots.listByTask(input.taskId)),
             input.verdict === 'revise' ? input.findings : [],
           );
+          const snapshot = snapshots.readSnapshot(input.taskId);
+          const privateSources = snapshot.compiled.inputFields
+            .filter((field) => field.visibility === 'system' && field.toolReadable)
+            .map((field) => snapshots.readPrivateInput(input.taskId, field.id))
+            .filter((value): value is string => value !== null);
+          const privateSafe = excludePrivateSourceFindings(verified.kept, privateSources);
+          const keptFindings = privateSafe.kept;
+          const discardedCount = verified.discardedCount + privateSafe.discardedCount;
 
           // AC-R-004：全部 findings 被丢弃 → verdict 降级为 discarded
           let finalVerdict: 'no_finding' | 'revise' | 'discarded' = input.verdict;
-          if (input.verdict === 'revise' && verified.kept.length === 0 && input.findings.length > 0) {
+          if (input.verdict === 'revise' && keptFindings.length === 0 && input.findings.length > 0) {
             finalVerdict = 'discarded';
           } else if (input.verdict === 'revise' && verified.kept.length === 0) {
             // findings 为空数组但 verdict 是 revise → 也降级
@@ -559,7 +677,7 @@ export function createCompletionService(options: CompletionServiceOptions): Comp
             criterionId: input.criterionId,
             executionId: input.executionId,
             verdict: finalVerdict,
-            findingsJson: JSON.stringify(verified.kept),
+            findingsJson: JSON.stringify(keptFindings),
           });
 
           // 写 trace（措辞受 D-30 约束）
@@ -582,8 +700,8 @@ export function createCompletionService(options: CompletionServiceOptions): Comp
               slotId: input.slotId,
               criterionId: input.criterionId,
               verdict: finalVerdict,
-              discardedCount: verified.discardedCount,
-              findings: verified.kept.map((f) => ({ criterionId: f.criterionId, quote: f.quote, problem: f.problem })),
+              discardedCount,
+              findings: keptFindings.map((f) => ({ criterionId: f.criterionId, quote: f.quote, problem: f.problem })),
             },
           });
 
@@ -596,14 +714,14 @@ export function createCompletionService(options: CompletionServiceOptions): Comp
               kind: 'review_no_finding',
               title: '审核失败',
               summary: `判据 ${input.criterionId} 的审核结果未通过引文校验，按未检出处理`,
-              payload: { slotId: input.slotId, criterionId: input.criterionId, discardedCount: verified.discardedCount },
+              payload: { slotId: input.slotId, criterionId: input.criterionId, discardedCount },
             });
           }
 
           return {
             verdict: finalVerdict,
-            keptFindings: verified.kept,
-            discardedCount: verified.discardedCount,
+            keptFindings,
+            discardedCount,
           };
         });
       } catch (error) {

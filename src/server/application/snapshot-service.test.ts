@@ -46,6 +46,27 @@ function collectKeys(value: unknown, out: Set<string> = new Set()): Set<string> 
 
 const INPUT = { chapter_packet: '主角在雨夜与债主对峙，本章需完成摊牌。' };
 
+function narrativeOutline(): string {
+  return Array.from({ length: 8 }, (_, index) => {
+    const number = index + 1;
+    const priority = number === 1
+      ? 'P0 P001'
+      : number === 2
+        ? 'P1 P002'
+        : number === 8
+          ? 'P0 P003'
+          : 'bridge';
+    return `${number}. 合成小节${number}\n` +
+      `变化：状态${number - 1} → 状态${number}\n` +
+      `重点：${priority}\n` +
+      `展开：${number % 2 === 0 ? '细写' : '轻过渡'}\n` +
+      '模式：快叙\n' +
+      '容量：对白轮次 0；动作反馈闭环 1；认知转折 0；事后余波 0\n' +
+      '出场：甲\n目标：推进合成状态\n冲突：状态尚未完成\n' +
+      `结束状态：状态${number}`;
+  }).join('\n\n');
+}
+
 describe('prepareSnapshot（D-02 / D-12）', () => {
   it('presentation 的任何字段都不出现在 compiled_json 里', async () => {
     const loaded = await catalog().get('zhihu-chapter');
@@ -126,8 +147,8 @@ describe('prepareSnapshot（D-02 / D-12）', () => {
 
 describe('normalizeTaskInput', () => {
   const fields = [
-    { id: 'packet', label: '执行包', type: 'textarea' as const, required: true, visibility: 'agent' as const, hint: null },
-    { id: 'note', label: '备注', type: 'text' as const, required: false, visibility: 'agent' as const, hint: null },
+    { id: 'packet', label: '执行包', type: 'textarea' as const, required: true, visibility: 'agent' as const, toolReadable: false, hint: null },
+    { id: 'note', label: '备注', type: 'text' as const, required: false, visibility: 'agent' as const, toolReadable: false, hint: null },
   ];
 
   it('required 缺失被拒', () => {
@@ -157,7 +178,7 @@ describe('normalizeTaskInput', () => {
   it('system 输入与 agent 输入按 visibility 分区', () => {
     const privateFields = [
       fields[0]!,
-      { id: 'source', label: '原文', type: 'textarea' as const, required: true, visibility: 'system' as const, hint: null },
+      { id: 'source', label: '原文', type: 'textarea' as const, required: true, visibility: 'system' as const, toolReadable: false, hint: null },
     ];
     const normalized = normalizeTaskInput(privateFields, { packet: '大纲', source: '私有原文' }, 'tpl');
     expect(splitTaskInput(privateFields, normalized)).toEqual({
@@ -184,7 +205,7 @@ describe('createTask（§5.5 第一行）', () => {
       id: loaded.compiled.id,
       inputFields: [
         { ...loaded.compiled.inputFields[0]!, visibility: 'agent' as const },
-        { id: 'source_text', label: '原文', type: 'textarea' as const, required: true, visibility: 'system' as const, hint: null },
+        { id: 'source_text', label: '原文', type: 'textarea' as const, required: true, visibility: 'system' as const, toolReadable: false, hint: null },
       ],
     };
     const privateCatalog = { requireUsable: async () => ({ ...loaded, compiled: privateCompiled }) } as never;
@@ -200,6 +221,70 @@ describe('createTask（§5.5 第一行）', () => {
     expect(privateService.readSnapshot(created.task.id).input).toEqual({ chapter_packet: 'Agent 可见大纲' });
     expect(privateService.readPrivateInput(created.task.id, 'source_text')).toBe(secret);
     expect(JSON.stringify(created)).not.toContain(secret);
+  });
+
+  it('plan-enabled 任务从公开输入编译并独立冻结 NarrativePlan', async () => {
+    const e = createTestEnv();
+    env = e;
+    const loaded = await catalog().get('zhihu-chapter');
+    const planCompiled = {
+      ...loaded.compiled,
+      slotTypes: loaded.compiled.slotTypes.map((type) => type.id === 'scene'
+        ? { ...type, validation: { ...type.validation, minChars: null, maxChars: null } }
+        : type),
+      output: {
+        ...loaded.compiled.output,
+        validation: {
+          slotCounts: {},
+          outlineCount: { inputField: 'chapter_packet', slotType: 'scene' },
+          storyHan: { min: 8000, target: 10_000, max: 15_000, slotType: 'scene' },
+          narrativePlan: { inputField: 'chapter_packet', slotType: 'scene' },
+        },
+      },
+    };
+    const planCatalog = { requireUsable: async () => ({ ...loaded, compiled: planCompiled }) } as never;
+    const service = createSnapshotService({ catalog: planCatalog, uow: e.uow });
+    const created = await service.createTask({
+      templateId: loaded.compiled.id,
+      name: 'NarrativePlan 快照',
+      input: { chapter_packet: narrativeOutline() },
+    });
+
+    const stored = e.uow.repositories.snapshots.getByTaskOrThrow(created.task.id);
+    expect(stored.narrativePlanJson).not.toBeNull();
+    expect(stored.narrativePlanHash).toBe(sha256Hex(stored.narrativePlanJson ?? ''));
+    const frozen = service.readSnapshot(created.task.id);
+    expect(frozen.narrativePlan?.units).toHaveLength(8);
+    expect(canonicalJson(frozen.narrativePlan)).toBe(stored.narrativePlanJson);
+    expect(frozen.narrativePlanHash).toBe(stored.narrativePlanHash);
+  });
+
+  it('plan-enabled 输入编译失败时事务开始前一行都不写', async () => {
+    const e = createTestEnv();
+    env = e;
+    const loaded = await catalog().get('zhihu-chapter');
+    const planCompiled = {
+      ...loaded.compiled,
+      output: {
+        ...loaded.compiled.output,
+        validation: {
+          slotCounts: {},
+          outlineCount: { inputField: 'chapter_packet', slotType: 'scene' },
+          storyHan: { min: 8000, target: 10_000, max: 15_000, slotType: 'scene' },
+          narrativePlan: { inputField: 'chapter_packet', slotType: 'scene' },
+        },
+      },
+    };
+    const planCatalog = { requireUsable: async () => ({ ...loaded, compiled: planCompiled }) } as never;
+    const service = createSnapshotService({ catalog: planCatalog, uow: e.uow });
+    const before = dumpAll(e.db);
+
+    await expect(service.createTask({
+      templateId: loaded.compiled.id,
+      name: '非法 NarrativePlan',
+      input: { chapter_packet: '{"sections":[]}' },
+    })).rejects.toMatchObject({ code: 'TASK_INPUT_INVALID' });
+    expect(dumpAll(e.db)).toEqual(before);
   });
 
   it('三条 INSERT 在一个事务内落库，任务落在 ready / structure', async () => {
@@ -328,6 +413,19 @@ describe('readSnapshot（M3 ContextBuilder 的读入口）', () => {
 
     e.db.prepare('UPDATE task_snapshots SET compiled_json = ? WHERE task_id = ?').run(
       '{"tampered":true}',
+      created.task.id,
+    );
+    expect(() => service.readSnapshot(created.task.id)).toThrow(
+      expect.objectContaining({ code: 'STORAGE_ERROR' }),
+    );
+  });
+
+  it('NarrativePlan 双列不完整或 hash 损坏时失败关闭', async () => {
+    const { env: e, service } = serviceWith();
+    const created = await service.createTask({ templateId: 'zhihu-chapter', name: '第一章', input: INPUT });
+
+    e.db.prepare('UPDATE task_snapshots SET narrative_plan_hash = ? WHERE task_id = ?').run(
+      'a'.repeat(64),
       created.task.id,
     );
     expect(() => service.readSnapshot(created.task.id)).toThrow(

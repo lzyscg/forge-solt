@@ -31,6 +31,27 @@ const IdentifierSchema = z.string().regex(/^[a-z][a-z0-9_-]*$/, 'ID 只能包含
 
 const SemverSchema = z.string().regex(/^\d+\.\d+\.\d+$/, '版本号必须是 x.y.z 三段式');
 
+const NarrativePlanAnswerContractSchema = z
+  .object({
+    kind: z.literal('narrative-plan'),
+    version: z.union([z.literal(2), z.literal(3)]),
+    sourceField: IdentifierSchema,
+    sourceSegmentation: z.literal('preserve-numbered-sections'),
+    expansionPolicy: z.literal('source-length-quantiles-v1'),
+    storyBudget: z
+      .object({
+        minHan: z.number().int().positive(),
+        targetHan: z.number().int().positive(),
+        maxHan: z.number().int().positive(),
+      })
+      .strict()
+      .refine(
+        (budget) => budget.minHan <= budget.targetHan && budget.targetHan <= budget.maxHan,
+        '必须满足 minHan ≤ targetHan ≤ maxHan',
+      ),
+  })
+  .strict();
+
 /** D-05：系统强制的确定性校验。与 `guidance`（写作要求，不强制）严格分开 */
 const SlotValidationSchema = z
   .object({
@@ -88,6 +109,7 @@ export const RawSlotTypeSchema = z
      */
     includeInArtifact: z.boolean().optional(),
     validation: SlotValidationSchema.optional(),
+    answerContract: NarrativePlanAnswerContractSchema.optional(),
     guidance: z.array(z.string().min(1)).optional(),
     /** R2：返修上限，默认 2（D-26）。编译进 SlotTypeDefinition */
     maxRevisionRounds: z.number().int().min(0).optional(),
@@ -145,8 +167,50 @@ export const RawOutputSchema = z
   .object({
     fileName: z.string().min(1),
     mediaType: z.string().min(1),
-    /** P0 只有一个组装器。写成 literal 而非 string，拼错当场报错而不是组装时才发现 */
-    assembler: z.enum(['markdown_concat_v1', 'numbered_sections_v1']),
+    /** P0 只有两个组装器。写成 enum，拼错在加载期失败。 */
+    assembler: z.enum(['markdown_concat_v1', 'numbered_sections_v1', 'numbered_sentence_paragraphs_v1']),
+    validation: z
+      .object({
+        slotCounts: z.record(
+          SlotTypeIdSchema,
+          z
+            .object({ min: z.number().int().min(0), max: z.number().int().min(0) })
+            .strict()
+            .refine((range) => range.min <= range.max, 'min 不得大于 max'),
+        ).optional(),
+        outlineCount: z
+          .object({ inputField: IdentifierSchema, slotType: SlotTypeIdSchema })
+          .strict()
+          .optional(),
+        storyHan: z
+          .object({
+            min: z.number().int().positive(),
+            target: z.number().int().positive().optional(),
+            max: z.number().int().positive(),
+            slotType: SlotTypeIdSchema,
+          })
+          .strict()
+          .refine(
+            (range) => range.min <= (range.target ?? range.max) && (range.target ?? range.min) <= range.max,
+            '必须满足 min ≤ target ≤ max',
+          )
+          .optional(),
+        narrativePlan: z
+          .object({ inputField: IdentifierSchema, slotType: SlotTypeIdSchema })
+          .strict()
+          .optional(),
+        fingerprint: z
+          .object({
+            requireFirstPerson: z.boolean().default(false),
+            forbidDoubleQuoteStyle: z.boolean().default(false),
+            requireNumberedSections: z.boolean().default(false),
+            warnNoDialogueQuotes: z.boolean().default(false),
+          })
+          .strict()
+          .optional(),
+      })
+      .strict()
+      .optional(),
   })
   .strict();
 
@@ -183,11 +247,22 @@ export const RawInputFieldSchema = z
     label: z.string().min(1),
     type: z.enum(['text', 'textarea']),
     required: z.boolean(),
-    /** agent 进入模型上下文；system 只供确定性校验。 */
+    /** agent 进入模型上下文；system 默认只供服务端确定性校验。 */
     visibility: z.enum(['agent', 'system']).default('agent'),
+    /** system 字段可否由 Agent 通过 read_task_input(field) 显式读取。 */
+    toolReadable: z.boolean().default(false),
     hint: z.string().min(1).optional(),
   })
-  .strict();
+  .strict()
+  .superRefine((field, ctx) => {
+    if (field.toolReadable && field.visibility !== 'system') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['toolReadable'],
+        message: 'toolReadable=true 只允许用于 visibility=system 的字段',
+      });
+    }
+  });
 
 export const RawTemplateSchema = z
   .object({

@@ -89,6 +89,18 @@ export interface ProviderTurnResult {
   readonly appendMessages: readonly ProviderMessage[];
 }
 
+export type ProviderActivity =
+  | { readonly kind: 'response_headers' }
+  | { readonly kind: 'stream_text_delta'; readonly byteCount: number }
+  | { readonly kind: 'stream_reasoning_delta'; readonly byteCount: number }
+  | {
+      readonly kind: 'stream_tool_call_delta';
+      readonly byteCount: number;
+      readonly toolNameRecognized: boolean;
+    }
+  | { readonly kind: 'stream_finish' }
+  | { readonly kind: 'stream_usage' };
+
 export interface ProviderRunTurnInput {
   readonly model: string;
   /** 只用于构造 Authorization 头。任何实现都不得把它写进返回值或日志 */
@@ -97,8 +109,10 @@ export interface ProviderRunTurnInput {
   readonly messages: readonly ProviderMessage[];
   readonly tools: readonly ProviderToolDefinition[];
   readonly maxTokens: number;
+  readonly toolChoice?: 'auto' | { readonly name: ToolName } | undefined;
   readonly signal: AbortSignal;
   readonly onTextDelta: (delta: string) => void;
+  readonly onActivity: (activity: ProviderActivity) => void;
   readonly onToolCall: (call: ProviderToolCall) => Promise<ProviderToolResult>;
 }
 

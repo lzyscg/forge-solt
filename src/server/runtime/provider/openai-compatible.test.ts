@@ -63,12 +63,31 @@ function turnInput(overrides: Partial<ProviderRunTurnInput> = {}): ProviderRunTu
     maxTokens: 128,
     signal: new AbortController().signal,
     onTextDelta: () => undefined,
+    onActivity: () => undefined,
     onToolCall: async (call) => ({ toolCallId: call.id, content: 'ok', isError: false }),
     ...overrides,
   };
 }
 
 describe('流式文本', () => {
+  it('将强制工具选择映射到 OpenAI-compatible wire body', async () => {
+    let body: unknown;
+    const adapter = new OpenAiCompatibleAdapter({
+      baseUrl: 'https://example.test/v1',
+      providerId: 'fake',
+      fetchImpl: (async (_url: string | URL | Request, init?: RequestInit) => {
+        body = JSON.parse(String(init?.body));
+        return new Response(sseStream([data({ choices: [{ delta: {}, finish_reason: 'stop' }] })]), { status: 200 });
+      }) as unknown as typeof fetch,
+    });
+
+    await adapter.runTurn(turnInput({ toolChoice: { name: 'read_slot' } }));
+
+    expect(body).toMatchObject({
+      tool_choice: { type: 'function', function: { name: 'read_slot' } },
+    });
+  });
+
   it('逐段推 delta，finish_reason=stop → end_turn', async () => {
     const adapter = adapterWith(
       () =>
@@ -91,6 +110,31 @@ describe('流式文本', () => {
     expect(assistant?.role === 'assistant' ? assistant.content : '').toBe('她戴上耳机。');
   });
 
+  it('只上报有效流活动，tool arguments 只暴露字节数', async () => {
+    const adapter = adapterWith(
+      () => new Response(sseStream([
+        ': keepalive\n\n',
+        data({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_a', function: { name: 'read_slot', arguments: '{"secret"' } }] } }] }),
+        data({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: ':"private"}' } }] } }] }),
+        data({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] }),
+        data({ choices: [], usage: { prompt_tokens: 10, completion_tokens: 5 } }),
+      ]), { status: 200 }),
+    );
+    const activities: unknown[] = [];
+
+    await adapter.runTurn(turnInput({ onActivity: (activity) => activities.push(activity) }));
+
+    expect(activities).toEqual([
+      { kind: 'response_headers' },
+      { kind: 'stream_tool_call_delta', byteCount: 9, toolNameRecognized: true },
+      { kind: 'stream_tool_call_delta', byteCount: 11, toolNameRecognized: false },
+      { kind: 'stream_finish' },
+      { kind: 'stream_usage' },
+    ]);
+    expect(JSON.stringify(activities)).not.toContain('secret');
+    expect(JSON.stringify(activities)).not.toContain('private');
+  });
+
   it('隐藏推理（reasoning_content）不进入任何输出（REQ §13）', async () => {
     const adapter = adapterWith(
       () =>
@@ -107,6 +151,26 @@ describe('流式文本', () => {
 
     expect(deltas).toEqual(['正文']);
     expect(JSON.stringify(result)).not.toContain('用户其实想要');
+  });
+
+  it('隐藏推理只续期并报告字节数，不暴露内容', async () => {
+    const secret = '私有隐藏推理内容';
+    const activities: unknown[] = [];
+    const adapter = adapterWith(
+      () => new Response(sseStream([
+        data({ choices: [{ delta: { reasoning_content: secret } }] }),
+        data({ choices: [{ delta: {}, finish_reason: 'stop' }] }),
+      ]), { status: 200 }),
+    );
+
+    const result = await adapter.runTurn(turnInput({ onActivity: (activity) => activities.push(activity) }));
+
+    expect(activities).toContainEqual({
+      kind: 'stream_reasoning_delta',
+      byteCount: Buffer.byteLength(secret),
+    });
+    expect(JSON.stringify(activities)).not.toContain(secret);
+    expect(JSON.stringify(result)).not.toContain(secret);
   });
 
   it('finish_reason=length → max_tokens', async () => {

@@ -33,6 +33,7 @@
  */
 
 import type { SlotProposal } from '@shared/tools.ts';
+import type { OutputStructureViolation } from './output-validation.ts';
 
 /**
  * 规则 ID。机器可读，用于统计（D-13 的首次通过率按 rule 分组）与测试断言。
@@ -107,6 +108,8 @@ export interface ValidatedSlot {
    */
   depth: number;
 }
+
+export type AnyStructureViolation = StructureViolation | OutputStructureViolation;
 
 export type StructureValidationResult =
   | { ok: true; slots: ValidatedSlot[] }

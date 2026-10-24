@@ -20,6 +20,7 @@ function slot(partial: Partial<Slot> & Pick<Slot, 'slotId'>): Slot {
     dependsOn: [],
     contentBearing: true,
     includeInArtifact: true,
+    narrativeUnitId: null,
     status: 'pending',
     revisionRound: 0,
     reviewExhausted: false,

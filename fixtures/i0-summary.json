@@ -1,0 +1,83 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-02",
+  "status": "complete",
+  "completion": true,
+  "networkCalls": 0,
+  "cases": [
+    {
+      "caseId": "i0-fast-summary",
+      "mode": "fast-summary",
+      "role": "development",
+      "sourceHash": "228098117568f59b6b479cae11863389773d1e8a8bec21306a347cc78e0c0ad9",
+      "han": 7233,
+      "sections": 26,
+      "paragraphMedian": 8,
+      "sentenceMedian": 7,
+      "sectionMedianHan": 232.5,
+      "sectionVariation": 0.9120137234,
+      "hasOutline": false,
+      "hasDraft": false
+    },
+    {
+      "caseId": "i0-conflict-dialogue",
+      "mode": "conflict-scene",
+      "role": "development",
+      "sourceHash": "697e6ac80f93d8b189ba23af2823932a783599620c27871343de6d77af9e32fd",
+      "han": 6920,
+      "sections": 23,
+      "paragraphMedian": 13,
+      "sentenceMedian": 13,
+      "sectionMedianHan": 227,
+      "sectionVariation": 0.5832581949,
+      "hasOutline": true,
+      "hasDraft": true,
+      "currentDraft": {
+        "expansionRatio": 2.1450867052,
+        "sectionMedianExpansionRatio": 2.6563876652,
+        "sectionVariation": 0.055151189,
+        "findingCounts": {
+          "uniformExpansion": 1,
+          "lengthExpansion": 1,
+          "novelNumber": 3,
+          "novelProcedure": 5
+        }
+      }
+    },
+    {
+      "caseId": "i0-emotional-reality",
+      "mode": "emotional-reality",
+      "role": "development",
+      "sourceHash": "b52248c254a9616941a5c8faaa7a6d59e07108b31217ed4bdd3e6eb999b84036",
+      "han": 7394,
+      "sections": 9,
+      "paragraphMedian": 13,
+      "sentenceMedian": 13,
+      "sectionMedianHan": 812,
+      "sectionVariation": 0.2654391198,
+      "hasOutline": false,
+      "hasDraft": false
+    }
+  ],
+  "expansionWeightCalibration": {
+    "method": "每篇原文小节汉字 / 该篇小节均值；≤q30=light，≥q70=detailed，其余standard；三故事分档后取各档比值中位数",
+    "profileVersion": "i0-three-mode-v1",
+    "relativeWeights": {
+      "light": 0.6069920579679814,
+      "standard": 1,
+      "detailed": 1.5602547530317912
+    },
+    "note": "当前只由三个开发故事校准；加入新模式或语料必须升级 profileVersion，不静默改常量。"
+  },
+  "decisions": [
+    "展开预算必须按叙事模式和展开等级路由，不能使用全局同一参数。",
+    "I1 先补另外两个故事的 outline baseline，再比较展开分配；不伪造当前 draft。",
+    "已知 r2 的均匀铺开、长度膨胀和未授权程序机制均被审计模块检出。"
+  ],
+  "privacy": {
+    "privateManifest": "bench/runs/i0/manifest.json",
+    "privateAudits": "bench/runs/i0/audits/",
+    "publicSourceShingleHits": 0,
+    "sourceTextCommitted": false
+  }
+}

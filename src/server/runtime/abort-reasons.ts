@@ -11,11 +11,20 @@
  * `instanceof` 至少能在改名时被编译器抓到。
  */
 
+export type TimeoutKind =
+  | 'first_response_idle'
+  | 'stream_idle'
+  | 'total_deadline'
+  | 'tool_execution';
+
 /** 超时中止（AC-010）。收敛为 `PROVIDER_TIMEOUT`，消耗一次 retry 配额 */
 export class TimeoutSignal extends Error {
   override readonly name = 'TimeoutSignal';
-  constructor(readonly timeoutMs: number) {
-    super(`Assignment 超过 ${timeoutMs}ms 未完成`);
+  constructor(
+    readonly timeoutMs: number,
+    readonly kind: TimeoutKind = 'total_deadline',
+  ) {
+    super(`${kind} 超过 ${timeoutMs}ms 未完成`);
   }
 }
 

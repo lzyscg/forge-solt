@@ -1,45 +1,72 @@
 {
-  "schemaVersion": 1,
-  "date": "2026-09-01",
-  "status": "in_progress",
-  "completion": false,
-  "reason": "真实两级流水线已跑通，但 story.md 汉字数 20491 超过 S2.5 完成判据上限 15850；不放宽门槛，不追加第二个故事。",
+  "schemaVersion": 2,
+  "date": "2026-09-02",
+  "status": "complete",
+  "completion": true,
   "sample": {
     "name": "鸿蒙生两仪",
     "sourceHan": 6917,
     "sourceHash": "a946382fa3679508ddd08d7b2ef281e4a6bba3c854bbaf8b3c1e799439c941c6"
   },
-  "pipeline": {
-    "outlineCompleted": true,
-    "outlineArtifactBytes": 10678,
-    "storyCompleted": true,
-    "storySlots": 27,
-    "sectionSlots": 25,
-    "numberedSections": 25,
-    "numberedAssembler": "真实任务冻结了实现前的 markdown_concat_v1；任务完成后使用同一批槽位内容经 numbered_sections_v1 离线重装配，未再次调用模型。正式 zhihu-story 模板已切换为 numbered_sections_v1。",
-    "storyHan": 20491,
-    "storyBytes": 73350,
-    "inputTokens": 4651118,
-    "outputTokens": 314691,
-    "executions": 202
+  "history": [
+    {
+      "run": "r1",
+      "status": "failed_acceptance",
+      "storyHan": 20491,
+      "sectionSlots": 25,
+      "reason": "单节静态 maxChars=1100 未形成整篇预算；节节合法但整篇超过 15850。"
+    },
+    {
+      "run": "r2",
+      "status": "accepted",
+      "reuse": "复用 r1 已真实成功的 outline 与同一私有原文，只重跑第二层；不换故事、不 best-of。",
+      "taskCompleted": true,
+      "storyHan": 14844,
+      "artifactBytes": 54024,
+      "sectionSlots": 25,
+      "numberedSections": 25,
+      "sectionChars": { "min": 632, "max": 811, "mean": 733.5 },
+      "executions": 179,
+      "inputTokens": 4011308,
+      "outputTokens": 253504,
+      "fingerprint": {
+        "person": "first",
+        "firstPersonCount": 547,
+        "thirdPersonCount": 415,
+        "quote": "corner",
+        "cornerQuoteCount": 642,
+        "doubleQuoteCount": 4,
+        "paragraphMedian": 44,
+        "sentenceMedian": 17
+      }
+    }
+  ],
+  "mechanism": {
+    "dynamicStoryBudget": true,
+    "promptContextReplaySubmissionUseSameEffectiveRange": true,
+    "structurePreflight": true,
+    "artifactFallbackValidation": true,
+    "sectionStaticChars": { "min": 250, "max": 1100 },
+    "storyHan": { "min": 7876, "max": 15850 },
+    "r2FrozenTemplateVersion": "1.0.0",
+    "currentProductionTemplateVersion": "1.1.0",
+    "versionNote": "r2 冻结行为与 hash 已包含动态预算和产物闸门；验收后发现模板语义变更漏升版本，当前生产模板已更正为 1.1.0。"
   },
   "antiCopy": {
     "shingleChars": 14,
     "step": 1,
-    "temporaryThreshold": 0.3,
+    "threshold": 0.05,
     "acceptedSections": 25,
     "maxObservedContainment": 0,
     "meanObservedContainment": 0,
-    "calibrationFormula": "min(0.30, max(0.05, ceil(maxAccepted * 2, 0.01)))",
-    "calibratedThreshold": 0.05,
     "constructedCopyRejected": true
   },
   "privacy": {
     "privateInputRows": 1,
     "privateSourceStoredOnlyIn": "task_private_inputs",
     "sourceMarkerHitsOutsidePrivateTable": 0,
-    "providerPromptHits": 0,
-    "apiTraceReplayHits": 0
+    "r1ProviderPromptHits": 0,
+    "r2UsesSamePrivateInputBoundary": true
   },
   "d88": {
     "preFixReadsSlotTypesFailureObserved": true,
@@ -47,9 +74,9 @@
     "finalCatalogTemplates": ["zhihu-outline", "zhihu-story"],
     "finalCatalogFailures": 0
   },
-  "interpretation": "这是单故事机制验收，不与 r0 比质量，不声称改善。下一步应在不进入 S3 的前提下解决篇幅超标。",
+  "interpretation": "S2.5 机制与同一故事真实验收完成。单故事不用于声称质量改善；段长中位 44 仍超语料全距，是 S5 的显式问题。",
   "privateArtifacts": [
     "bench/runs/s2-5-real/acceptance.sqlite",
-    "bench/runs/s2-5-real/story-numbered.md"
+    "bench/runs/s2-5-r2/acceptance.sqlite"
   ]
 }

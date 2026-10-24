@@ -33,6 +33,7 @@ function slot(over: Partial<Slot> & { slotId: string }): Slot {
     dependsOn: [],
     contentBearing: true,
     includeInArtifact: true,
+    narrativeUnitId: null,
     status: 'pending',
     revisionRound: 0,
     reviewExhausted: false,

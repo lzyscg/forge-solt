@@ -1,0 +1,51 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-02",
+  "status": "complete",
+  "completion": true,
+  "scope": "同一真实故事的首/中/尾三个 section ReplayInput，各条件 n=6；不代表跨故事结论。",
+  "invalidRun": {
+    "id": "s5-writing-selection-old-snapshot",
+    "reason": "使用 r1 旧快照，且早期 harness 错误要求不存在的私有原文；全部标 invalid，不入结论。"
+  },
+  "runs": [
+    {
+      "id": "s5-writing-selection-r2",
+      "baseline": { "n": 18, "success": 17, "paragraphMedian": 46.25 },
+      "variant": { "n": 18, "success": 18, "paragraphMedian": 48.5 },
+      "decision": "纯 Skill 软性分段规则未通过。"
+    },
+    {
+      "id": "s5-writing-selection-r3",
+      "condition": "variant-only",
+      "variant": { "n": 18, "success": 18, "rawParagraphMedian": 44.5, "medianHan": 550 },
+      "decision": "更强排版措辞仍未稳定执行；不靠继续加重 Prompt。"
+    }
+  ],
+  "deterministicFormatting": {
+    "assembler": "numbered_sentence_paragraphs_v1",
+    "textUnchangedIgnoringWhitespace": "18/18",
+    "paragraphMedianBefore": 44.5,
+    "paragraphMedianAfter": 20,
+    "referenceP5P95": [10, 21],
+    "byCaseAfter": { "opening": 16, "middle": 18.5, "ending": 25.75 },
+    "formattedRange": [12, 31.5]
+  },
+  "qualityAudit": {
+    "representativeSamples": 3,
+    "quoteVerified": true,
+    "notOutlineSummary": true,
+    "instructionCompletenessRetained": true,
+    "bestOf": false
+  },
+  "promotion": {
+    "sceneWritingVersion": "1.2.0",
+    "storyTemplateVersion": "1.2.0",
+    "assembler": "numbered_sentence_paragraphs_v1"
+  },
+  "limitations": [
+    "结尾少数完整长句仍使段长最高到 31.5；assembler 不拆句。",
+    "仅覆盖一个故事的三个 section，需在多故事整篇仿写验收复核。",
+    "单槽位 A/B 不评估私有原文防抄；防抄由完整故事验收负责。"
+  ]
+}

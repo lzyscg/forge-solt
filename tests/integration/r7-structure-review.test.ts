@@ -21,7 +21,6 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import {
   createEngineHarness,
-  sceneText,
   TITLE_TEXT,
   waitFor,
   type EngineHarness,
@@ -30,7 +29,7 @@ import { FakeProvider, type FakeProviderScript } from '@server/runtime/provider/
 
 const REPO_ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const INPUT = {
-  outline_blueprint: '完整故事大纲：主角在雨夜与债主对峙，本节需完成摊牌。',
+  outline_blueprint: Array.from({ length: 8 }, (_, index) => `${index + 1}. 第 ${index + 1} 节\n目标：推进第 ${index + 1} 个状态变化`).join('\n'),
   source_text: '系统私有原文，不会进入模型上下文。',
 };
 
@@ -49,6 +48,17 @@ const GOOD_GOAL = '让监视的存在从暗处浮出，老周句句闪烁，停�
 
 /** 生产模板下的一份合法结构。`title` 依赖全部场景（S3 第 2 条） */
 function tree(sceneTwoGoal: string): { rootSlotId: string; slots: unknown[] } {
+  const sections = Array.from({ length: 8 }, (_, index) => ({
+    id: `section_${String(index + 1).padStart(2, '0')}`,
+    type: 'section',
+    parentId: 'story',
+    order: index + 1,
+    instruction:
+      index === 1
+        ? sceneTwoGoal
+        : `推进第 ${index + 1} 个状态变化，停在第 ${index + 1} 个可承接状态`,
+    dependsOn: index === 0 ? [] : [`section_${String(index).padStart(2, '0')}`],
+  }));
   return {
     rootSlotId: 'story',
     slots: [
@@ -59,24 +69,9 @@ function tree(sceneTwoGoal: string): { rootSlotId: string; slots: unknown[] } {
         parentId: 'story',
         order: 0,
         instruction: '概括全章，停在让读者想点开的悬念上',
-        dependsOn: ['section_01', 'section_02'],
+        dependsOn: sections.map((section) => section.id),
       },
-      {
-        id: 'section_01',
-        type: 'section',
-        parentId: 'story',
-        order: 1,
-        instruction: '林越冒雨赴约，通过反复确认凭证建立孤注一掷，停在他推门与老周目光相接',
-        dependsOn: [],
-      },
-      {
-        id: 'section_02',
-        type: 'section',
-        parentId: 'story',
-        order: 2,
-        instruction: sceneTwoGoal,
-        dependsOn: ['section_01'],
-      },
+      ...sections,
     ],
   };
 }
@@ -114,13 +109,14 @@ function structureRound(fired: boolean): FakeProviderScript[] {
  * 任务最终 failed——所以每条用例末尾都断言任务 completed，把这条兜住。
  */
 function tailAfterStructure(): FakeProviderScript[] {
-  return [
-    { submitContent: { slotId: 'section_01', content: sceneText('第一场') } },
-    ...SECTION_CRITERIA.map(() => clean('section_01')),
-    { submitContent: { slotId: 'section_02', content: sceneText('第二场') } },
-    ...SECTION_CRITERIA.map(() => clean('section_02')),
-    { submitContent: { slotId: 'title', content: TITLE_TEXT } },
-  ];
+  const turns: FakeProviderScript[] = [];
+  for (let index = 1; index <= 8; index += 1) {
+    const slotId = `section_${String(index).padStart(2, '0')}`;
+    turns.push({ submitContent: { slotId, content: '我说：「占位。」' + '我'.repeat(990) } });
+    turns.push(...SECTION_CRITERIA.map(() => clean(slotId)));
+  }
+  turns.push({ submitContent: { slotId: 'title', content: TITLE_TEXT } });
+  return turns;
 }
 
 function run(turns: readonly FakeProviderScript[]): EngineHarness {
@@ -239,7 +235,7 @@ describe('结构审核', () => {
     const fills = executions.filter((e) => e.operation === 'fill_slot');
     const structureOps = executions.filter((e) => e.operation === 'create_structure');
     expect(structureOps).toHaveLength(2); // 第 0 版 + 重来那一版
-    expect(fills).toHaveLength(3); // 两个场景 + 标题，一次都没多
+    expect(fills).toHaveLength(9); // 八个 section + 标题，一次都没多
     expect(h.uow.repositories.tasks.getOrThrow(taskId).status).toBe('completed');
   });
 

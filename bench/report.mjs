@@ -69,7 +69,7 @@ function variance(values) {
 function varianceByGroup(samples, distributionKeys) {
   const groups = new Map();
   for (const sample of samples.filter((s) => s.included && s.fingerprint)) {
-    const groupId = [sample.skill, sample.story, sample.variant].join(' / ');
+    const groupId = [sample.skill, sample.case_id || sample.story, sample.variant].join(' / ');
     if (!groups.has(groupId)) groups.set(groupId, []);
     groups.get(groupId).push(sample);
   }
@@ -153,10 +153,13 @@ function normalizeSamples(rawRun, manifest) {
   return source.map((raw, index) => {
     const status = normalizeStatus(raw.status);
     const output = String(raw.output ?? raw.text ?? raw.content ?? '');
-    const fingerprintComparable = (raw.fingerprint_comparable ?? raw.skill ?? raw.skill_id) === 'scene-writing';
+    const fingerprintComparable = raw.fingerprint_comparable === true ||
+      (raw.fingerprint_comparable !== false && (raw.skill ?? raw.skill_id) === 'scene-writing');
+    const sampleUnit = raw.sample_unit ?? (fingerprintComparable ? 'section' : 'structured');
     const fp = fingerprintComparable && output.trim() ? fingerprint(output) : null;
     return {
       id: safeId(raw.id ?? raw.sample_id, `s${index + 1}`),
+      case_id: safeId(raw.case_id ?? raw.caseId, ''),
       skill: safeId(raw.skill ?? raw.skill_id, 'unknown-skill'),
       story: safeId(raw.story ?? raw.story_id ?? raw.case, 'unknown-story'),
       variant: safeId(raw.variant ?? raw.variant_id ?? raw.ref, 'r0'),
@@ -172,8 +175,10 @@ function normalizeSamples(rawRun, manifest) {
       elapsed_ms: typeof raw.elapsed_ms === 'number' ? raw.elapsed_ms : raw.elapsedMs ?? null,
       output,
       fingerprint_comparable: fingerprintComparable,
+      sample_unit: sampleUnit,
+      quality_audit: Array.isArray(raw.quality_audit) ? raw.quality_audit : [],
       fingerprint: fp,
-      judgement: fp ? judge(fp, manifest) : null,
+      judgement: fp && sampleUnit === 'story' ? judge(fp, manifest) : null,
     };
   });
 }
@@ -307,7 +312,7 @@ function cmdSelftest() {
   assertSelf('只有一个 bench-data JSON 脚本', (second.match(/<script id="bench-data" type="application\/json">/g) ?? []).length === 1);
   assertSelf('追加 runs 不改模板区域', stripMutableRegion(first) === stripMutableRegion(second));
   assertSelf('runs 追加两次', data.runs.length === 2, `得到 ${data.runs.length}`);
-  assertSelf('复用指纹与判定结果', Boolean(data.runs[0].samples[0].fingerprint && data.runs[0].samples[0].judgement));
+  assertSelf('复用指纹结果且按样本单位跳过整篇 hard/warn', Boolean(data.runs[0].samples[0].fingerprint && data.runs[0].samples[0].judgement === null));
   assertSelf('成功/失败/排除样本都在数据中', ['success', 'failure', 'excluded'].every((status) => data.runs[0].samples.some((sample) => sample.status === status)));
   assertSelf('单槽位标记不可比', data.manifest.non_comparable_metrics.includes('han') && second.includes('不可比'));
   assertSelf('不输出总分', !second.includes('总分'));
@@ -347,7 +352,7 @@ function template(initialData) {
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>S2 Benchmark Report</title>
+<title>Skill 迭代报告</title>
 <style>
 :root { color-scheme: light dark; --bg:#f7f8fb; --panel:#ffffff; --ink:#172033; --muted:#667085; --line:#d9dee8; --soft:#eef2f7; --accent:#2764d8; --accent-2:#8b5cf6; --ok:#16835b; --warn:#a16207; --bad:#b42318; --skip:#475467; }
 @media (prefers-color-scheme: dark) { :root { --bg:#111827; --panel:#182230; --ink:#eef2f7; --muted:#a7b0c0; --line:#344054; --soft:#243143; --accent:#7ba7ff; --accent-2:#c4b5fd; --ok:#58c99a; --warn:#f0b75a; --bad:#ff8a80; --skip:#c3cad5; } }
@@ -403,8 +408,8 @@ code { background:var(--soft); border-radius:6px; padding:1px 5px; }
 </head>
 <body>
 <header>
-  <h1>S2 静态 HTML 报告</h1>
-  <p class="subtitle">指纹是闸门，不是分数；页面变量数据仅来自 <code>script#bench-data</code>。</p>
+  <h1>Skill 迭代静态报告</h1>
+  <p class="subtitle">真实冻结上下文 × Skill 变体；失败与否决样本可见，指纹只作闸门/趋势，不计算聚合评分。</p>
   <div class="controls" aria-label="报告筛选">
     <label>Run<select id="run-select"></select></label>
     <label>Skill<select id="skill-filter"></select></label>
@@ -514,7 +519,7 @@ ${SCRIPT_CLOSE}
     const root = $('fingerprint-gates');
     clear(root);
     root.append(el('h2', { text: '1) 指纹闸门区间 + 样本散点' }));
-    root.append(el('p', { class: 'note', text: \`参考语料 n=\${data.manifest.n}。这里只显示闸门位置，不计算、不展示聚合分。han / secs / secavg 是单槽位体量指标，跨故事不可比。\` }));
+    root.append(el('p', { class: 'note', text: \`参考语料 n=\${data.manifest.n}。story 才应用整篇 hard/warn；outline 只看结构审计；section 看段句颗粒与 A/B 趋势。han / secs / secavg 跨故事不可比。\` }));
     root.append(el('div', { class: 'legend' }, [
       el('span', { class: 'badge success', text: '成功' }),
       el('span', { class: 'badge failure', text: '失败' }),
@@ -595,7 +600,7 @@ ${SCRIPT_CLOSE}
       el('td', { text: \`\${sample.id} · \${sample.skill} · \${sample.story} · \${sample.variant}\` }),
       el('td', { text: statusLabels[sample.status] || sample.status }),
       ...metrics.map((metric) => el('td', { text: sample.fingerprint ? \`\${sample.fingerprint[metric] ?? '—'} · \${sample.judgement?.分布?.[metric]?.位置 ?? '—'}\` : '—' })),
-      el('td', { text: sample.judgement ? [...sample.judgement.硬拒, ...sample.judgement.告警].join('；') || '无' : text(sample.error || sample.excluded_reason) }),
+      el('td', { text: sample.judgement ? [...sample.judgement.硬拒, ...sample.judgement.告警].join('；') || '无' : sample.fingerprint ? \`\${sample.sample_unit} 样本：整篇 hard/warn 不适用\` : text(sample.error || sample.excluded_reason) }),
     ]))));
     return table;
   }
@@ -615,6 +620,14 @@ ${SCRIPT_CLOSE}
       ]));
       const meta = [\`elapsed=\${ms(sample.elapsed_ms)}\`, ...Object.entries(sample.usage || {}).map(([k, v]) => \`\${k}=\${fmt(v)}\`)];
       article.append(el('div', { class: 'note', text: meta.join(' · ') }));
+      if (sample.quality_audit.length) {
+        article.append(el('div', {}, sample.quality_audit.map((finding) =>
+          el('span', {
+            class: \`badge \${finding.verdict === 'reject' ? 'failure' : 'success'}\`,
+            text: \`\${finding.criterionId} · \${finding.verdict} · \${finding.reason}\`,
+          }),
+        )));
+      }
       if (sample.error) article.append(el('div', { class: 'badge failure', text: sample.error }));
       if (sample.excluded_reason) article.append(el('div', { class: 'badge excluded', text: sample.excluded_reason }));
       article.append(el('pre', { text: sample.output || '（无输出）' }));

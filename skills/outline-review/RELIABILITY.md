@@ -1,5 +1,15 @@
 # outline-review 判据的来源与可靠度（D-28 要求的记录）
 
+## S4 新增粒度判据（2026-09-02）
+
+- S6 逐字取自 `outline-writing` 的“一节一个主要状态变化”和独立叙事单元必须拆分规则。
+- S7 逐字取自“只有无状态变化的过场/氛围/重复反应才合并”规则。
+- 写作侧已用真实 ReplayInput 验到 variant r3 3/3；审核侧合成探针结果：过粗 3/3、过细 3/3、短而有效 3/3，但正常拆分大纲有 **1/3 误报**。
+
+误报把“妻子第一人称忏悔”与“她在墓前完成忏悔”硬拆成两个单元；两者实际是同一状态变化的
+场面落地。一次误报会触发整份大纲重写，代价不可接受。因此 S6/S7 **未进入生产 Skill**，
+只保留在 `skills-variants/s4/outline-review/`；生产继续使用 1.1.0 的 S1–S5。
+
 > **为什么这份记录不在 `SKILL.md` 里。**
 > `SKILL.md` 的每一个字节都会进模型上下文：frontmatter 之后、首个 `## S<n>` 之前的
 > 全部内容进 preamble，由 `context-builder.ts` 的 `buildReviewSlotTexts` 注入 system prompt。

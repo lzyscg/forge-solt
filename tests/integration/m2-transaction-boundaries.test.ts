@@ -364,6 +364,77 @@ describe('§5.5 边界 4：提交 Slot Content（D-10）', () => {
     expect(e.uow.repositories.executions.getOrThrow('exec-1').outputTokens).toBe(340);
   });
 
+  it('同一条件 UPDATE 原子保存兼容正文与完整领域产物', () => {
+    const e = fresh();
+    seedTask(e);
+    const { tokenHash } = seedRunningAssignment(e, 'task-1', 'scene_01');
+    const domainArtifact = {
+      kind: 'narrative-plan' as const,
+      version: 2 as const,
+      json: '{"units":[]}',
+      hash: 'artifact-hash',
+    };
+
+    e.uow.run((uow) => {
+      uow.slots.commitContent({
+        taskId: 'task-1',
+        slotId: 'scene_01',
+        content: '系统生成的兼容视图',
+        domainArtifact,
+        producer,
+        tokenHash,
+      });
+    });
+
+    expect(e.uow.repositories.slots.getOrThrow('task-1', 'scene_01')).toMatchObject({
+      contentText: '系统生成的兼容视图',
+      domainArtifact,
+    });
+  });
+
+  it('数据库拒绝只写入部分领域产物四元组', () => {
+    const e = fresh();
+    seedTask(e);
+
+    expect(() => e.db.prepare(
+      `UPDATE slots
+       SET domain_artifact_kind = 'narrative-plan'
+       WHERE task_id = 'task-1' AND slot_id = 'scene_01'`,
+    ).run()).toThrow(/domain artifact/i);
+
+    expect(e.uow.repositories.slots.getOrThrow('task-1', 'scene_01')).toMatchObject({
+      contentText: null,
+      domainArtifact: null,
+    });
+  });
+
+  it('回滚时兼容正文与领域产物都不留', () => {
+    const e = fresh();
+    seedTask(e);
+    const { tokenHash } = seedRunningAssignment(e, 'task-1', 'scene_01');
+
+    expectRollback(e, (uow) => {
+      uow.slots.commitContent({
+        taskId: 'task-1',
+        slotId: 'scene_01',
+        content: '系统生成的兼容视图',
+        domainArtifact: {
+          kind: 'narrative-plan',
+          version: 2,
+          json: '{"units":[]}',
+          hash: 'artifact-hash',
+        },
+        producer,
+        tokenHash,
+      });
+    });
+
+    expect(e.uow.repositories.slots.getOrThrow('task-1', 'scene_01')).toMatchObject({
+      contentText: null,
+      domainArtifact: null,
+    });
+  });
+
   it('回滚：提交成功但后续抛错，槽位内容与 trace 都不留', () => {
     const e = fresh();
     seedTask(e);

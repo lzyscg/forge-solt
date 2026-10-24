@@ -1,5 +1,5 @@
 id: zhihu-outline
-version: 1.0.0
+version: 1.1.0
 name: 知乎短故事全篇大纲提取
 description: 从完整原文提取逐小节执行大纲，供正文模板作为任务输入使用。
 status: published
@@ -16,7 +16,8 @@ inputFields:
     label: 完整原文
     type: textarea
     required: true
-    visibility: agent
+    visibility: system
+    toolReadable: true
     hint: 只用于提取人物、事件、冲突、反转、节奏与逐小节执行规划
 
 slotTypes:
@@ -33,6 +34,9 @@ slotTypes:
     validation:
       minChars: 1000
       maxChars: 12000
+      sourceOverlap:
+        privateInputField: source_text
+        maxContainment: 0.05
     guidance:
       - 每个小节写清出场、目标、冲突、结束状态
       - 只写规划，不写对白或正文散文
@@ -65,7 +69,7 @@ skills:
     version: 1.0.0
     source: skills/outline-structure-design/SKILL.md
   - id: outline-writing
-    version: 1.1.0
+    version: 1.2.0
     source: skills/outline-writing/SKILL.md
   - id: outline-review
     version: 1.1.0

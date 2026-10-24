@@ -57,8 +57,10 @@ export const InputFieldSchema = z.object({
   label: z.string(),
   type: z.enum(['text', 'textarea']),
   required: z.boolean(),
-  /** agent = 进入 Prompt/read_task_input；system = 只供服务端确定性校验。 */
+  /** agent = 进入 Prompt/read_task_input；system = 默认仅供服务端确定性校验。 */
   visibility: z.enum(['agent', 'system']).default('agent'),
+  /** system 字段是否允许 Agent 通过 read_task_input(field) 显式读取；不会进入 Prompt/Replay。 */
+  toolReadable: z.boolean().default(false),
   /** 字段说明，null 表示不显示提示行 */
   hint: z.string().nullable(),
 });
@@ -175,7 +177,11 @@ export const TemplateDetailSchema = TemplateSummarySchema.extend({
       }),
     )
     .nullable(),
-  output: z.object({ fileName: z.string(), mediaType: z.string() }),
+  output: z.object({
+    fileName: z.string(),
+    mediaType: z.string(),
+    validationRules: z.array(z.string()),
+  }),
 });
 export type TemplateDetail = z.infer<typeof TemplateDetailSchema>;
 

@@ -13,6 +13,7 @@ import { SubmissionGate } from '../submission-gate.ts';
 import { TraceWriter } from '../trace-writer.ts';
 import { FAKE_SKILL, FakeCompletionPort, FakeStructurePort, FakeTracePort } from '../test-doubles.ts';
 import type { OutlineSlot, SlotContentView } from '../ports.ts';
+import { prepareNarrativeAnswerContract } from '@server/domain/narrative-answer.ts';
 import { buildToolset, dispatchToolCall, renderOutline, toProviderTools } from './index.ts';
 import type { ToolsetContext } from './index.ts';
 
@@ -88,6 +89,8 @@ function makeContext(overrides: Partial<ToolsetContext> = {}): {
     revisionBase: null,
     skill: FAKE_SKILL,
     taskInput: { premise: '前提', tone: '克制' },
+    toolReadablePrivateInputIds: [],
+    readPrivateTaskInput: () => null,
     gate,
     trace: new TraceWriter(tracePort, 'task_1'),
     completion,
@@ -107,6 +110,52 @@ const call = (name: string, args: unknown): ProviderToolCall => ({
   name,
   argumentsJson: JSON.stringify(args),
 });
+
+const narrativeSource = [
+  '01、开端', '甲看见门。',
+  '02', '甲乙争执很多很多。',
+  '03. 发现', '甲发现旧信。',
+  '04', '乙否认。',
+  '05', '甲追问来龙去脉。',
+  '06', '乙终于承认。',
+  '07', '两人作出选择。',
+  '08、结局', '甲离开旧城很久很久。',
+].join('\n');
+
+function preparedNarrativeSubmission() {
+  const prepared = prepareNarrativeAnswerContract(narrativeSource);
+  if (!prepared.ok) throw new Error('test source must prepare');
+  return {
+    kind: 'narrative-plan' as const,
+    version: 2 as const,
+    contract: prepared.contract,
+    storyBudget: { minHan: 800, targetHan: 1000, maxHan: 1200 },
+  };
+}
+
+function narrativeAnswer() {
+  const priorities = ['P1', 'bridge', 'P0', 'P1', 'bridge', 'P0', 'P1', 'P0'] as const;
+  return {
+    units: priorities.map((priority, index) => ({
+      sourceSectionRef: `source-section-${String(index + 1).padStart(2, '0')}`,
+      title: `第${index + 1}节`,
+      change: { from: `状态${index}`, to: `状态${index + 1}` },
+      priority,
+      mode: index === 1 ? 'fast-summary' as const : 'conflict-scene' as const,
+      capacity: {
+        dialogueTurns: index === 1 ? 0 : 2,
+        actionFeedbackLoops: 1,
+        cognitionTurns: index === 2 ? 1 : 0,
+        aftermathBeats: index === 7 ? 1 : 0,
+      },
+      cast: index === 1 ? [] : ['甲', '乙'],
+      objective: `目标${index + 1}`,
+      conflict: `冲突${index + 1}`,
+      endState: `结束${index + 1}`,
+      informationControl: index === 2 ? '暂不揭示旧信来源' : null,
+    })),
+  };
+}
 
 describe('buildToolset', () => {
   it('挂满 TOOL_NAMES 的全部工具，且不多挂', () => {
@@ -128,10 +177,127 @@ describe('buildToolset', () => {
     const complete = definitions.find((d) => d.name === 'complete_assignment');
     expect(Array.isArray((complete?.parameters as { anyOf?: unknown[] }).anyOf)).toBe(true);
   });
+
+  it('contract Assignment 只暴露 submit_answer，schema 不含系统已知协议字段', () => {
+    const { ctx } = makeContext({ preparedSubmission: preparedNarrativeSubmission() });
+    const definitions = toProviderTools(buildToolset(ctx));
+    const names = definitions.map((definition) => definition.name);
+
+    expect(names).toContain('submit_answer');
+    expect(names).not.toContain('complete_assignment');
+    const submit = definitions.find((definition) => definition.name === 'submit_answer');
+    const serialized = JSON.stringify(submit?.parameters);
+    expect(serialized).toContain('sourceSectionRef');
+    expect(serialized).not.toMatch(/slotId|taskId|operation|priorityId|expansion|budget/);
+  });
+
+  it('submit_answer 编译业务答案并以系统目标保存兼容 Markdown', async () => {
+    const { ctx, completion, submitted, trace } = makeContext({
+      targetSlotId: 'story_outline',
+      preparedSubmission: preparedNarrativeSubmission(),
+    });
+    const tools = buildToolset(ctx);
+
+    const result = await dispatchToolCall(
+      { tools, trace: ctx.trace, executionId: 'exec_1' },
+      call('submit_answer', narrativeAnswer()),
+    );
+
+    expect(result.isError).toBe(false);
+    expect(submitted.count).toBe(1);
+    expect(completion.submissions).toHaveLength(1);
+    expect(completion.submissions[0]).toMatchObject({
+      operation: 'fill_slot',
+      targetSlotId: 'story_outline',
+      domainArtifact: {
+        kind: 'narrative-plan',
+        version: 2,
+        json: expect.any(String),
+        hash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      },
+      payload: { kind: 'slot_content', slotId: 'story_outline' },
+    });
+    const payload = completion.submissions[0]?.payload;
+    expect(payload?.kind).toBe('slot_content');
+    if (payload?.kind !== 'slot_content') return;
+    expect(payload.content).toContain('重点：P1 P001');
+    expect(payload.content).toContain('展开：轻过渡');
+    expect(JSON.stringify(trace.records)).not.toContain(narrativeSource);
+    expect(trace.kinds('assignment_submitted')[0]?.payload).toMatchObject({
+      kind: 'narrative-plan',
+      version: 2,
+      unitCount: 8,
+      artifactHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      weightProfile: 'i0-three-mode-v1',
+      sourceSegmentation: 'preserve-numbered-sections',
+      expansionPolicy: 'source-length-quantiles-v1',
+      priorityCounts: { P0: 3, P1: 3, bridge: 2 },
+      capacityTotals: {
+        dialogueTurns: 14,
+        actionFeedbackLoops: 8,
+        cognitionTurns: 1,
+        aftermathBeats: 1,
+      },
+    });
+  });
 });
 
 describe('read_task_input', () => {
-  it('省略 field 返回全部；指定不存在的 field 报错并列出可用字段', async () => {
+  it('省略 field 只返回公开字段；显式点名才能读取模板授权的私有字段，且 trace 不记录正文', async () => {
+    const secret = '仅供本次任务使用的私有原文';
+    const { ctx, trace } = makeContext({
+      toolReadablePrivateInputIds: ['source_text'],
+      readPrivateTaskInput: (fieldId) => fieldId === 'source_text' ? secret : null,
+    });
+    const tools = buildToolset(ctx);
+
+    const all = await dispatchToolCall(
+      { tools, trace: ctx.trace, executionId: 'exec_1' },
+      call('read_task_input', {}),
+    );
+    expect(all.isError).toBe(false);
+    expect(all.content).toContain('前提');
+    expect(all.content).not.toContain('source_text');
+    expect(all.content).not.toContain(secret);
+
+    const explicit = await dispatchToolCall(
+      { tools, trace: ctx.trace, executionId: 'exec_1' },
+      call('read_task_input', { field: 'source_text' }),
+    );
+    expect(explicit).toMatchObject({ isError: false, content: `【source_text】\n${secret}` });
+    expect(JSON.stringify(trace.records)).not.toContain(secret);
+  });
+
+  it('未授权私有字段失败关闭，不向模型暴露该字段可用', async () => {
+    const secret = '不可读取的私有正文';
+    const { ctx } = makeContext({
+      readPrivateTaskInput: () => secret,
+    });
+    const tools = buildToolset(ctx);
+    const result = await dispatchToolCall(
+      { tools, trace: ctx.trace, executionId: 'exec_1' },
+      call('read_task_input', { field: 'source_text' }),
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.content).toContain('可用字段：premise, tone');
+    expect(result.content).not.toContain(secret);
+  });
+
+  it('继承属性不是公开任务字段，显式读取必须失败关闭', async () => {
+    const { ctx } = makeContext({ taskInput: { premise: '公开前提' } });
+    const tools = buildToolset(ctx);
+    const result = await dispatchToolCall(
+      { tools, trace: ctx.trace, executionId: 'exec_1' },
+      call('read_task_input', { field: 'toString' }),
+    );
+
+    expect(result.isError).toBe(true);
+    expect(result.content).toContain('TOOL_INPUT_INVALID');
+    expect(result.content).toContain('可用字段：premise');
+  });
+
+  it('省略 field 返回全部；指定不存在的 field 报错并列出可用公开字段', async () => {
     const { ctx } = makeContext();
     const tools = buildToolset(ctx);
     const all = await dispatchToolCall(
@@ -313,7 +479,7 @@ describe('分发器（D-18 的实现陷阱）', () => {
     const { ctx } = makeContext();
     const tools = buildToolset(ctx).map((tool) =>
       tool.name === 'read_slot'
-        ? { ...tool, invoke: async (): Promise<string> => { throw new TypeError('实现 bug'); } }
+        ? { ...tool, invoke: async (): ReturnType<typeof tool.invoke> => { throw new TypeError('实现 bug'); } }
         : tool,
     );
     await expect(

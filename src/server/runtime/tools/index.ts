@@ -22,10 +22,11 @@ import { createReadSlot } from './read-slot.ts';
 import { createReadStructureOutline } from './read-structure-outline.ts';
 import { createReadTaskInput } from './read-task-input.ts';
 import { createReportWork } from './report-work.ts';
+import { createSubmitAnswer } from './submit-answer.ts';
 import type { ToolsetContext } from './context.ts';
 import type { ToolDefinition } from './tool-definition.ts';
 
-export type { ToolsetContext, SubmissionRejection } from './context.ts';
+export type { ToolsetContext, SubmissionRejection, PreparedNarrativeSubmission } from './context.ts';
 export type { ToolDefinition } from './tool-definition.ts';
 export { renderOutline } from './read-structure-outline.ts';
 
@@ -43,13 +44,20 @@ export function buildToolset(ctx: ToolsetContext): ToolDefinition[] {
     createReadStructureOutline(ctx),
     createReadSlot(ctx),
     createReportWork(ctx),
-    createCompleteAssignment(ctx),
+    ctx.preparedSubmission === undefined ? createCompleteAssignment(ctx) : createSubmitAnswer(ctx),
   ];
 
   const built = new Set(tools.map((t) => t.name));
-  const missing = TOOL_NAMES.filter((name) => !built.has(name));
-  if (missing.length > 0) {
-    throw new ForgeError('STORAGE_ERROR', `buildToolset 漏挂了工具：${missing.join(', ')}`);
+  const commonNames = TOOL_NAMES.filter((name) => name !== 'complete_assignment');
+  const missing = commonNames.filter((name) => !built.has(name));
+  const writeTools = tools.filter((tool) =>
+    tool.name === 'complete_assignment' || tool.name === 'submit_answer'
+  );
+  if (missing.length > 0 || writeTools.length !== 1) {
+    const detail = missing.length > 0
+      ? `漏挂工具：${missing.join(', ')}`
+      : `提交工具数量应为 1，实际为 ${writeTools.length}`;
+    throw new ForgeError('STORAGE_ERROR', `buildToolset ${detail}`);
   }
   return tools;
 }
@@ -61,6 +69,11 @@ export function toProviderTools(tools: readonly ToolDefinition[]): ProviderToolD
     description: tool.description,
     parameters: tool.parameters,
   }));
+}
+
+export interface DispatchedToolResult extends ProviderToolResult {
+  /** Runtime-only taint signal. Provider adapters must not serialize it. */
+  readonly sensitive: boolean;
 }
 
 export interface ToolDispatcherOptions {
@@ -76,7 +89,7 @@ export interface ToolDispatcherOptions {
 export async function dispatchToolCall(
   options: ToolDispatcherOptions,
   call: ProviderToolCall,
-): Promise<ProviderToolResult> {
+): Promise<DispatchedToolResult> {
   const { tools, trace, executionId } = options;
 
   trace.write({
@@ -99,17 +112,22 @@ export async function dispatchToolCall(
     }
 
     const args = parseArguments(call.argumentsJson, call.name);
-    const content = await tool.invoke(args);
+    const result = await tool.invoke(args);
 
     trace.write({
       executionId,
       actor: 'tool',
       kind: 'tool_call_completed',
       title: `工具 ${call.name} 完成`,
-      summary: firstLine(content),
+      summary: result.sensitive ? `工具 ${call.name} 已返回敏感结果` : firstLine(result.content),
       payload: { toolName: call.name, toolCallId: call.id, ok: true, ...slotIdOf(args) },
     });
-    return { toolCallId: call.id, content, isError: false };
+    return {
+      toolCallId: call.id,
+      content: result.content,
+      isError: false,
+      sensitive: result.sensitive,
+    };
   } catch (error) {
     if (!(error instanceof ForgeError)) throw error;
 
@@ -122,7 +140,12 @@ export async function dispatchToolCall(
       payload: { toolName: call.name, toolCallId: call.id, ok: false, code: error.code },
     });
     // 错误码一并回给模型：它是模型能识别的稳定信号，比自然语言更不容易被改写理解
-    return { toolCallId: call.id, content: `[${error.code}] ${error.message}`, isError: true };
+    return {
+      toolCallId: call.id,
+      content: `[${error.code}] ${error.message}`,
+      isError: true,
+      sensitive: false,
+    };
   }
 }
 

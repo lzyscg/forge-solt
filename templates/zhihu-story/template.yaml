@@ -1,5 +1,5 @@
 id: zhihu-story
-version: 1.0.0
+version: 1.2.0
 name: 知乎盐选整篇故事生产
 description: 以上游全篇大纲为可见输入，逐小节写作并装配为完整故事。
 status: published
@@ -46,7 +46,7 @@ slotTypes:
     description: 按全篇大纲推进一个编号小节
     contentBearing: true
     validation:
-      minChars: 300
+      minChars: 250
       maxChars: 1100
       forbidPattern: '(?m)^#{1,6}\s'
       forbidPatternMessage: 小节正文不得包含 Markdown 小标题
@@ -96,7 +96,7 @@ skills:
     version: 1.1.0
     source: skills/title-writing/SKILL.md
   - id: scene-writing
-    version: 1.1.0
+    version: 1.2.0
     source: skills/scene-writing/SKILL.md
   - id: scene-review
     version: 1.1.0
@@ -143,4 +143,20 @@ limits:
 output:
   fileName: story.md
   mediaType: text/markdown
-  assembler: numbered_sections_v1
+  assembler: numbered_sentence_paragraphs_v1
+  validation:
+    slotCounts:
+      title: { min: 1, max: 1 }
+      section: { min: 8, max: 30 }
+    outlineCount:
+      inputField: outline_blueprint
+      slotType: section
+    storyHan:
+      min: 7876
+      max: 15850
+      slotType: section
+    fingerprint:
+      requireFirstPerson: true
+      forbidDoubleQuoteStyle: true
+      requireNumberedSections: true
+      warnNoDialogueQuotes: true

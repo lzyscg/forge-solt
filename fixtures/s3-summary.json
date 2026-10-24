@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-02",
+  "status": "complete",
+  "completion": true,
+  "scope": "确定性产物闸门机制；不声称内容质量改善。",
+  "rules": {
+    "thirdPerson": "hard_reject",
+    "doubleQuoteStyle": "hard_reject",
+    "missingNumberedSections": "hard_reject",
+    "noDialogueQuotes": "warning",
+    "storyHan": "hard_reject"
+  },
+  "placement": "artifact-level output validation",
+  "reason": "人称与引号是整篇计数；编号由 assembler 形成，不能误做成单 section 正则。",
+  "evidence": {
+    "syntheticParity": "3/3",
+    "domainTests": 11,
+    "historicalR1ExpectedThirdPersonReject": true,
+    "warningDoesNotBlockArtifact": true,
+    "s2ReplayInput": "114/114"
+  },
+  "limitations": [
+    "S3 只证明生产闸门和离线尺子一致。",
+    "尚未用完成后的 S4/S5/S6 生产 Skill 生成一篇全闸门通过的完整真实故事。",
+    "指纹全绿仍是必要不充分条件，不代表达到签约质量。"
+  ]
+}

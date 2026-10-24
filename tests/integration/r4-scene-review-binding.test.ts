@@ -37,7 +37,8 @@ async function runRealTemplate(): Promise<{ code: number; reviews: ReviewRow[] }
   const dir = mkdtempSync(path.join(tmpdir(), 'forge-r4-'));
   cleanups.push(() => rmSync(dir, { recursive: true, force: true }));
   const packet = path.join(dir, 'input.json');
-  writeFileSync(packet, JSON.stringify({ outline_blueprint: '完整故事大纲：主角在雨夜与债主对峙，本节需完成摊牌。', source_text: '系统私有原文，不会进入 Agent。' }), 'utf8');
+  const outline = Array.from({ length: 8 }, (_, index) => `${index + 1}. 第 ${index + 1} 节\n目标：主角推进第 ${index + 1} 个状态变化`).join('\n');
+  writeFileSync(packet, JSON.stringify({ outline_blueprint: outline, source_text: '系统私有原文，不会进入 Agent。' }), 'utf8');
   const dbPath = path.join(dir, 'run.sqlite');
 
   const code = await runTask([
@@ -106,6 +107,9 @@ describe('R4：生产模板的审核绑定端到端', () => {
   it('title 不被审：没有绑定的类型不许自己长出审核记录（D-27）', async () => {
     const { reviews } = await runRealTemplate();
     const reviewed = [...new Set(reviews.map((r) => r.slot_id))].sort();
-    expect(reviewed).toEqual(['section_01', 'story']);
+    expect(reviewed).toEqual([
+      'section_01', 'section_02', 'section_03', 'section_04',
+      'section_05', 'section_06', 'section_07', 'section_08', 'story',
+    ]);
   });
 });

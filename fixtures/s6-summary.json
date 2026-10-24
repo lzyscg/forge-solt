@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "date": "2026-09-02",
+  "status": "in_progress",
+  "completion": false,
+  "writingAB": {
+    "run": "s6-effective-density",
+    "cases": 3,
+    "repeats": 6,
+    "baseline": { "n": 18, "success": 18, "medianHan": 530, "medianParagraph": 54.75, "medianSentence": 18.5 },
+    "variant": { "n": 18, "success": 18, "medianHan": 520, "medianParagraph": 45.25, "medianSentence": 16.5 },
+    "byCase": {
+      "opening": { "baselineParagraph": 33.5, "variantParagraph": 36 },
+      "middle": { "baselineParagraph": 63.5, "variantParagraph": 46.75 },
+      "ending": { "baselineParagraph": 62.5, "variantParagraph": 50 }
+    },
+    "audit": "中段/结尾更紧，但开篇变差；代表样本存在新添解释/修辞，未证明有效信息密度稳定提升。",
+    "decision": "不提升 S6 scene-writing 变体。"
+  },
+  "reviewProbe": {
+    "r1": { "clean": "3/3", "redundantRecall": "0/3", "necessaryEmotion": "3/3" },
+    "r2": { "clean": "3/3", "redundantRecall": "3/3", "necessaryEmotion": "3/3" },
+    "quoteGate": "3/3 redundant findings survived exact-quote verification",
+    "decision": "局部判据方向有效，但只覆盖三个合成边界；尚未上线。"
+  },
+  "redundancyTrend": {
+    "formulaVersion": 1,
+    "windowHan": 2000,
+    "applicableIndividualSections": "0/18",
+    "combinedThreeCasesHan": "约1460–1660，仍不足2000",
+    "decision": "不缩短窗口、不伪造趋势结论；留待多故事完整仿写验收。"
+  },
+  "fullRegression": {
+    "plannedLegacyCalls": 87,
+    "localProbeCalls": 9,
+    "dryRun": true,
+    "executed": false,
+    "reason": "写作侧未达提升门槛，真跑旧门槛回归不会产生发布决策，避免浪费额度。"
+  },
+  "production": {
+    "sceneWritingVersion": "1.2.0",
+    "sceneReviewVersion": "1.1.0",
+    "s6VariantsRemainExperimental": true
+  },
+  "completionBlockers": [
+    "需要至少一个完整 2000 汉字等长窗口比较三项冗余趋势。",
+    "需要多故事整篇仿写确认删除测试不损伤推进、情绪、理解、衔接与停点。",
+    "写作变体需在跨故事分布上稳定优于 S5 生产版，才能触发一次完整 reviewer 回归。"
+  ]
+}

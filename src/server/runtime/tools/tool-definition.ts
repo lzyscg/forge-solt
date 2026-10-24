@@ -12,8 +12,14 @@
 import type { z } from 'zod';
 import { ForgeError } from '@shared/errors.ts';
 import { ToolSchemas } from '@shared/tools.ts';
-import type { ToolInput, ToolName } from '@shared/tools.ts';
+import type { ToolInput, ToolName, StaticToolName } from '@shared/tools.ts';
 import { toJsonSchema } from '../provider/tool-schema.ts';
+
+export interface ToolInvocationResult {
+  readonly content: string;
+  /** The model may use this result, but subsequent free-form deltas must not be persisted. */
+  readonly sensitive: boolean;
+}
 
 export interface ToolDefinition {
   readonly name: ToolName;
@@ -22,23 +28,23 @@ export interface ToolDefinition {
   readonly parameters: Readonly<Record<string, unknown>>;
   /**
    * 执行一次调用。入参是**未经校验的模型输出**。
-   * 返回值是给模型看的 tool_result 文本；失败一律抛 `ForgeError`，
+   * 返回值是给模型看的 tool_result 文本及运行时敏感标记；失败一律抛 `ForgeError`，
    * 由分发器转成错误结果（D-11 / D-18 的实现陷阱）。
    */
-  readonly invoke: (rawArgs: unknown) => Promise<string>;
+  readonly invoke: (rawArgs: unknown) => Promise<ToolInvocationResult>;
 }
 
-export function defineTool<N extends ToolName>(
+export function defineTool<N extends StaticToolName>(
   name: N,
   description: string,
-  run: (input: ToolInput<N>) => Promise<string>,
+  run: (input: ToolInput<N>) => Promise<string | ToolInvocationResult>,
 ): ToolDefinition {
   const schema = ToolSchemas[name] as z.ZodType<ToolInput<N>>;
   return {
     name,
     description,
     parameters: toJsonSchema(schema),
-    invoke: async (rawArgs: unknown): Promise<string> => {
+    invoke: async (rawArgs: unknown): Promise<ToolInvocationResult> => {
       const parsed = schema.safeParse(rawArgs);
       if (!parsed.success) {
         // 把 Zod 的 issue 逐条铺开给模型：只说「参数非法」它只能瞎猜，
@@ -48,7 +54,37 @@ export function defineTool<N extends ToolName>(
           .join('；');
         throw new ForgeError('TOOL_INPUT_INVALID', `${name} 的参数不合法：${detail}`);
       }
-      return await run(parsed.data);
+      const result = await run(parsed.data);
+      return typeof result === 'string'
+        ? { content: result, sensitive: false }
+        : result;
+    },
+  };
+}
+
+/** Contract-specific submission tool: one Zod schema drives provider JSON Schema and runtime parsing. */
+export function defineDynamicTool<T>(
+  name: ToolName,
+  description: string,
+  schema: z.ZodType<T>,
+  run: (input: T) => Promise<string | ToolInvocationResult>,
+): ToolDefinition {
+  return {
+    name,
+    description,
+    parameters: toJsonSchema(schema),
+    invoke: async (rawArgs: unknown): Promise<ToolInvocationResult> => {
+      const parsed = schema.safeParse(rawArgs);
+      if (!parsed.success) {
+        const detail = parsed.error.issues
+          .map((issue) => `${issue.path.join('.') || '(根)'}: ${issue.message}`)
+          .join('；');
+        throw new ForgeError('TOOL_INPUT_INVALID', `${name} 的参数不合法：${detail}`);
+      }
+      const result = await run(parsed.data);
+      return typeof result === 'string'
+        ? { content: result, sensitive: false }
+        : result;
     },
   };
 }

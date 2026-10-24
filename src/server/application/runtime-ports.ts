@@ -29,6 +29,7 @@ import type { CompletionService } from './completion-service.ts';
 import type { StructureService } from './structure-service.ts';
 import type { SnapshotService } from './snapshot-service.ts';
 import { reviewBindingOf } from './review-binding.ts';
+import type { SlotProductionPolicy } from './narrative-production-policy.ts';
 
 // ---------------------------------------------------------------- TracePort
 
@@ -135,6 +136,8 @@ export interface CompletionPortOptions {
   structure: StructureService;
   snapshots: SnapshotService;
   uow: UnitOfWorkHandle<UnitOfWork>;
+  /** 引擎为本次 fill execution 冻结并写入 Replay 的策略；其他操作传 null。 */
+  productionPolicy?: SlotProductionPolicy | null;
   /** 引擎注入的可变记录格。每次 attempt 前由引擎重置 */
   record: SubmissionRecord;
 }
@@ -148,7 +151,7 @@ export interface CompletionPortOptions {
  * 所以分派必须发生在某处，放在接线层是它最该在的地方。
  */
 export function createCompletionPort(options: CompletionPortOptions): CompletionPort {
-  const { completion, structure, snapshots, uow, record } = options;
+  const { completion, structure, snapshots, uow, record, productionPolicy } = options;
 
   return {
     // 真故障（库炸了）原样抛出去，绝不在这里压成「校验失败」喂给模型——
@@ -223,7 +226,9 @@ export function createCompletionPort(options: CompletionPortOptions): Completion
       token: request.executionToken,
       slotId: request.payload.slotId,
       content: request.payload.content,
+      ...(request.domainArtifact === undefined ? {} : { domainArtifact: request.domainArtifact }),
       producer: binding,
+      productionPolicy: productionPolicy ?? null,
       forReview: hasReviewBinding,
     });
     if (result.ok) return { ok: true };

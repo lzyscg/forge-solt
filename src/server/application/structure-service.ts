@@ -43,8 +43,10 @@
 import type { ErrorCode } from '@shared/errors.ts';
 import { ForgeError } from '@shared/errors.ts';
 import { canonicalJson } from '@server/domain/canonical.ts';
-import type { StructureProposal, StructureViolation, ValidatedSlot } from '@server/domain/structure-validation.ts';
+import { bindNarrativeUnitsToSections } from '@server/domain/narrative-plan-binding.ts';
+import type { AnyStructureViolation, StructureProposal, ValidatedSlot } from '@server/domain/structure-validation.ts';
 import { validateConcreteStructure } from '@server/domain/structure-validation.ts';
+import { validateOutputStructure } from '@server/domain/output-validation.ts';
 import type { InsertSlotInput } from '@server/infrastructure/database/repositories/index.ts';
 import type { SnapshotService } from './snapshot-service.ts';
 import type { TraceService } from './trace-service.ts';
@@ -65,7 +67,7 @@ export interface StructureAccepted {
 export interface StructureRejected {
   ok: false;
   /** 全部违规，不截断（D-13） */
-  violations: readonly StructureViolation[];
+  violations: readonly AnyStructureViolation[];
   /**
    * 上次提案的规范化 JSON，供 §7.4 的重试追加块**原样回灌**。
    * 由本层给出而不是让调用方自己序列化：回灌文本与被校验的那份提案必须是同一个东西。
@@ -80,7 +82,7 @@ export type SubmitStructureResult = StructureAccepted | StructureRejected;
 export interface ExhaustStructureInput {
   taskId: string;
   /** 最后一次尝试的违规列表，用于成文。非校验类失败时为空 */
-  violations: readonly StructureViolation[];
+  violations: readonly AnyStructureViolation[];
   attempts: number;
   /**
    * 最后一次失败的成文原因（D-19），由持有失败详情的一方给出。
@@ -140,7 +142,7 @@ export interface StructureServiceOptions {
  * 因此这里给「首条违规 + 总条数」，而不是 `violations.length + ' 条问题'` 这种
  * 看得见数量却看不出发生了什么的写法。
  */
-function composeReason(violations: readonly StructureViolation[]): string {
+function composeReason(violations: readonly AnyStructureViolation[]): string {
   const first = violations[0];
   if (first === undefined) return '结构提案未通过确定性校验';
   if (violations.length === 1) return `结构校验未通过：${first.message}`;
@@ -154,7 +156,7 @@ function composeReason(violations: readonly StructureViolation[]): string {
  * **不要**退回「未通过确定性校验」——那句话在超时或缺配置的场景下是假的。
  */
 function composeExhaustedReason(
-  violations: readonly StructureViolation[],
+  violations: readonly AnyStructureViolation[],
   attempts: number,
   lastReason: string,
 ): string {
@@ -163,7 +165,7 @@ function composeExhaustedReason(
 }
 
 /** 违规写进 trace payload 时保留三段式：UI 高亮要 slotIds，重试路径要 agentHint */
-function violationsPayload(violations: readonly StructureViolation[]): Record<string, unknown> {
+function violationsPayload(violations: readonly AnyStructureViolation[]): Record<string, unknown> {
   return {
     count: violations.length,
     violations: violations.map((violation) => ({
@@ -175,7 +177,12 @@ function violationsPayload(violations: readonly StructureViolation[]): Record<st
   };
 }
 
-function toInsertInput(taskId: string, slot: ValidatedSlot, revisionRound: number): InsertSlotInput {
+function toInsertInput(
+  taskId: string,
+  slot: ValidatedSlot,
+  revisionRound: number,
+  narrativeUnitId: string | null,
+): InsertSlotInput {
   return {
     taskId,
     slotId: slot.slotId,
@@ -186,6 +193,7 @@ function toInsertInput(taskId: string, slot: ValidatedSlot, revisionRound: numbe
     dependsOn: slot.dependsOn,
     contentBearing: slot.contentBearing,
     includeInArtifact: slot.includeInArtifact,
+    narrativeUnitId,
     revisionRound,
   };
 }
@@ -197,7 +205,63 @@ export function createStructureService(options: StructureServiceOptions): Struct
     submit(input) {
       // 事务外：读快照 + 纯函数校验。两者都可能失败，且都不该占着写事务。
       const snapshot = snapshots.readSnapshot(input.taskId);
-      const result = validateConcreteStructure(input.proposal, snapshot.compiled);
+      const concrete = validateConcreteStructure(input.proposal, snapshot.compiled);
+      let result:
+        | { ok: true; slots: ValidatedSlot[] }
+        | { ok: false; violations: AnyStructureViolation[] } = concrete.ok
+          ? (() => {
+              const outputViolations = validateOutputStructure(
+                concrete.slots.map((slot) => ({ id: slot.slotId, type: slot.type })),
+                snapshot.input,
+                snapshot.compiled.output.validation,
+                snapshot.compiled.slotTypes.map((type) => ({
+                  id: type.id,
+                  contentBearing: type.contentBearing,
+                  includeInArtifact: type.includeInArtifact,
+                  minChars: type.validation.minChars,
+                  maxChars: type.validation.maxChars,
+                })),
+              );
+              return outputViolations.length === 0
+                ? concrete
+                : { ok: false as const, violations: outputViolations };
+            })()
+          : concrete;
+      const narrativeUnitBySlotId = new Map<string, string>();
+      const planRule = snapshot.compiled.output.validation?.narrativePlan ?? null;
+      const narrativePlan = snapshot.narrativePlan ?? null;
+      if ((planRule === null) !== (narrativePlan === null)) {
+        throw new ForgeError(
+          'STORAGE_ERROR',
+          `任务 ${input.taskId} 的 NarrativePlan 与冻结模板声明不一致`,
+          `task:${input.taskId}`,
+          '请重建任务',
+        );
+      }
+      if (result.ok && planRule !== null && narrativePlan !== null) {
+        const binding = bindNarrativeUnitsToSections({
+          slots: result.slots,
+          plan: narrativePlan,
+          sectionSlotType: planRule.slotType,
+        });
+        if (!binding.ok) {
+          result = {
+            ok: false,
+            violations: [{
+              rule: 'OUTPUT_NARRATIVE_UNIT_BINDING',
+              message: binding.message,
+              agentHint:
+                `按 NarrativePlan 的 unit 数量与文档顺序建立 ${planRule.slotType} 槽位；` +
+                `每个 unit 必须对应一个 ${planRule.slotType} 槽位`,
+              slotIds: binding.slotIds,
+            }],
+          };
+        } else {
+          for (const item of binding.bindings) {
+            narrativeUnitBySlotId.set(item.slotId, item.narrativeUnitId);
+          }
+        }
+      }
 
       if (!result.ok) {
         const reason = composeReason(result.violations);
@@ -262,7 +326,12 @@ export function createStructureService(options: StructureServiceOptions): Struct
         repos.slots.insertMany(
           result.slots.map((slot) =>
             // 只有根携带轮次：其余槽位的返修轮是它们自己填槽审核的事，与结构无关。
-            toInsertInput(input.taskId, slot, slot.parentId === null ? carriedRound : 0),
+            toInsertInput(
+              input.taskId,
+              slot,
+              slot.parentId === null ? carriedRound : 0,
+              narrativeUnitBySlotId.get(slot.slotId) ?? null,
+            ),
           ),
         );
         repos.executions.markSucceeded(input.executionId);
@@ -383,7 +452,7 @@ export function createStructureService(options: StructureServiceOptions): Struct
  */
 export function structureExhaustedError(
   taskId: string,
-  violations: readonly StructureViolation[],
+  violations: readonly AnyStructureViolation[],
   attempts: number,
   lastReason = '结构创建失败',
 ): ForgeError {

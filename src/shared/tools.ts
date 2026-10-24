@@ -111,15 +111,16 @@ export const ToolSchemas = {
   ]),
 } as const;
 
-/** 工具名。SubmissionGate（D-11）与工具调用计数都按它做键，因此必须是类型而非裸字符串 */
-export type ToolName = keyof typeof ToolSchemas;
+/** 静态 legacy 工具名；contract Assignment 会以动态 `submit_answer` 替换唯一写入口。 */
+export type StaticToolName = keyof typeof ToolSchemas;
+export type ToolName = StaticToolName | 'submit_answer';
 
-/** 供 buildToolset 遍历注册，避免新增工具后忘记挂上去 */
-export const TOOL_NAMES = Object.keys(ToolSchemas) as [ToolName, ...ToolName[]];
-export const ToolNameSchema = z.enum(TOOL_NAMES);
+/** 供 legacy buildToolset 自检；动态工具按 Assignment 单独校验，不能塞进静态 schema 表。 */
+export const TOOL_NAMES = Object.keys(ToolSchemas) as [StaticToolName, ...StaticToolName[]];
+export const ToolNameSchema = z.enum([...TOOL_NAMES, 'submit_answer']);
 
-/** 某个工具的参数类型，如 ToolInput<'read_slot'> */
-export type ToolInput<N extends ToolName> = z.infer<(typeof ToolSchemas)[N]>;
+/** 某个静态工具的参数类型，如 ToolInput<'read_slot'> */
+export type ToolInput<N extends StaticToolName> = z.infer<(typeof ToolSchemas)[N]>;
 
 /** 提交载荷。两种 operation 的产出形状不同，用判别联合而不是可选字段，写错时编译期就报 */
 export type CompleteAssignmentInput = ToolInput<'complete_assignment'>;

@@ -89,6 +89,77 @@ describe('loadTemplate：合法模板', () => {
     expect(byId.get('chapter_outline')?.includeInArtifact).toBe(false);
   });
 
+  it('toolReadable 默认 false，且只允许 system-private 字段显式开启', async () => {
+    const { compiled } = await loadTemplate(VALID_DIR, OPTIONS);
+    expect(compiled.inputFields.every((field) => field.toolReadable === false)).toBe(true);
+    expect(compiled.slotTypes.every((slotType) => slotType.answerContract === undefined)).toBe(true);
+
+    const systemReadable = await compileMutated(
+      '    required: true\n    hint:',
+      '    required: true\n    visibility: system\n    toolReadable: true\n    hint:',
+    );
+    expect(systemReadable.compiled.inputFields[0]).toMatchObject({
+      visibility: 'system',
+      toolReadable: true,
+    });
+
+    await expectRejected(
+      compileMutated(
+        '    required: true\n    hint:',
+        '    required: true\n    visibility: agent\n    toolReadable: true\n    hint:',
+      ),
+      /toolReadable=true 只允许用于 visibility=system/,
+    );
+  });
+
+  it('narrative-plan/v2 answerContract 只冻结授权的 system-private 源字段', async () => {
+    const systemReadable = await compileMutated(
+      '    required: true\n    hint:',
+      '    required: true\n    visibility: system\n    toolReadable: true\n    hint:',
+    );
+    const text = await readValid();
+    const authorized = text
+      .replace(
+        '    required: true\n    hint:',
+        '    required: true\n    visibility: system\n    toolReadable: true\n    hint:',
+      )
+      .replace(
+        '    includeInArtifact: false\n    validation:',
+        '    includeInArtifact: false\n    answerContract:\n      kind: narrative-plan\n      version: 2\n      sourceField: chapter_packet\n      sourceSegmentation: preserve-numbered-sections\n      expansionPolicy: source-length-quantiles-v1\n      storyBudget:\n        minHan: 8000\n        targetHan: 10000\n        maxHan: 12000\n    validation:',
+      );
+    const compiled = await compileTemplate(authorized, path.join(VALID_DIR, 'template.yaml'), OPTIONS);
+    expect(compiled.compiled.slotTypes.find((slotType) => slotType.id === 'chapter_outline')?.answerContract).toEqual({
+      kind: 'narrative-plan',
+      version: 2,
+      sourceField: 'chapter_packet',
+      sourceSegmentation: 'preserve-numbered-sections',
+      expansionPolicy: 'source-length-quantiles-v1',
+      storyBudget: { minHan: 8000, targetHan: 10000, maxHan: 12000 },
+    });
+    expect(systemReadable.compiled.slotTypes.every((slotType) => slotType.answerContract === undefined)).toBe(true);
+
+    const unauthorized = text.replace(
+      '    includeInArtifact: false\n    validation:',
+      '    includeInArtifact: false\n    answerContract:\n      kind: narrative-plan\n      version: 2\n      sourceField: chapter_packet\n      sourceSegmentation: preserve-numbered-sections\n      expansionPolicy: source-length-quantiles-v1\n      storyBudget:\n        minHan: 8000\n        targetHan: 10000\n        maxHan: 12000\n    validation:',
+    );
+    await expectRejected(
+      compileTemplate(unauthorized, path.join(VALID_DIR, 'template.yaml'), OPTIONS),
+      /必须是 required、toolReadable 的 visibility=system textarea/,
+    );
+
+    const missingTarget = authorized.replace('        targetHan: 10000\n', '');
+    await expectRejected(
+      compileTemplate(missingTarget, path.join(VALID_DIR, 'template.yaml'), OPTIONS),
+      /storyBudget.*targetHan|targetHan.*Required/,
+    );
+
+    const invalidBudget = authorized.replace('        targetHan: 10000', '        targetHan: 13000');
+    await expectRejected(
+      compileTemplate(invalidBudget, path.join(VALID_DIR, 'template.yaml'), OPTIONS),
+      /minHan ≤ targetHan ≤ maxHan/,
+    );
+  });
+
   it('§4.1 的 `(?m)` 前缀被翻译成 RegExp flags（JS 不支持内联前缀）', async () => {
     const { compiled } = await loadTemplate(VALID_DIR, OPTIONS);
     const scene = compiled.slotTypes.find((s) => s.id === 'scene');
@@ -485,6 +556,67 @@ describe('templates/zhihu-story：审核绑定（R4 / R6 / D-27）', () => {
   ])('%s 的 maxRevisionRounds 是 %i（D-26）', async (type, rounds) => {
     const { compiled } = await loadTemplate(REAL_TEMPLATE_DIR, realOptions);
     expect(compiled.slotTypes.find((s) => s.id === type)?.maxRevisionRounds).toBe(rounds);
+  });
+
+  it('S2.5/S3：生产 story 模板冻结动态整篇预算与 artifact 指纹规则', async () => {
+    const { compiled } = await loadTemplate(REAL_TEMPLATE_DIR, realOptions);
+    expect(compiled.version).toBe('1.2.0');
+    expect(compiled.output.assembler).toBe('numbered_sentence_paragraphs_v1');
+    expect(compiled.output.validation).toEqual({
+      slotCounts: { title: { min: 1, max: 1 }, section: { min: 8, max: 30 } },
+      outlineCount: { inputField: 'outline_blueprint', slotType: 'section' },
+      storyHan: { min: 7876, max: 15850, slotType: 'section' },
+      narrativePlan: null,
+    });
+    expect(compiled.output.fingerprint).toEqual({
+      requireFirstPerson: true,
+      forbidDoubleQuoteStyle: true,
+      requireNumberedSections: true,
+      warnNoDialogueQuotes: true,
+    });
+    expect(compiled.slotTypes.find((type) => type.id === 'section')?.validation.minChars).toBe(250);
+  });
+
+  it('NarrativePlan 显式 opt-in 后冻结 target 与 outline/section 绑定', async () => {
+    const yamlPath = path.join(REAL_TEMPLATE_DIR, 'template.yaml');
+    const text = await readFile(yamlPath, 'utf8');
+    const planEnabled = text
+      .replace('      minChars: 250\n      maxChars: 1100\n', '')
+      .replace('      min: 7876\n      max: 15850', '      min: 7876\n      target: 10128\n      max: 15850')
+      .replace(
+        '      slotType: section\n    fingerprint:',
+        '      slotType: section\n    narrativePlan:\n      inputField: outline_blueprint\n      slotType: section\n    fingerprint:',
+      );
+    const { compiled } = await compileTemplate(planEnabled, yamlPath, realOptions);
+    expect(compiled.output.validation).toMatchObject({
+      storyHan: { min: 7876, target: 10128, max: 15850, slotType: 'section' },
+      narrativePlan: { inputField: 'outline_blueprint', slotType: 'section' },
+    });
+  });
+
+  it.each([
+    ['缺少 target', (text: string) => text, /storyHan 必须显式声明 target/],
+    [
+      '与静态字符限制并存',
+      (text: string) => text.replace('      min: 7876\n      max: 15850', '      min: 7876\n      target: 10128\n      max: 15850'),
+      /不得再配置 minChars\/maxChars/,
+    ],
+    [
+      'outline 字段不一致',
+      (text: string) => text
+        .replace('      minChars: 250\n      maxChars: 1100\n', '')
+        .replace('      min: 7876\n      max: 15850', '      min: 7876\n      target: 10128\n      max: 15850')
+        .replace('inputField: outline_blueprint\n      slotType: section\n    fingerprint:', 'inputField: source_text\n      slotType: section\n    fingerprint:'),
+      /visibility=agent 的 textarea/,
+    ],
+  ])('NarrativePlan %s时在加载期拒绝', async (_label, mutate, pattern) => {
+    const yamlPath = path.join(REAL_TEMPLATE_DIR, 'template.yaml');
+    const text = await readFile(yamlPath, 'utf8');
+    const withPlan = text.replace(
+      '      slotType: section\n    fingerprint:',
+      '      slotType: section\n    narrativePlan:\n      inputField: outline_blueprint\n      slotType: section\n    fingerprint:',
+    );
+    await expectRejected(compileTemplate(mutate(withPlan), yamlPath, realOptions), pattern);
   });
 
   /*

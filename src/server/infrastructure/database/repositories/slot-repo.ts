@@ -25,10 +25,15 @@ interface SlotRow {
   depends_on_json: string;
   content_bearing: number;
   include_in_artifact: number;
+  narrative_unit_id: string | null;
   status: string;
   revision_round: number;
   review_exhausted: number;
   content_text: string | null;
+  domain_artifact_kind: string | null;
+  domain_artifact_version: number | null;
+  domain_artifact_json: string | null;
+  domain_artifact_hash: string | null;
   producer_agent_id: string | null;
   producer_skill_id: string | null;
   producer_skill_version: string | null;
@@ -50,6 +55,8 @@ export interface InsertSlotInput {
   dependsOn: readonly string[];
   contentBearing: boolean;
   includeInArtifact: boolean;
+  /** 由系统在结构验收后写入；调用方省略表示未启用 NarrativePlan。 */
+  narrativeUnitId?: string | null;
   /**
    * 起始返修轮次，省略即 0。
    *
@@ -65,6 +72,12 @@ export interface CommitSlotContentInput {
   taskId: string;
   slotId: string;
   content: string;
+  domainArtifact?: {
+    kind: 'narrative-plan';
+    version: 2 | 3;
+    json: string;
+    hash: string;
+  } | undefined;
   /**
    * AC-009 要求「完成的内容槽必须同时具备 content 与 producer」。
    * 这里收的是一个整体的 `SlotProducer` 而不是四个平铺参数——
@@ -113,10 +126,19 @@ function toDomain(row: SlotRow): Slot {
     dependsOn: JSON.parse(row.depends_on_json) as string[],
     contentBearing: fromSqlBool(row.content_bearing),
     includeInArtifact: fromSqlBool(row.include_in_artifact),
+    narrativeUnitId: row.narrative_unit_id,
     status: row.status as SlotStatus,
     revisionRound: row.revision_round,
     reviewExhausted: fromSqlBool(row.review_exhausted),
     contentText: row.content_text,
+    domainArtifact: row.domain_artifact_kind === null
+      ? null
+      : {
+          kind: row.domain_artifact_kind,
+          version: row.domain_artifact_version!,
+          json: row.domain_artifact_json!,
+          hash: row.domain_artifact_hash!,
+        },
     producer: toProducer(row),
     errorCode: row.error_code as ErrorCode | null,
     errorMessage: row.error_message,
@@ -179,11 +201,11 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
   const insertStmt = db.prepare(
     `INSERT INTO slots
        (task_id, slot_id, type, parent_id, sort_order, instruction, depends_on_json,
-        content_bearing, include_in_artifact, status, revision_round, review_exhausted,
+        content_bearing, include_in_artifact, narrative_unit_id, status, revision_round, review_exhausted,
         content_text,
         producer_agent_id, producer_skill_id, producer_skill_version, producer_execution_id,
         error_code, error_message, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?)`,
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, 0, NULL, NULL, NULL, NULL, NULL, NULL, NULL, ?, ?)`,
   );
   const getStmt = db.prepare('SELECT * FROM slots WHERE task_id = ? AND slot_id = ?');
   // 排序用 (parent_id, sort_order) 只是给出一个稳定顺序；真正的文档序由
@@ -203,7 +225,10 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
     // 少了这一行，任务 A 的 execution 能提交任务 B 里同名的槽位——
     // 只要调用方把 taskId 传错。而这条语句存在的全部意义就是不依赖调用方传对参数。
     `UPDATE slots SET
-       content_text = ?, status = 'completed',
+       content_text = ?,
+       domain_artifact_kind = ?, domain_artifact_version = ?,
+       domain_artifact_json = ?, domain_artifact_hash = ?,
+       status = 'completed',
        producer_agent_id = ?, producer_skill_id = ?,
        producer_skill_version = ?, producer_execution_id = ?,
        error_code = NULL, error_message = NULL,
@@ -225,7 +250,10 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
   // 同一条 D-10 条件 UPDATE，迟到结果走完全相同的拒绝路径。
   const commitForReviewStmt = db.prepare(
     `UPDATE slots SET
-       content_text = ?, status = 'reviewing',
+       content_text = ?,
+       domain_artifact_kind = ?, domain_artifact_version = ?,
+       domain_artifact_json = ?, domain_artifact_hash = ?,
+       status = 'reviewing',
        producer_agent_id = ?, producer_skill_id = ?,
        producer_skill_version = ?, producer_execution_id = ?,
        error_code = NULL, error_message = NULL,
@@ -288,6 +316,7 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
           JSON.stringify(slot.dependsOn),
           toSqlBool(slot.contentBearing),
           toSqlBool(slot.includeInArtifact),
+          slot.narrativeUnitId ?? null,
           slot.revisionRound ?? 0,
           now,
           now,
@@ -329,6 +358,10 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
     commitContent(input) {
       const info = commitStmt.run(
         input.content,
+        input.domainArtifact?.kind ?? null,
+        input.domainArtifact?.version ?? null,
+        input.domainArtifact?.json ?? null,
+        input.domainArtifact?.hash ?? null,
         input.producer.agentId,
         input.producer.skillId,
         input.producer.skillVersion,
@@ -361,6 +394,10 @@ export function createSlotRepo(db: ForgeDb, clock: Clock): SlotRepo {
     commitContentForReview(input) {
       const info = commitForReviewStmt.run(
         input.content,
+        input.domainArtifact?.kind ?? null,
+        input.domainArtifact?.version ?? null,
+        input.domainArtifact?.json ?? null,
+        input.domainArtifact?.hash ?? null,
         input.producer.agentId,
         input.producer.skillId,
         input.producer.skillVersion,

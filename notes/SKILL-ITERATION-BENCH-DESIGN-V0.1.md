@@ -1,6 +1,6 @@
 # Skill 迭代工作台 —— 设计 V0.1（D-71…D-88）
 
-> 状态：**S0–S2 已完成；S2.5 机制已实现但真实篇幅验收未通过，仍停在 S2.5**。日期 2026-09-01（语料扩至 n=153 后修订）。
+> 状态：**S0–S5 已完成；S6 写作 A/B 与局部审核探针完成，但未达生产提升门槛，缺口转入多故事整篇仿写验收**。日期 2026-09-02。
 >
 > 上一份设计（PROVIDER-FALLBACK-DESIGN-V0.1）结束时,供应商与降级链已就位。
 > 这一份处理下一个问题:**怎么知道一次 Skill 改动是不是改好了。**
@@ -404,6 +404,29 @@ Claude 的质量意见在别处只能当**批注,不能当过滤器**（见 D-75
 记为 S2.5 的待测项：拿同一份大纲跑「看得见全部 instruction」与「只看得见依赖」两版，
 比对反转类故事的产出。
 
+### D-89 整篇预算按实际 section 数动态分配
+
+S2.5 r1 已反证静态 `section.maxChars = 1100` 不足以控制整篇：25 节各自合法，整篇仍有
+20,491 汉字。`maxChars` 没失效；缺的是总预算。
+
+`zhihu-story.output.validation` 声明整篇汉字区间、承载预算的 section 类型、title/section
+数量与上游编号对账。结构冻结后由系统推导有效 section 汉字区间，并让 Prompt、提交校验、
+contextHash/ReplayInput 共用同一个值；Assembly 再做最终兜底。静态 section 码点上限继续保留，
+只承担单槽位异常输出保护。所有配置进入模板 hash 与任务快照。
+
+### D-90 S3 指纹规则属于 artifact validation
+
+第三人称不是禁用“他/她”，双引号风格是全篇计数判定，编号由 assembler 才出现。因此 S3 的
+人称/引号/编号在 artifact 级按 S0 同口径判，不能塞进 section 的 `forbidPattern`。
+生产 domain 与 `bench/fingerprint.mjs` 用提交的合成 parity vectors 对账；无对白引号只告警。
+
+### D-91 S4 分节决策迁移到第一层
+
+D-82 两级流水线成立后，`outline-writing` 决定编号小节，第二层结构 Skill 只一一映射。
+S4 改 `outline-writing` / `outline-review`，第二层以确定性数量/顺序对账守边界。
+旧 `zhihu-chapter r0` 没有 `outline-writing`，所以从 S2.5 真实 ReplayInput 建后置基线；
+不把旧 r0 冒充成不存在的对照。
+
 ---
 
 ## 3. 顺序
@@ -415,10 +438,10 @@ Claude 的质量意见在别处只能当**批注,不能当过滤器**（见 D-75
 | 3 | 回放器:`context_json` + Skill 变体 → 产出 | D-73/D-74 | 单槽位产出 + hash 断言 |
 | 4 | HTML 报告 | 1,3 | 并排 + 差值 + diff |
 | 5 | **基线冻结**(D-79) | 1–4 | 「之前」 |
-| **5.5 / S2.5** | **模板层**（D-82…D-88）：story→section 改标定、大纲模板、防抄线、Skill 对齐 | 5 | 两级流水线 |
-| 6 | 把确定性可判的搬进 `validation` | **5.5 / S2.5** | 人称/引号/段长/场景字数上限 |
-| 7 | `chapter-structure-design` S2 拆定义 + S4 补粒度过粗 | **5.5 / S2.5** | — |
-| 8 | `structure-review` S5,引 7 的原文,做成可数题 | 7 | — |
+| **5.5 / S2.5** | **模板层**（D-82…D-91）：story→section 改标定、大纲模板、防抄线、动态整篇预算、Skill 对齐 | 5 | 两级流水线 |
+| 6 | artifact 级确定性 validation | **5.5 / S2.5** | 人称/引号/编号/篇幅 hard-warn |
+| 7 | `outline-writing` 分节定义 + `outline-review` 过粗/过细判据 | **5.5 / S2.5** | — |
+| 8 | 第二层 outline→section 数量与顺序确定性对账 | 7 | — |
 | 9 | `scene-writing` 补取舍维度与范文语域 | 5 | — |
 | 10 | **有效信息密度**（D-80）：冗余指标进第 2 层 + `scene-review` 加逐句核销判据 | 5,9 | — |
 

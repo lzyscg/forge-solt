@@ -49,9 +49,16 @@
 import { z } from 'zod';
 import type { Operation } from '@shared/contracts.ts';
 import { OperationSchema, InputFieldSchema, SlotStatusSchema } from '@shared/contracts.ts';
-import type { StructureViolation } from '@server/domain/structure-validation.ts';
-import { canonicalJson, sha256Hex } from '@server/domain/canonical.ts';
-import { ForgeError } from '@shared/errors.ts';
+import type { AnyStructureViolation } from '@server/domain/structure-validation.ts';
+import { canonicalHash, canonicalJson, sha256Hex } from '@server/domain/canonical.ts';
+import {
+  NarrativeAnswerSchema,
+  NarrativeAnswerV3Schema,
+  prepareNarrativeAnswerContract,
+  type PreparedNarrativeAnswerContract,
+} from '@server/domain/narrative-answer.ts';
+import { toJsonSchema } from '@shared/zod-json-schema.ts';
+import { ForgeError, ErrorCodeSchema } from '@shared/errors.ts';
 import type { Slot } from '@server/domain/types.ts';
 import type { RawFinding } from '@server/domain/review-evidence.ts';
 import type { PriorRound } from '@server/domain/revision-context.ts';
@@ -59,6 +66,8 @@ import { renderRevisionContext } from '@server/domain/revision-context.ts';
 import { compareSiblings, documentOrder } from '@server/domain/readiness.ts';
 import type { FrozenSkill, FrozenTaskSnapshot } from './snapshot-service.ts';
 import type { CompiledAgent, CompiledSlotType } from './template-loader.ts';
+import type { SlotProductionPolicy } from './narrative-production-policy.ts';
+import type { EffectiveHanRange } from '@server/domain/output-validation.ts';
 
 // ---------------------------------------------------------------------------
 // 输入 / 输出
@@ -92,7 +101,7 @@ export interface StructureRetryInput {
    */
   previousProposalJson: string | null;
   /** 全部违规，不截断（D-13：只报第一条会让模型陷入「改一条冒出下一条」的循环） */
-  violations: readonly StructureViolation[];
+  violations: readonly AnyStructureViolation[];
   /** §7.6 的 `no_submission` 分支：模型说完了但没调 complete_assignment */
   noSubmission: boolean;
 }
@@ -173,6 +182,10 @@ export interface FillSlotContextInput extends ContextBuilderCommonInput {
   targetSlot: Slot;
   /** 目标槽位的类型定义，来自 `snapshot.compiled.slotTypes` */
   slotType: CompiledSlotType;
+  /** 当前槽位的冻结生产策略。新 execution 必须提供；可选仅用于读取历史 ReplayInput v1。 */
+  productionPolicy?: SlotProductionPolicy | null | undefined;
+  /** @deprecated 历史 ReplayInput v1 的兼容字段；新生产路径不再写入。 */
+  effectiveHanRange?: EffectiveHanRange | null | undefined;
   dependencies: readonly DependencyContent[];
   retry: FillSlotRetryInput | null;
   /** R3 / D-31：非 null 表示这是返修轮。首稿为 null */
@@ -203,6 +216,86 @@ export type ContextBuilderInput = StructureContextInput | FillSlotContextInput |
 
 export const REPLAY_INPUT_VERSION = 1 as const;
 
+const SlotProductionPolicyReplaySchema = z
+  .object({
+    version: z.literal(1),
+    source: z.enum(['legacy', 'plan']),
+    han: z
+      .object({
+        minHan: z.number().int().positive(),
+        targetHan: z.number().int().positive().nullable(),
+        maxHan: z.number().int().positive(),
+      })
+      .strict()
+      .nullable(),
+    narrativeUnit: z
+      .object({
+        unitId: z.string(),
+        order: z.number().int().positive(),
+        priority: z.enum(['P0', 'P1', 'bridge']),
+        priorityId: z.string().nullable(),
+        expansion: z.enum(['detailed', 'standard', 'light']),
+        mode: z.enum(['fast-summary', 'conflict-scene', 'suspense-discovery', 'emotional-reality', 'custom']),
+        capacity: z
+          .object({
+            dialogueTurns: z.number().int().min(0),
+            actionFeedbackLoops: z.number().int().min(0),
+            cognitionTurns: z.number().int().min(0),
+            aftermathBeats: z.number().int().min(0),
+          })
+          .strict(),
+      })
+      .strict()
+      .nullable(),
+    runtimeMaxTokens: z.number().int().positive(),
+  })
+  .strict();
+
+const NarrativeBudgetReplaySchema = z
+  .object({
+    minHan: z.number().int().positive(),
+    targetHan: z.number().int().positive(),
+    maxHan: z.number().int().positive(),
+  })
+  .strict();
+
+const CompiledNarrativePlanReplaySchema = z
+  .object({
+    version: z.literal(1),
+    weightProfile: z.literal('i0-three-mode-v1'),
+    storyBudget: NarrativeBudgetReplaySchema,
+    units: z.array(
+      z
+        .object({
+          unitId: z.string(),
+          order: z.number().int().positive(),
+          title: z.string(),
+          change: z.object({ from: z.string(), to: z.string() }).strict(),
+          priority: z.enum(['P0', 'P1', 'bridge']),
+          priorityId: z.string().nullable(),
+          expansion: z.enum(['detailed', 'standard', 'light']),
+          mode: z.enum(['fast-summary', 'conflict-scene', 'suspense-discovery', 'emotional-reality', 'custom']),
+          capacity: z
+            .object({
+              dialogueTurns: z.number().int().min(0),
+              actionFeedbackLoops: z.number().int().min(0),
+              cognitionTurns: z.number().int().min(0),
+              aftermathBeats: z.number().int().min(0),
+            })
+            .strict(),
+          cast: z.array(z.string()),
+          objective: z.string(),
+          conflict: z.string(),
+          endState: z.string(),
+          informationControl: z.string().nullable(),
+          weight: z.number().positive(),
+          budget: NarrativeBudgetReplaySchema,
+        })
+        .strict(),
+    ),
+  })
+  .strict();
+
 const CompiledAgentReplaySchema = z
   .object({
     id: z.string(),
@@ -228,6 +321,17 @@ const CompiledValidationReplaySchema = z
   })
   .strict();
 
+const NarrativePlanAnswerContractReplaySchema = z
+  .object({
+    kind: z.literal('narrative-plan'),
+    version: z.union([z.literal(2), z.literal(3)]),
+    sourceField: z.string(),
+    sourceSegmentation: z.literal('preserve-numbered-sections'),
+    expansionPolicy: z.literal('source-length-quantiles-v1'),
+    storyBudget: NarrativeBudgetReplaySchema,
+  })
+  .strict();
+
 const CompiledSlotTypeReplaySchema = z
   .object({
     id: z.string(),
@@ -238,6 +342,7 @@ const CompiledSlotTypeReplaySchema = z
     validation: CompiledValidationReplaySchema,
     guidance: z.array(z.string()),
     maxRevisionRounds: z.number().int().min(0),
+    answerContract: NarrativePlanAnswerContractReplaySchema.nullable().optional(),
   })
   .strict();
 
@@ -288,7 +393,41 @@ const CompiledTemplateReplaySchema = z
       .object({
         fileName: z.string(),
         mediaType: z.string(),
-        assembler: z.enum(['markdown_concat_v1', 'numbered_sections_v1']),
+        assembler: z.enum(['markdown_concat_v1', 'numbered_sections_v1', 'numbered_sentence_paragraphs_v1']),
+        validation: z
+          .object({
+            slotCounts: z.record(
+              z.object({ min: z.number().int().min(0), max: z.number().int().min(0) }).strict(),
+            ),
+            outlineCount: z.object({ inputField: z.string(), slotType: z.string() }).strict().nullable(),
+            storyHan: z
+              .object({
+                min: z.number().int().positive(),
+                target: z.number().int().positive().optional(),
+                max: z.number().int().positive(),
+                slotType: z.string(),
+              })
+              .strict()
+              .nullable(),
+            narrativePlan: z
+              .object({ inputField: z.string(), slotType: z.string() })
+              .strict()
+              .nullable()
+              .default(null),
+          })
+          .strict()
+          .nullable()
+          .default(null),
+        fingerprint: z
+          .object({
+            requireFirstPerson: z.boolean(),
+            forbidDoubleQuoteStyle: z.boolean(),
+            requireNumberedSections: z.boolean(),
+            warnNoDialogueQuotes: z.boolean(),
+          })
+          .strict()
+          .nullable()
+          .default(null),
       })
       .strict(),
     templateHash: z.string(),
@@ -325,6 +464,8 @@ const FrozenSnapshotReplaySchema = z
     templateVersion: z.string(),
     compiled: CompiledTemplateReplaySchema,
     snapshotHash: z.string(),
+    narrativePlan: CompiledNarrativePlanReplaySchema.nullable().default(null),
+    narrativePlanHash: z.string().nullable().default(null),
     skills: z.record(FrozenSkillReplaySchema),
     input: z.record(z.string()),
   })
@@ -350,12 +491,13 @@ const SlotReplaySchema = z
     dependsOn: z.array(z.string()),
     contentBearing: z.boolean(),
     includeInArtifact: z.boolean(),
+    narrativeUnitId: z.string().nullable().default(null),
     status: SlotStatusSchema,
     revisionRound: z.number().int().min(0),
     reviewExhausted: z.boolean(),
     contentText: z.string().nullable(),
     producer: SlotProducerReplaySchema.nullable(),
-    errorCode: z.string().nullable(),
+    errorCode: ErrorCodeSchema.nullable(),
     errorMessage: z.string().nullable(),
     createdAt: z.string(),
     updatedAt: z.string(),
@@ -400,6 +542,10 @@ const StructureViolationReplaySchema = z
       'DEPENDENCY_CYCLE',
       'DEPENDENCY_ON_CONTAINER',
       'NO_CONTENT_SLOT',
+      'OUTPUT_SLOT_COUNT',
+      'OUTPUT_OUTLINE_COUNT',
+      'OUTPUT_NARRATIVE_UNIT_BINDING',
+      'OUTPUT_BUDGET_IMPOSSIBLE',
     ]),
     message: z.string(),
     agentHint: z.string(),
@@ -454,6 +600,12 @@ const ReplayContextInputSchema = z.discriminatedUnion('operation', [
     slots: z.array(SlotReplaySchema),
     targetSlot: SlotReplaySchema,
     slotType: CompiledSlotTypeReplaySchema,
+    effectiveHanRange: z
+      .object({ minHan: z.number().int().positive(), maxHan: z.number().int().positive() })
+      .strict()
+      .nullable()
+      .default(null),
+    productionPolicy: SlotProductionPolicyReplaySchema.nullable().optional(),
     dependencies: z.array(DependencyReplaySchema),
     retry: FillRetryReplaySchema.nullable(),
     revision: FillRevisionReplaySchema.nullable(),
@@ -469,27 +621,141 @@ const ReplayContextInputSchema = z.discriminatedUnion('operation', [
   }).strict(),
 ]);
 
-export const ReplayInputSchema = z
+export const ReplayInputV1Schema = z
   .object({
     version: z.literal(REPLAY_INPUT_VERSION),
     contextInput: ReplayContextInputSchema,
   })
   .strict();
 
-export type ReplayInput = z.infer<typeof ReplayInputSchema>;
+const NarrativeAnswerProvenanceSchema = NarrativePlanAnswerContractReplaySchema.extend({
+  contractHash: z.string().regex(/^[a-f0-9]{64}$/u),
+  answerSchemaHash: z.string().regex(/^[a-f0-9]{64}$/u),
+  privateInputHash: z.string().regex(/^[a-f0-9]{64}$/u),
+  sourceProfile: z.object({
+    sectionCount: z.number().int().min(8).max(30),
+    totalHan: z.number().int().min(0),
+    minSectionHan: z.number().int().min(0),
+    maxSectionHan: z.number().int().min(0),
+    expansionCounts: z.object({
+      light: z.number().int().min(0),
+      standard: z.number().int().min(0),
+      detailed: z.number().int().min(0),
+    }).strict(),
+  }).strict(),
+}).strict();
+
+export const ReplayInputV2Schema = z
+  .object({
+    version: z.literal(2),
+    contextInput: ReplayContextInputSchema,
+    answerContract: NarrativeAnswerProvenanceSchema,
+  })
+  .strict();
+
+export const ReplayInputSchema = ReplayInputV1Schema;
+export type ReplayInputV1 = z.infer<typeof ReplayInputV1Schema>;
+export type ReplayInputV2 = z.infer<typeof ReplayInputV2Schema>;
+export type ReplayInput = ReplayInputV1 | ReplayInputV2;
 
 export interface SerializedReplayInput {
   replayInputJson: string;
   replayInputHash: string;
 }
 
-function replayInputOf(input: ContextBuilderInput): ReplayInput {
-  return ReplayInputSchema.parse({ version: REPLAY_INPUT_VERSION, contextInput: input });
+function withoutDomainArtifact(slot: Slot): Omit<Slot, 'domainArtifact'> {
+  const { domainArtifact: _domainArtifact, ...publicSlot } = slot;
+  return publicSlot;
 }
 
-/** Serialize an immutable, versioned envelope whose hash covers the exact stored bytes. */
-export function serializeReplayInput(input: ContextBuilderInput): SerializedReplayInput {
-  const replayInputJson = canonicalJson(replayInputOf(input));
+function replayContextInputOf(input: ContextBuilderInput): ContextBuilderInput {
+  const publicSnapshot = {
+    ...input.snapshot,
+    input: Object.fromEntries(
+      input.snapshot.compiled.inputFields
+        .filter((field) => field.visibility === 'agent' && Object.hasOwn(input.snapshot.input, field.id))
+        .map((field) => [field.id, input.snapshot.input[field.id] ?? '']),
+    ),
+  };
+  if (input.operation === 'fill_slot') {
+    return {
+      ...input,
+      snapshot: publicSnapshot,
+      slots: input.slots.map(withoutDomainArtifact),
+      targetSlot: withoutDomainArtifact(input.targetSlot),
+    };
+  }
+  if (input.operation === 'review_slot') {
+    return {
+      ...input,
+      snapshot: publicSnapshot,
+      slots: input.slots.map(withoutDomainArtifact),
+      targetSlot: withoutDomainArtifact(input.targetSlot),
+    };
+  }
+  return { ...input, snapshot: publicSnapshot };
+}
+
+function replayInputV1Of(input: ContextBuilderInput): ReplayInputV1 {
+  return ReplayInputV1Schema.parse({
+    version: REPLAY_INPUT_VERSION,
+    contextInput: replayContextInputOf(input),
+  });
+}
+
+export interface ReplayPrivateInputAccess {
+  readonly readPrivateInput: (fieldId: string) => string | null;
+}
+
+function sourceProfileOf(contract: PreparedNarrativeAnswerContract): ReplayInputV2['answerContract']['sourceProfile'] {
+  const lengths = contract.sections.map((section) => section.hanCount);
+  const expansionCounts = { light: 0, standard: 0, detailed: 0 };
+  for (const section of contract.sections) expansionCounts[section.expansion] += 1;
+  return {
+    sectionCount: contract.sections.length,
+    totalHan: lengths.reduce((sum, length) => sum + length, 0),
+    minSectionHan: Math.min(...lengths),
+    maxSectionHan: Math.max(...lengths),
+    expansionCounts,
+  };
+}
+
+function replayInputV2Of(input: ContextBuilderInput, access: ReplayPrivateInputAccess): ReplayInputV2 {
+  if (input.operation !== 'fill_slot' || input.slotType.answerContract == null) {
+    throw new ForgeError('STORAGE_ERROR', 'ReplayInput v2 只适用于声明 Answer Contract 的 fill_slot', null);
+  }
+  const declaration = input.slotType.answerContract;
+  const source = access.readPrivateInput(declaration.sourceField);
+  if (source === null || source.trim() === '') {
+    throw new ForgeError('STORAGE_ERROR', `ReplayInput v2 私有输入「${declaration.sourceField}」缺失`, null);
+  }
+  const prepared = prepareNarrativeAnswerContract(source);
+  if (!prepared.ok) {
+    throw new ForgeError('ASSIGNMENT_OUTPUT_INVALID', 'ReplayInput v2 私有输入无法准备 narrative-plan/v2', null);
+  }
+  const answerSchema = toJsonSchema(
+    declaration.version === 2 ? NarrativeAnswerSchema : NarrativeAnswerV3Schema,
+  );
+  return ReplayInputV2Schema.parse({
+    version: 2,
+    contextInput: replayContextInputOf(input),
+    answerContract: {
+      ...declaration,
+      contractHash: canonicalHash(declaration),
+      answerSchemaHash: canonicalHash(answerSchema),
+      privateInputHash: sha256Hex(source),
+      sourceProfile: sourceProfileOf(prepared.contract),
+    },
+  });
+}
+
+/** v1 remains the default; private access is an explicit opt-in to v2. */
+export function serializeReplayInput(
+  input: ContextBuilderInput,
+  access?: ReplayPrivateInputAccess,
+): SerializedReplayInput {
+  const replay = access === undefined ? replayInputV1Of(input) : replayInputV2Of(input, access);
+  const replayInputJson = canonicalJson(replay);
   return { replayInputJson, replayInputHash: sha256Hex(replayInputJson) };
 }
 
@@ -509,11 +775,18 @@ export function parseReplayInput(replayInputJson: string, expectedHash: string):
   if (canonicalJson(parsed) !== replayInputJson) {
     throw new ForgeError('STORAGE_ERROR', 'Execution ReplayInput 不是 canonical JSON', null);
   }
-  const result = ReplayInputSchema.safeParse(parsed);
+  const version = typeof parsed === 'object' && parsed !== null && 'version' in parsed
+    ? (parsed as { version?: unknown }).version
+    : undefined;
+  const schema = version === 1 ? ReplayInputV1Schema : version === 2 ? ReplayInputV2Schema : null;
+  if (schema === null) {
+    throw new ForgeError('STORAGE_ERROR', `Execution ReplayInput 不支持版本 ${String(version)}`, null);
+  }
+  const result = schema.safeParse(parsed);
   if (!result.success) {
     throw new ForgeError(
       'STORAGE_ERROR',
-      `Execution ReplayInput 不符合版本 ${REPLAY_INPUT_VERSION} 的结构`,
+      `Execution ReplayInput 不符合版本 ${version} 的结构`,
       null,
       undefined,
       result.error,
@@ -527,8 +800,37 @@ export function rebuildContextFromReplay(
   replayInputJson: string,
   replayInputHash: string,
   replacementSkill: FrozenSkill,
+  access?: ReplayPrivateInputAccess,
 ): BuiltAssignmentContext {
   const replay = parseReplayInput(replayInputJson, replayInputHash);
+  if (replay.version === 2) {
+    if (access === undefined) {
+      throw new ForgeError('STORAGE_ERROR', `ReplayInput v2 私有输入「${replay.answerContract.sourceField}」缺失`, null);
+    }
+    const source = access.readPrivateInput(replay.answerContract.sourceField);
+    if (source === null || source.trim() === '') {
+      throw new ForgeError('STORAGE_ERROR', `ReplayInput v2 私有输入「${replay.answerContract.sourceField}」缺失`, null);
+    }
+    if (sha256Hex(source) !== replay.answerContract.privateInputHash) {
+      throw new ForgeError('STORAGE_ERROR', 'ReplayInput v2 私有输入 hash 不一致', null);
+    }
+    const declaration = replay.contextInput.operation === 'fill_slot'
+      ? replay.contextInput.slotType.answerContract
+      : undefined;
+    if (declaration == null || canonicalHash(declaration) !== replay.answerContract.contractHash) {
+      throw new ForgeError('STORAGE_ERROR', 'ReplayInput v2 Answer Contract hash 不一致', null);
+    }
+    const expectedAnswerSchema = declaration.version === 2
+      ? NarrativeAnswerSchema
+      : NarrativeAnswerV3Schema;
+    if (canonicalHash(toJsonSchema(expectedAnswerSchema)) !== replay.answerContract.answerSchemaHash) {
+      throw new ForgeError('STORAGE_ERROR', 'ReplayInput v2 Answer Schema hash 不一致', null);
+    }
+    const prepared = prepareNarrativeAnswerContract(source);
+    if (!prepared.ok || canonicalJson(sourceProfileOf(prepared.contract)) !== canonicalJson(replay.answerContract.sourceProfile)) {
+      throw new ForgeError('STORAGE_ERROR', 'ReplayInput v2 私有输入 profile 不一致', null);
+    }
+  }
   const contextInput = {
     ...replay.contextInput,
     skill: replacementSkill,
@@ -572,6 +874,10 @@ export interface StructuredContextInput {
     forbidPattern: string | null;
     forbidPatternFlags: string | null;
     forbidPatternMessage: string | null;
+    /** 历史 ReplayInput v1 的均分预算；只为逐字重建旧 execution 保留。 */
+    effectiveHanRange?: { minHan: number; maxHan: number };
+    /** I1 当前槽位生产策略；新 execution 的 Prompt/runtime/校验共用这一个对象。 */
+    productionPolicy?: SlotProductionPolicy;
     /** S2.5 防抄配置；旧 execution 没有该字段时保持省略，避免改变历史 contextHash。 */
     sourceOverlap?: { privateInputField: string; maxContainment: number };
   } | null;
@@ -625,21 +931,26 @@ const STRUCTURE_TOOLS = [
   'complete_assignment 唯一的正式提交动作',
 ].join('\n');
 
-const FILL_SLOT_TOOLS = [
-  '【工具】',
-  'read_task_input       读取冻结的任务输入',
-  'read_skill_section    按 Section ID 读取本 Skill 的其他章节',
-  'read_structure_outline 读取本任务的结构概要',
-  'read_slot             读取本槽位显式依赖的槽位正文',
-  'report_work           发布可公开的工作说明（不影响产出，用于让用户看到你的思路）',
-  'complete_assignment   唯一的正式提交动作',
-].join('\n');
+function renderFillSlotTools(contract: CompiledSlotType['answerContract']): string {
+  const submitTool = contract == null ? 'complete_assignment' : 'submit_answer';
+  return [
+    '【工具】',
+    'read_task_input       读取冻结的任务输入',
+    'read_skill_section    按 Section ID 读取本 Skill 的其他章节',
+    'read_structure_outline 读取本任务的结构概要',
+    'read_slot             读取本槽位显式依赖的槽位正文',
+    'report_work           发布可公开的工作说明（不影响产出，用于让用户看到你的思路）',
+    `${submitTool.padEnd(21)}唯一的正式提交动作`,
+  ].join('\n');
+}
 
-const SUBMIT_RULES = [
-  '【提交规则】',
-  '只有 complete_assignment 会保存结果。',
-  '提交后本次工作立即结束，后续输出不会被保存。',
-].join('\n');
+function renderSubmitRules(submitTool = 'complete_assignment'): string {
+  return [
+    '【提交规则】',
+    `只有 ${submitTool} 会保存结果。`,
+    '提交后本次工作立即结束，后续输出不会被保存。',
+  ].join('\n');
+}
 
 const STRUCTURE_FORBIDDEN = [
   '【禁止】',
@@ -871,7 +1182,7 @@ function buildStructureTexts(input: StructureContextInput): {
     ['【当前工作】', 'Operation: create_structure', '你需要为本次任务设计具体的内容结构。'].join('\n'),
     skillBlock.text,
     STRUCTURE_TOOLS,
-    SUBMIT_RULES,
+    renderSubmitRules(),
     STRUCTURE_FORBIDDEN,
   ]);
 
@@ -1006,12 +1317,17 @@ function renderDependencies(dependencies: readonly DependencyContent[]): string 
   return lines.join('\n');
 }
 
-function renderFillSlotRetry(retry: FillSlotRetryInput, attempt: number, maxAttempts: number): string {
+function renderFillSlotRetry(
+  retry: FillSlotRetryInput,
+  attempt: number,
+  maxAttempts: number,
+  submitTool = 'complete_assignment',
+): string {
   if (retry.noSubmission) {
     return [
       '【上一次未产出结果】',
-      '你上一次的工作没有调用 complete_assignment，因此没有任何内容被保存。',
-      '请在完成思考后，务必调用 complete_assignment 提交结果。',
+      `你上一次的工作没有调用 ${submitTool}，因此没有任何内容被保存。`,
+      `请在完成思考后，务必调用 ${submitTool} 提交结果。`,
       '',
       `这是第 ${attempt} 次尝试，共 ${maxAttempts} 次机会。`,
     ].join('\n');
@@ -1109,6 +1425,47 @@ function renderFillSlotRevision(revision: FillSlotRevisionInput): string {
   return blocks.join('\n');
 }
 
+function renderBusinessAnswerRevision(revision: FillSlotRevisionInput): string {
+  const blocks: string[] = [
+    `【返修】第 ${revision.round} 轮`,
+    '请根据下面逐轮保留的提交结果与审核问题，重新提交一份完整业务答案。',
+    '调用 submit_answer；正式 ID、编号、展开等级、预算和兼容 Markdown 仍由系统重新生成。',
+  ];
+  revision.priorRounds.forEach((prior, round) => {
+    blocks.push('', `── 第 ${round} 轮 ──`);
+    if (prior.readSlotIds.length > 0) {
+      blocks.push(`你这一轮读过的依赖槽位：${prior.readSlotIds.join('、')}（正文见上面的【依赖槽位内容】）`);
+    }
+    blocks.push(renderRevisionContext(prior, NO_DEPENDENCY_CONTENTS));
+  });
+  return blocks.join('\n');
+}
+
+function renderFillOutputContract(slotType: CompiledSlotType, targetSlotId: string): string {
+  if (slotType.answerContract != null) {
+    return slotType.answerContract.version === 2
+      ? [
+          '【输出契约】narrative_answer_v2',
+          '调用 submit_answer，按工具参数 schema 提交每个原文分节的业务分析。',
+          '你只回答情节变化、优先级、叙事模式、容量、人物、目标、冲突、结束状态与信息控制。',
+          '槽位目标、正式 ID、编号、展开等级、字数预算和 Markdown 均由系统绑定或生成，不要自行提交。',
+        ].join('\n')
+      : [
+          '【输出契约】narrative_answer_v3',
+          '调用 submit_answer，按工具参数 schema 提交全篇初始状态和每个原文分节的业务分析。',
+          '每节只回答意图、阻力与结果；相邻状态变化、结束状态和兼容字段由系统推导。',
+          '槽位目标、正式 ID、编号、展开等级、字数预算和 Markdown 均由系统绑定或生成，不要自行提交。',
+        ].join('\n');
+  }
+  return [
+    '【输出契约】slot_content_v1',
+    '调用 complete_assignment：',
+    `{ "kind": "slot_content", "slotId": "${targetSlotId}", "content": "……" }`,
+    '',
+    'content 为本槽位的正文，不要包含槽位标题或编号，不要包含对其他槽位的引用说明。',
+  ].join('\n');
+}
+
 function buildFillSlotTexts(input: FillSlotContextInput): {
   systemText: string;
   userText: string;
@@ -1127,14 +1484,34 @@ function buildFillSlotTexts(input: FillSlotContextInput): {
       '你只能为这一个槽位撰写内容。提交其他槽位的内容会被系统拒绝。',
     ].join('\n'),
     skillBlock.text,
-    FILL_SLOT_TOOLS,
-    SUBMIT_RULES,
+    renderFillSlotTools(slotType.answerContract),
+    renderSubmitRules(slotType.answerContract == null ? 'complete_assignment' : 'submit_answer'),
     FILL_SLOT_FORBIDDEN,
   ]);
 
   const range = formatCharRange(slotType.validation.minChars, slotType.validation.maxChars);
   const limitLines = ['【内容限制】'];
   if (range !== null) limitLines.push(`字数 ${range}`);
+  const policy = input.productionPolicy ?? null;
+  const legacyHan = policy?.han ?? input.effectiveHanRange ?? null;
+  if (legacyHan !== null) {
+    limitLines.push(
+      policy?.han?.targetHan == null
+        ? `本节汉字数 ${legacyHan.minHan} – ${legacyHan.maxHan}`
+        : `本节汉字数 ${legacyHan.minHan} – ${legacyHan.maxHan}，目标 ${policy.han.targetHan}`,
+      policy?.source === 'plan'
+        ? '汉字预算来自冻结 NarrativePlan，提交时由系统计数校验最小值与最大值。'
+        : '汉字预算由整篇目标与实际小节数确定，提交时由系统计数校验。',
+    );
+  }
+  if (policy?.narrativeUnit !== null && policy?.narrativeUnit !== undefined) {
+    const unit = policy.narrativeUnit;
+    limitLines.push(
+      `叙事优先级 ${unit.priority}${unit.priorityId === null ? '' : ` ${unit.priorityId}`} · 展开 ${unit.expansion} · 模式 ${unit.mode}`,
+      `容量上限：对白轮次 ${unit.capacity.dialogueTurns}；动作反馈闭环 ${unit.capacity.actionFeedbackLoops}；` +
+        `认知转折 ${unit.capacity.cognitionTurns}；事后余波 ${unit.capacity.aftermathBeats}`,
+    );
+  }
   if (slotType.validation.forbidPatternMessage !== null) {
     limitLines.push(slotType.validation.forbidPatternMessage);
   }
@@ -1149,18 +1526,32 @@ function buildFillSlotTexts(input: FillSlotContextInput): {
       ? null
       : ['【本类型的写作要求】', ...slotType.guidance.map((item) => `- ${item}`)].join('\n'),
     renderDependencies(input.dependencies),
+    input.snapshot.compiled.output.fingerprint === null
+      ? null
+      : [
+          '【整篇格式规则】',
+          input.snapshot.compiled.output.fingerprint.requireFirstPerson ? '- 完整产物必须以第一人称为主。' : '',
+          input.snapshot.compiled.output.fingerprint.forbidDoubleQuoteStyle ? '- 对白使用「」或『』，不得让整篇落为双引号风格。' : '',
+          input.snapshot.compiled.output.fingerprint.requireNumberedSections ? '- 小节编号由系统装配；本节正文不要自行写编号。' : '',
+          input.snapshot.compiled.output.fingerprint.warnNoDialogueQuotes ? '- 完整产物无对白引号会产生告警。' : '',
+        ].filter(Boolean).join('\n'),
     limitLines.join('\n'),
-    [
-      '【输出契约】slot_content_v1',
-      '调用 complete_assignment：',
-      `{ "kind": "slot_content", "slotId": "${targetSlot.slotId}", "content": "……" }`,
-      '',
-      'content 为本槽位的正文，不要包含槽位标题或编号，不要包含对其他槽位的引用说明。',
-    ].join('\n'),
+    renderFillOutputContract(slotType, targetSlot.slotId),
     // 返修段在重试段之前：前者说的是「上一稿要怎么改」，后者说的是
     // 「上一次提交连校验都没过」。后者更近、更急，放在最后一段。
-    input.revision === null ? null : renderFillSlotRevision(input.revision),
-    input.retry === null ? null : renderFillSlotRetry(input.retry, input.attemptNumber, input.maxAttempts),
+    input.revision === null
+      ? null
+      : slotType.answerContract == null
+        ? renderFillSlotRevision(input.revision)
+        : renderBusinessAnswerRevision(input.revision),
+    input.retry === null
+      ? null
+      : renderFillSlotRetry(
+          input.retry,
+          input.attemptNumber,
+          input.maxAttempts,
+          slotType.answerContract == null ? 'complete_assignment' : 'submit_answer',
+        ),
   ]);
 
   return { systemText, userText, injectedSectionIds: skillBlock.injectedSectionIds };
@@ -1245,8 +1636,8 @@ function buildReviewSlotTexts(input: ReviewSlotContextInput): {
     input.skill.summary,
     input.skill.preamble === '' ? null : input.skill.preamble,
     criterionBlock,
-    FILL_SLOT_TOOLS, // 审核用同一套工具（read_slot 读依赖、read_structure_outline 看结构）
-    SUBMIT_RULES,
+    renderFillSlotTools(null), // 审核仍使用 legacy 提交工具
+    renderSubmitRules(),
     REVIEW_OUTPUT_CONTRACT,
   ]);
 
@@ -1326,6 +1717,11 @@ function structuredInputOf(
       forbidPattern: input.slotType.validation.forbidPattern,
       forbidPatternFlags: input.slotType.validation.forbidPatternFlags,
       forbidPatternMessage: input.slotType.validation.forbidPatternMessage,
+      ...(input.operation === 'fill_slot' && input.productionPolicy != null
+        ? { productionPolicy: input.productionPolicy }
+        : input.operation === 'fill_slot' && input.effectiveHanRange != null
+          ? { effectiveHanRange: input.effectiveHanRange }
+          : {}),
       ...(input.slotType.validation.sourceOverlap === null
         ? {}
         : { sourceOverlap: input.slotType.validation.sourceOverlap }),

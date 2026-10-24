@@ -35,12 +35,20 @@ export interface TraceWriteInput {
  * 让 taskId 成为参数只会多出一个「传错任务」的可能。
  */
 export class TraceWriter {
+  #suppressed = false;
+
   constructor(
     private readonly port: TracePort,
     private readonly taskId: string,
   ) {}
 
+  /** Once sensitive model context exists, no later runtime trace or SSE event is persisted. */
+  suppress(): void {
+    this.#suppressed = true;
+  }
+
   write(input: TraceWriteInput): void {
+    if (this.#suppressed) return;
     const record: TraceRecord = {
       executionId: input.executionId,
       actor: input.actor,
@@ -54,6 +62,7 @@ export class TraceWriter {
 
   /** 流式正文增量。不落库，聚合成 chunk 是 TracePort 实现方的事（§7.7） */
   delta(executionId: string, text: string): void {
+    if (this.#suppressed) return;
     this.port.bufferOutput(this.taskId, executionId, text);
   }
 }

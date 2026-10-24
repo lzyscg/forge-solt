@@ -19,7 +19,7 @@ import type { Operation, SlotStatus } from '@shared/contracts.ts';
 import type { ErrorCode } from '@shared/errors.ts';
 import type { ResolvedSubmissionPayload } from '@shared/tools.ts';
 import type { TraceActor, TraceKind, TracePayload } from '@shared/trace.ts';
-import type { StructureViolation } from '@server/domain/structure-validation.ts';
+import type { AnyStructureViolation } from '@server/domain/structure-validation.ts';
 
 // ---------------------------------------------------------------- TracePort
 
@@ -53,6 +53,14 @@ export interface TracePort {
 
 // ------------------------------------------------------------ CompletionPort
 
+export interface DomainArtifactSubmission {
+  readonly kind: 'narrative-plan';
+  readonly version: 2 | 3;
+  /** Canonical JSON bytes represented as UTF-8 text. */
+  readonly json: string;
+  readonly hash: string;
+}
+
 /** `complete_assignment` 的提交请求。Token 由 Runtime 透传，Runtime 自己从不解释它 */
 export interface CompletionRequest {
   taskId: string;
@@ -62,6 +70,8 @@ export interface CompletionRequest {
   operation: Operation;
   /** create_structure 时为 null */
   targetSlotId: string | null;
+  /** Authoritative system-compiled artifact; absent for every legacy submission. */
+  domainArtifact?: DomainArtifactSubmission | undefined;
   /**
    * 已过 `ToolSchemas.complete_assignment` **并经工具层解析**的载荷。
    * `slot_edits` 到不了这里——它在 `complete-assignment.ts` 就地化成了 slot_content。
@@ -87,7 +97,7 @@ export type CompletionOutcome =
       code: ErrorCode;
       message: string;
       /** 仅结构校验失败时非空（D-13） */
-      violations: readonly StructureViolation[];
+      violations: readonly AnyStructureViolation[];
     };
 
 export interface CompletionPort {

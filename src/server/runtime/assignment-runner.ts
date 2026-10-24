@@ -21,17 +21,127 @@
 import type { Operation } from '@shared/contracts.ts';
 import { ForgeError } from '@shared/errors.ts';
 import type { ErrorCode } from '@shared/errors.ts';
-import type { StructureViolation } from '@server/domain/structure-validation.ts';
+import type { AnyStructureViolation } from '@server/domain/structure-validation.ts';
 import { classifyAbort, SubmittedSignal, TimeoutSignal, sleepAbortable } from './abort-reasons.ts';
+import type { TimeoutKind } from './abort-reasons.ts';
 import { runAgentLoop } from './agent-runtime.ts';
 import type { LoopUsage, TurnRunner } from './agent-runtime.ts';
 import type { CompletionPort, SkillSnapshotView, StructurePort, TracePort } from './ports.ts';
+import type { ProviderActivity } from './provider/provider-adapter.ts';
 import type { ProviderRegistry, ResolvedModel } from './provider/provider-registry.ts';
 import { rateLimitRetryAfterMs } from './provider/rate-limit.ts';
 import { SubmissionGate } from './submission-gate.ts';
 import { TraceWriter } from './trace-writer.ts';
 import { buildToolset, toProviderTools } from './tools/index.ts';
-import type { SubmissionRejection } from './tools/index.ts';
+import type { SubmissionRejection, PreparedNarrativeSubmission } from './tools/index.ts';
+
+const TIMEOUT_POLICY_ID = 'stream-idle-v1';
+const TOTAL_DEADLINE_MULTIPLIER = 10;
+const MAX_TOOL_EXECUTION_TIMEOUT_MS = 30_000;
+
+class StreamingWatchdog {
+  readonly totalDeadlineMs: number;
+  readonly toolExecutionTimeoutMs: number;
+  #idleTimer: ReturnType<typeof setTimeout> | null = null;
+  #totalTimer: ReturnType<typeof setTimeout> | null = null;
+  #hasStreamActivity = false;
+  #startedAt = performance.now();
+  #lastActivityAt: number | null = null;
+  #turnCount = 0;
+  #activityCount = 0;
+  #textDeltaBytes = 0;
+  #reasoningDeltaBytes = 0;
+  #toolArgumentBytes = 0;
+  #maxActivityGapMs = 0;
+  #lastActivityKind: ProviderActivity['kind'] | null = null;
+
+  constructor(
+    private readonly controller: AbortController,
+    readonly idleTimeoutMs: number,
+  ) {
+    this.totalDeadlineMs = idleTimeoutMs * TOTAL_DEADLINE_MULTIPLIER;
+    this.toolExecutionTimeoutMs = Math.min(idleTimeoutMs, MAX_TOOL_EXECUTION_TIMEOUT_MS);
+  }
+
+  start(): void {
+    this.armIdle();
+    this.#totalTimer = setTimeout(() => {
+      this.abort('total_deadline', this.totalDeadlineMs);
+    }, this.totalDeadlineMs);
+  }
+
+  newTurn(): void {
+    this.#turnCount += 1;
+    this.#hasStreamActivity = false;
+    this.armIdle();
+  }
+
+  activity(activity: ProviderActivity): void {
+    const now = performance.now();
+    const previous = this.#lastActivityAt ?? this.#startedAt;
+    this.#maxActivityGapMs = Math.max(this.#maxActivityGapMs, now - previous);
+    this.#lastActivityAt = now;
+    this.#activityCount += 1;
+    this.#lastActivityKind = activity.kind;
+    if (activity.kind === 'stream_text_delta') this.#textDeltaBytes += activity.byteCount;
+    if (activity.kind === 'stream_reasoning_delta') this.#reasoningDeltaBytes += activity.byteCount;
+    if (activity.kind === 'stream_tool_call_delta') this.#toolArgumentBytes += activity.byteCount;
+    this.#hasStreamActivity = true;
+    this.armIdle();
+  }
+
+  diagnostics(): StreamDiagnostics {
+    const reason = this.controller.signal.reason;
+    return {
+      timeoutPolicy: TIMEOUT_POLICY_ID,
+      idleTimeoutMs: this.idleTimeoutMs,
+      totalDeadlineMs: this.totalDeadlineMs,
+      toolExecutionTimeoutMs: this.toolExecutionTimeoutMs,
+      turnCount: this.#turnCount,
+      activityCount: this.#activityCount,
+      textDeltaBytes: this.#textDeltaBytes,
+      reasoningDeltaBytes: this.#reasoningDeltaBytes,
+      toolArgumentBytes: this.#toolArgumentBytes,
+      maxActivityGapMs: Math.round(this.#maxActivityGapMs * 1000) / 1000,
+      lastActivityKind: this.#lastActivityKind,
+      timeoutKind: reason instanceof TimeoutSignal ? reason.kind : null,
+    };
+  }
+
+  enterTool(): void {
+    this.clearIdle();
+  }
+
+  leaveTool(): void {
+    if (!this.controller.signal.aborted) this.armIdle();
+  }
+
+  toolTimeout(): void {
+    this.abort('tool_execution', this.toolExecutionTimeoutMs);
+  }
+
+  stop(): void {
+    this.clearIdle();
+    if (this.#totalTimer !== null) clearTimeout(this.#totalTimer);
+    this.#totalTimer = null;
+  }
+
+  private armIdle(): void {
+    this.clearIdle();
+    this.#idleTimer = setTimeout(() => {
+      this.abort(this.#hasStreamActivity ? 'stream_idle' : 'first_response_idle', this.idleTimeoutMs);
+    }, this.idleTimeoutMs);
+  }
+
+  private clearIdle(): void {
+    if (this.#idleTimer !== null) clearTimeout(this.#idleTimer);
+    this.#idleTimer = null;
+  }
+
+  private abort(kind: TimeoutKind, thresholdMs: number): void {
+    if (!this.controller.signal.aborted) this.controller.abort(new TimeoutSignal(thresholdMs, kind));
+  }
+}
 
 /** 与 `ExecutionDefaults.rateLimitBackoff` 同形（§4.2），此处不 import 以免绑死契约层 */
 export interface RateLimitBackoffConfig {
@@ -63,7 +173,14 @@ export interface Assignment {
   readonly timeoutMs: number;
   readonly allowedDependencySlotIds: readonly string[];
   readonly skill: SkillSnapshotView;
+  /** Agent-visible frozen values only. */
   readonly taskInput: Readonly<Record<string, string>>;
+  /** Frozen-template authorization for explicit system-private reads. */
+  readonly toolReadablePrivateInputIds?: readonly string[] | undefined;
+  /** Runtime-only resolver. Its values must never enter Replay or trace. */
+  readonly readPrivateTaskInput?: ((fieldId: string) => string | null) | undefined;
+  /** Runtime-only compiled contract; absent assignments retain the legacy submission tool. */
+  readonly preparedSubmission?: PreparedNarrativeSubmission | undefined;
   /** R6 / D-61：返修轮的编辑基线。首稿为 null，见 `tools/context.ts` */
   readonly revisionBase: { readonly round: number; readonly content: string; readonly degraded: boolean } | null;
   /**
@@ -83,12 +200,28 @@ export interface AssignmentRunnerDeps {
   readonly rateLimitBackoff: RateLimitBackoffConfig;
 }
 
+export interface StreamDiagnostics {
+  readonly timeoutPolicy: typeof TIMEOUT_POLICY_ID;
+  readonly idleTimeoutMs: number;
+  readonly totalDeadlineMs: number;
+  readonly toolExecutionTimeoutMs: number;
+  readonly turnCount: number;
+  readonly activityCount: number;
+  readonly textDeltaBytes: number;
+  readonly reasoningDeltaBytes: number;
+  readonly toolArgumentBytes: number;
+  readonly maxActivityGapMs: number;
+  readonly lastActivityKind: ProviderActivity['kind'] | null;
+  readonly timeoutKind: TimeoutKind | null;
+}
+
 interface OutcomeBase {
   /** 晚绑定解析的结果，供调用方写入 `executions.provider` / `.model`。解析失败为 null */
   readonly provider: string | null;
   readonly model: string | null;
   readonly usage: LoopUsage | null;
   readonly toolCalls: number;
+  readonly streamDiagnostics?: StreamDiagnostics | undefined;
 }
 
 export type AssignmentOutcome =
@@ -98,11 +231,12 @@ export type AssignmentOutcome =
       readonly code: ErrorCode;
       readonly message: string;
       /** 结构校验失败时非空，供下一次 attempt 拼 D-13 反馈块 */
-      readonly violations: readonly StructureViolation[];
+      readonly violations: readonly AnyStructureViolation[];
       /** AC-014：模型压根没调 complete_assignment。调用方据此追加 §7.6 的固定文案 */
       readonly noSubmission: boolean;
       /** 是否消耗 `maxRetries` 配额（D-04） */
       readonly consumesRetry: boolean;
+      readonly timeoutKind?: TimeoutKind | undefined;
     } & OutcomeBase)
   | ({ readonly kind: 'cancelled'; readonly reason: 'user_stop' } & OutcomeBase);
 
@@ -132,6 +266,7 @@ export class AssignmentRunner {
     }
 
     const bound = { provider: resolved.providerId, model: resolved.model };
+    const watchdog = new StreamingWatchdog(assignment.controller, assignment.timeoutMs);
     trace.write({
       executionId: assignment.executionId,
       actor: 'system',
@@ -145,6 +280,10 @@ export class AssignmentRunner {
         model: resolved.model,
         maxToolCalls: assignment.maxToolCalls,
         timeoutMs: assignment.timeoutMs,
+        timeoutPolicy: TIMEOUT_POLICY_ID,
+        idleTimeoutMs: watchdog.idleTimeoutMs,
+        totalDeadlineMs: watchdog.totalDeadlineMs,
+        toolExecutionTimeoutMs: watchdog.toolExecutionTimeoutMs,
       },
     });
 
@@ -163,6 +302,11 @@ export class AssignmentRunner {
       revisionBase: assignment.revisionBase,
       skill: assignment.skill,
       taskInput: assignment.taskInput,
+      toolReadablePrivateInputIds: assignment.toolReadablePrivateInputIds ?? [],
+      readPrivateTaskInput: assignment.readPrivateTaskInput ?? (() => null),
+      ...(assignment.preparedSubmission === undefined
+        ? {}
+        : { preparedSubmission: assignment.preparedSubmission }),
       gate,
       trace,
       completion: this.deps.completion,
@@ -183,10 +327,9 @@ export class AssignmentRunner {
 
     const runTurn = this.#withRateLimitBackoff(callProvider, resolved.providerId, trace, assignment);
 
-    // §8.2：超时靠同一个 AbortController，reason 不同而已
-    const timer = setTimeout(() => {
-      assignment.controller.abort(new TimeoutSignal(assignment.timeoutMs));
-    }, assignment.timeoutMs);
+    // timeoutMs is an inactivity threshold. Effective stream progress renews it;
+    // a separate derived deadline prevents an arbitrarily slow stream living forever.
+    watchdog.start();
 
     try {
       const result = await runAgentLoop(
@@ -197,11 +340,23 @@ export class AssignmentRunner {
           maxToolCalls: assignment.maxToolCalls,
           maxTokens: assignment.maxTokens,
           signal: assignment.controller.signal,
+          forceSubmitAfterSensitiveRead: assignment.preparedSubmission !== undefined,
+          toolExecutionTimeoutMs: watchdog.toolExecutionTimeoutMs,
+          onTurnStart: () => watchdog.newTurn(),
+          onActivity: (activity) => watchdog.activity(activity),
+          onToolStart: () => watchdog.enterTool(),
+          onToolEnd: () => watchdog.leaveTool(),
+          onToolTimeout: () => watchdog.toolTimeout(),
         },
         { runTurn, tools, providerTools: toProviderTools(tools), gate, trace },
       );
 
-      const base = { ...bound, usage: result.usage, toolCalls: result.toolCalls };
+      const base = {
+        ...bound,
+        usage: result.usage,
+        toolCalls: result.toolCalls,
+        streamDiagnostics: watchdog.diagnostics(),
+      };
 
       if (result.kind === 'submitted') return { kind: 'succeeded', ...base };
 
@@ -210,16 +365,21 @@ export class AssignmentRunner {
           case 'user_stop':
             // §8.2 第 4 条：Execution 已经在 stop 事务里标了 cancelled，此处不重复写
             return { kind: 'cancelled', reason: 'user_stop', ...base };
-          case 'timeout':
+          case 'timeout': {
+            const timeout = assignment.controller.signal.reason instanceof TimeoutSignal
+              ? assignment.controller.signal.reason
+              : new TimeoutSignal(assignment.timeoutMs, 'stream_idle');
             return {
               kind: 'failed',
               code: 'PROVIDER_TIMEOUT',
-              message: `执行超过 ${assignment.timeoutMs}ms 未完成`,
+              message: `${timeout.kind}：连续 ${timeout.timeoutMs}ms 未完成对应阶段`,
               violations: [],
               noSubmission: false,
               consumesRetry: true,
+              timeoutKind: timeout.kind,
               ...base,
             };
+          }
           case 'submitted':
           case 'unknown':
             // 中止了但闸门没关：产出没保存，也说不清是谁中止的。
@@ -275,22 +435,27 @@ export class AssignmentRunner {
         ...base,
       };
     } catch (error) {
+      const timeout = assignment.controller.signal.reason instanceof TimeoutSignal
+        ? assignment.controller.signal.reason
+        : null;
       const forge = asForgeError(error, 'PROVIDER_ERROR');
       return {
         kind: 'failed',
-        code: forge.code,
-        message: forge.message,
+        code: timeout === null ? forge.code : 'PROVIDER_TIMEOUT',
+        message: timeout === null
+          ? forge.message
+          : `${timeout.kind}：连续 ${timeout.timeoutMs}ms 未完成对应阶段`,
         violations: [],
         noSubmission: false,
-        // 退避配额已经耗尽的限流、工具超限、Provider 异常，都是真失败：
-        // 不消耗配额意味着调用方可以无限重跑，那才是真正的烧钱路径
         consumesRetry: true,
+        ...(timeout === null ? {} : { timeoutKind: timeout.kind }),
         ...bound,
+        streamDiagnostics: watchdog.diagnostics(),
         usage: null,
         toolCalls: 0,
       };
     } finally {
-      clearTimeout(timer);
+      watchdog.stop();
     }
   }
 

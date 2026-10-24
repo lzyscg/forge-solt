@@ -26,6 +26,8 @@ interface SnapshotRow {
   template_version: string;
   compiled_json: string;
   snapshot_hash: string;
+  narrative_plan_json: string | null;
+  narrative_plan_hash: string | null;
   created_at: string;
 }
 
@@ -46,6 +48,8 @@ export interface InsertSnapshotInput {
   /** 已规范化的 CompiledTemplate JSON 文本，snapshotHash 与它逐字对应（见 types.ts） */
   compiledJson: string;
   snapshotHash: string;
+  narrativePlanJson?: string | null;
+  narrativePlanHash?: string | null;
 }
 
 function toSnapshot(row: SnapshotRow): TaskSnapshot {
@@ -56,6 +60,8 @@ function toSnapshot(row: SnapshotRow): TaskSnapshot {
     templateVersion: row.template_version,
     compiledJson: row.compiled_json,
     snapshotHash: row.snapshot_hash,
+    narrativePlanJson: row.narrative_plan_json,
+    narrativePlanHash: row.narrative_plan_hash,
     createdAt: row.created_at,
   };
 }
@@ -88,8 +94,9 @@ export interface SnapshotRepo {
 export function createSnapshotRepo(db: ForgeDb, clock: Clock): SnapshotRepo {
   const insertStmt = db.prepare(
     `INSERT INTO task_snapshots
-       (id, task_id, template_id, template_version, compiled_json, snapshot_hash, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       (id, task_id, template_id, template_version, compiled_json, snapshot_hash,
+        narrative_plan_json, narrative_plan_hash, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   const insertSkillStmt = db.prepare(
     `INSERT INTO task_skill_snapshots
@@ -116,9 +123,16 @@ export function createSnapshotRepo(db: ForgeDb, clock: Clock): SnapshotRepo {
         input.templateVersion,
         input.compiledJson,
         input.snapshotHash,
+        input.narrativePlanJson ?? null,
+        input.narrativePlanHash ?? null,
         now,
       );
-      return { ...input, createdAt: now };
+      return {
+        ...input,
+        narrativePlanJson: input.narrativePlanJson ?? null,
+        narrativePlanHash: input.narrativePlanHash ?? null,
+        createdAt: now,
+      };
     },
 
     insertSkills(skills) {

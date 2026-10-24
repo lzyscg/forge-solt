@@ -59,6 +59,10 @@ export interface FakeProviderScript {
   };
 
   // ---- 异常模拟 ----
+  /** 响应头前等待，用于区分 first-response 与 stream-idle timeout。 */
+  readonly responseHeaderDelayMs?: number;
+  /** 持续发送不含内容的有效流活动，用于 idle-timeout 测试。 */
+  readonly streamActivity?: { readonly durationMs: number; readonly intervalMs: number; readonly kind?: 'text' | 'tool' };
   /** 挂起，用于测超时。等待可被 abort 打断 */
   readonly hangMs?: number;
   readonly throwError?: ErrorCode;
@@ -87,6 +91,8 @@ export interface FakeTurnObservation {
   readonly system: string;
   readonly messages: readonly ProviderMessage[];
   readonly toolNames: readonly string[];
+  readonly toolParameters: readonly Readonly<Record<string, unknown>>[];
+  readonly toolChoice: ProviderRunTurnInput['toolChoice'];
   readonly maxTokens: number;
 }
 
@@ -122,21 +128,38 @@ export class FakeProvider implements ProviderAdapter {
       system: input.system,
       messages: [...input.messages],
       toolNames: input.tools.map((t: ProviderToolDefinition) => t.name),
+      toolParameters: input.tools.map((t: ProviderToolDefinition) => structuredClone(t.parameters)),
+      toolChoice: input.toolChoice,
       maxTokens: input.maxTokens,
     });
-
     if (this.#rateLimitRemaining > 0) {
       this.#rateLimitRemaining -= 1;
       throw rateLimited('FakeProvider 模拟 429', this.#retryAfterMs, 'fake');
     }
 
-    if (input.signal.aborted) return aborted();
-
     const script = this.#turns.shift();
     if (script === undefined) {
-      // 脚本耗尽 = 模型没话说了。返回 end_turn 而不是继续循环，
-      // 否则一个写漏了的测试会挂到超时才失败，看不出真正的原因
+      input.onActivity({ kind: 'response_headers' });
       return { stopReason: 'end_turn', usage: null, appendMessages: [] };
+    }
+    if (script.responseHeaderDelayMs !== undefined) {
+      await sleepAbortable(script.responseHeaderDelayMs, input.signal);
+      if (input.signal.aborted) return aborted();
+    }
+    input.onActivity({ kind: 'response_headers' });
+
+    if (input.signal.aborted) return aborted();
+
+    if (script.streamActivity !== undefined) {
+      let elapsed = 0;
+      while (elapsed < script.streamActivity.durationMs) {
+        await sleepAbortable(script.streamActivity.intervalMs, input.signal);
+        if (input.signal.aborted) return aborted();
+        elapsed += script.streamActivity.intervalMs;
+        input.onActivity(script.streamActivity.kind === 'tool'
+          ? { kind: 'stream_tool_call_delta', byteCount: 1, toolNameRecognized: elapsed === script.streamActivity.intervalMs }
+          : { kind: 'stream_text_delta', byteCount: 1 });
+      }
     }
 
     if (script.hangMs !== undefined) {
@@ -152,10 +175,18 @@ export class FakeProvider implements ProviderAdapter {
     for (const delta of script.emitText ?? []) {
       if (input.signal.aborted) return aborted();
       text += delta;
+      input.onActivity({ kind: 'stream_text_delta', byteCount: Buffer.byteLength(delta) });
       input.onTextDelta(delta);
     }
 
     const calls = this.#buildCalls(script);
+    for (const call of calls) {
+      input.onActivity({
+        kind: 'stream_tool_call_delta',
+        byteCount: Buffer.byteLength(call.argumentsJson),
+        toolNameRecognized: call.name !== '',
+      });
+    }
     if (calls.length === 0) {
       return {
         stopReason: script.stopReason ?? 'end_turn',

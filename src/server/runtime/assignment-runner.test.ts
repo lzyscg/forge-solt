@@ -124,6 +124,28 @@ describe('AssignmentRunner 收敛分支', () => {
     expect(h.trace.kinds('assignment_submitted')).toHaveLength(1);
   });
 
+  it('contract Assignment 读取私有原文后强制 submit_answer', async () => {
+    const h = harness({
+      turns: [
+        { callTools: [{ name: 'read_task_input', args: { field: 'source_text' } }] },
+        { neverSubmit: true },
+      ],
+    });
+    await h.run({
+      preparedSubmission: {
+        kind: 'narrative-plan',
+        version: 3,
+        contract: { kind: 'narrative-plan', version: 2, sourceSegmentation: 'preserve-numbered-sections', expansionPolicy: 'source-length-quantiles-v1', sections: [] },
+        storyBudget: { minHan: 8000, targetHan: 10000, maxHan: 12000 },
+      },
+      toolReadablePrivateInputIds: ['source_text'],
+      readPrivateTaskInput: () => '合成私有输入',
+    });
+
+    expect(h.provider.observations[0]?.toolChoice).toBe('auto');
+    expect(h.provider.observations[1]?.toolChoice).toEqual({ name: 'submit_answer' });
+  });
+
   it('no_submission：只说话不提交 → ASSIGNMENT_OUTPUT_INVALID + noSubmission（AC-014）', async () => {
     const h = harness({ turns: [{ emitText: ['我已经完成了这个槽位。'], neverSubmit: true }] });
     const outcome = await h.run();
@@ -200,6 +222,45 @@ describe('AssignmentRunner 收敛分支', () => {
     expect(h.completion.submissions).toHaveLength(0);
   });
 
+  it('首响应前静默达到 idle timeout', async () => {
+    const h = harness({ turns: [{ responseHeaderDelayMs: 3000, submitContent }] });
+    const outcome = await h.run({ timeoutMs: 30 });
+
+    expect(outcome.kind).toBe('failed');
+    if (outcome.kind !== 'failed') return;
+    expect(outcome.timeoutKind).toBe('first_response_idle');
+  });
+
+  it('持续 tool streaming 超过旧绝对时长仍能成功', async () => {
+    const h = harness({
+      turns: [{ streamActivity: { durationMs: 80, intervalMs: 10, kind: 'tool' }, submitContent }],
+    });
+    const outcome = await h.run({ timeoutMs: 30 });
+
+    expect(outcome.kind).toBe('succeeded');
+    expect(outcome.streamDiagnostics).toMatchObject({
+      timeoutPolicy: 'stream-idle-v1',
+      idleTimeoutMs: 30,
+      totalDeadlineMs: 300,
+      toolExecutionTimeoutMs: 30,
+      timeoutKind: null,
+    });
+    expect(outcome.streamDiagnostics?.toolArgumentBytes).toBeGreaterThan(0);
+  });
+
+  it('持续但过慢的 streaming 最终受 total deadline 限制', async () => {
+    const h = harness({
+      turns: [{ streamActivity: { durationMs: 400, intervalMs: 10, kind: 'text' }, submitContent }],
+    });
+    const outcome = await h.run({ timeoutMs: 30 });
+
+    expect(outcome.kind).toBe('failed');
+    if (outcome.kind !== 'failed') return;
+    expect(outcome.code).toBe('PROVIDER_TIMEOUT');
+    expect(outcome.timeoutKind).toBe('total_deadline');
+    expect(outcome.streamDiagnostics?.timeoutKind).toBe('total_deadline');
+  });
+
   it('timeout：超时 → PROVIDER_TIMEOUT 且消耗重试配额（AC-010）', async () => {
     const h = harness({ turns: [{ hangMs: 3000, submitContent }] });
     const startedAt = Date.now();
@@ -208,6 +269,7 @@ describe('AssignmentRunner 收敛分支', () => {
     expect(outcome.kind).toBe('failed');
     if (outcome.kind !== 'failed') return;
     expect(outcome.code).toBe('PROVIDER_TIMEOUT');
+    expect(outcome.timeoutKind).toBe('stream_idle');
     expect(outcome.consumesRetry).toBe(true);
     expect(Date.now() - startedAt).toBeLessThan(1500);
   });
@@ -270,6 +332,31 @@ describe('提交边界（D-11 / AC-008）', () => {
     expect(rejected.map((r) => r.payload?.['code'])).toEqual(['TOOL_NOT_ALLOWED']);
     // 闸门关闭后 report_work 不得留下 work_completion trace
     expect(h.trace.kinds('work_completion')).toHaveLength(0);
+  });
+
+  it('私有输入读取后的模型文本不进入 trace / SSE，但仍可提交安全产物', async () => {
+    const privateSource = 'PRIVATE-SOURCE-MUST-NOT-ENTER-TRACE';
+    const h = harness({
+      turns: [
+        { callTools: [{ name: 'read_task_input', args: { field: 'source_text' } }] },
+        { emitText: [privateSource], callTools: [
+          { name: 'report_work', args: { type: 'progress', summary: privateSource } },
+        ] },
+        { submitContent },
+      ],
+    });
+
+    const outcome = await h.run({
+      taskInput: {},
+      toolReadablePrivateInputIds: ['source_text'],
+      readPrivateTaskInput: (fieldId) => fieldId === 'source_text' ? privateSource : null,
+    });
+
+    expect(outcome.kind).toBe('succeeded');
+    expect(h.completion.submissions).toHaveLength(1);
+    expect(JSON.stringify(h.provider.observations)).toContain(privateSource);
+    expect(JSON.stringify(h.trace.records)).not.toContain(privateSource);
+    expect(h.trace.outputText).not.toContain(privateSource);
   });
 
   it('提交后到达的 text delta 被丢弃（D-11）', async () => {

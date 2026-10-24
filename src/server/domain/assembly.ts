@@ -84,6 +84,49 @@ export function assembleMarkdownConcatV1(slots: readonly Slot[]): string {
   return `${parts.join('\n\n')}\n`;
 }
 
+export function formatSentenceParagraphsV1(text: string): string {
+  const normalized = normalizeContent(text);
+  if (normalized === '') return '';
+  const compact = normalized.replace(/\s*\n+\s*/gu, ' ');
+  const paragraphs: string[] = [];
+  const quoteStack: string[] = [];
+  const closeOf: Readonly<Record<string, string>> = { '「': '」', '『': '』', '“': '”' };
+  let asciiDoubleQuoteOpen = false;
+  let buffer = '';
+
+  const flush = (): void => {
+    const paragraph = buffer.trim();
+    if (paragraph !== '') paragraphs.push(paragraph);
+    buffer = '';
+  };
+
+  for (let index = 0; index < compact.length; index += 1) {
+    const char = compact[index]!;
+    buffer += char;
+    const closer = closeOf[char];
+    if (closer !== undefined) {
+      quoteStack.push(closer);
+      continue;
+    }
+    if (quoteStack.at(-1) === char) {
+      quoteStack.pop();
+      if (quoteStack.length === 0 && !asciiDoubleQuoteOpen && /[。！？…][」』”"']*$/u.test(buffer)) flush();
+      continue;
+    }
+    if (char === '"') {
+      asciiDoubleQuoteOpen = !asciiDoubleQuoteOpen;
+      if (!asciiDoubleQuoteOpen && quoteStack.length === 0 && /[。！？…][」』”"']*$/u.test(buffer)) flush();
+      continue;
+    }
+    if (!/[。！？…]/u.test(char) || quoteStack.length > 0 || asciiDoubleQuoteOpen) continue;
+    const next = compact[index + 1];
+    if (next !== undefined && /[。！？…]/u.test(next)) continue;
+    flush();
+  }
+  flush();
+  return paragraphs.join('\n\n');
+}
+
 export function assembleNumberedSectionsV1(slots: readonly Slot[]): string {
   const parts = includedContentSlots(slots);
   if (parts.length === 0) return '';
@@ -93,6 +136,19 @@ export function assembleNumberedSectionsV1(slots: readonly Slot[]): string {
   const output: string[] = [];
   if (title !== undefined) output.push(title.content);
   output.push(...sections.map((part, index) => `${index + 1}.\n\n${part.content}`));
+  output.push(...other.map((part) => part.content));
+  return output.length === 0 ? '' : `${output.join('\n\n')}\n`;
+}
+
+export function assembleNumberedSentenceParagraphsV1(slots: readonly Slot[]): string {
+  const parts = includedContentSlots(slots);
+  if (parts.length === 0) return '';
+  const title = parts.find((part) => part.slot.type === 'title');
+  const sections = parts.filter((part) => part.slot.type === 'section');
+  const other = parts.filter((part) => part.slot.type !== 'title' && part.slot.type !== 'section');
+  const output: string[] = [];
+  if (title !== undefined) output.push(title.content);
+  output.push(...sections.map((part, index) => `${index + 1}.\n\n${formatSentenceParagraphsV1(part.content)}`));
   output.push(...other.map((part) => part.content));
   return output.length === 0 ? '' : `${output.join('\n\n')}\n`;
 }

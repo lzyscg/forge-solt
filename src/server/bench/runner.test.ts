@@ -16,8 +16,10 @@ import type { Slot } from '@server/domain/types.ts';
 import { FakeProvider, type FakeProviderScript } from '@server/runtime/provider/fake.ts';
 import {
   runBenchmark,
+  runComparisonBenchmark,
   type BenchFixtureCase,
   type BenchFixtureFile,
+  type BenchmarkSample,
 } from './runner.ts';
 
 const ROOT = path.resolve(import.meta.dirname, '../../..');
@@ -88,6 +90,7 @@ function slots(taskId: string): Slot[] {
     taskId,
     revisionRound: 0,
     reviewExhausted: false,
+    narrativeUnitId: null,
     producer: null,
     errorCode: null,
     errorMessage: null,
@@ -255,6 +258,107 @@ describe('S2 单槽位 benchmark runner', () => {
     expect((await fs.readdir(ws.dir)).sort()).toEqual(['fixtures.json', 'run.json']);
   });
 
+  it('system-private 工具输入缺失时在 Provider 调用前拒绝，注入后只经显式工具结果进入模型且不落 report', async () => {
+    const ws = await workspace();
+    const fixture = fixtureCase(ws.loaded, 'fill_slot');
+    const replay = JSON.parse(fixture.replayInputJson) as { contextInput: ContextBuilderInput };
+    replay.contextInput.snapshot.compiled = {
+      ...replay.contextInput.snapshot.compiled,
+      inputFields: [
+        ...replay.contextInput.snapshot.compiled.inputFields,
+        {
+          id: 'source_text',
+          label: '原文',
+          type: 'textarea',
+          required: true,
+          visibility: 'system',
+          toolReadable: true,
+          hint: null,
+        },
+      ],
+    };
+    const { canonicalJson, sha256Hex } = await import('@server/domain/canonical.ts');
+    fixture.replayInputJson = canonicalJson(replay);
+    fixture.replayInputHash = sha256Hex(fixture.replayInputJson);
+    const context = buildContext(replay.contextInput);
+    fixture.expected = { contextHash: context.contextHash, promptHash: context.promptHash };
+    await writeFixture(ws.fixturePath, [fixture]);
+
+    const missingProvider = new FakeProvider();
+    await expect(runBenchmark(options(ws.fixturePath, ws.outPath), {
+      adapterFactory: () => missingProvider,
+      env: { DEEPSEEK_API_KEY: 'test-key' },
+    })).rejects.toThrow(/缺少.*必填私有输入 source_text/);
+    expect(missingProvider.observations).toHaveLength(0);
+
+    const emptyProvider = new FakeProvider();
+    await expect(runBenchmark(options(ws.fixturePath, ws.outPath), {
+      adapterFactory: () => emptyProvider,
+      env: { DEEPSEEK_API_KEY: 'test-key' },
+      readPrivateTaskInput: (caseId, fieldId) =>
+        caseId === fixture.caseId && fieldId === 'source_text' ? ' \n\t ' : null,
+    })).rejects.toThrow(/缺少.*必填私有输入 source_text/);
+    expect(emptyProvider.observations).toHaveLength(0);
+
+    const secret = 'PRIVATE-RUNTIME-ONLY-SOURCE';
+    const content = '医生把药瓶推到灯下，终于承认当年的记录被人替换。'.repeat(14);
+    const provider = new FakeProvider({
+      turns: Array.from({ length: 3 }, () => [
+        { callTools: [{ name: 'read_task_input', args: { field: 'source_text' } }] },
+        { submitContent: { slotId: 'scene_02', content } },
+      ]).flat(),
+    });
+    const report = await runBenchmark(options(ws.fixturePath, ws.outPath), {
+      adapterFactory: () => provider,
+      env: { DEEPSEEK_API_KEY: 'test-key' },
+      readPrivateTaskInput: (caseId, fieldId) =>
+        caseId === fixture.caseId && fieldId === 'source_text' ? secret : null,
+    });
+
+    expect(report.samples.every((sample) => sample.status === 'success')).toBe(true);
+    expect(provider.observations[0]?.messages).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ content: expect.stringContaining(secret) })]),
+    );
+    expect(provider.observations.some((observation) => JSON.stringify(observation.messages).includes(secret))).toBe(true);
+    expect(JSON.stringify(report)).not.toContain(secret);
+    expect(await fs.readFile(ws.outPath, 'utf8')).not.toContain(secret);
+    expect(fixture.replayInputJson).not.toContain(secret);
+  });
+
+  it('必填且非 toolReadable 的 system 输入缺失时也在 Provider 调用前拒绝', async () => {
+    const ws = await workspace();
+    const fixture = fixtureCase(ws.loaded, 'fill_slot');
+    const replay = JSON.parse(fixture.replayInputJson) as { contextInput: ContextBuilderInput };
+    replay.contextInput.snapshot.compiled = {
+      ...replay.contextInput.snapshot.compiled,
+      inputFields: [
+        ...replay.contextInput.snapshot.compiled.inputFields,
+        {
+          id: 'internal_policy',
+          label: '内部策略',
+          type: 'textarea',
+          required: true,
+          visibility: 'system',
+          toolReadable: false,
+          hint: null,
+        },
+      ],
+    };
+    const { canonicalJson, sha256Hex } = await import('@server/domain/canonical.ts');
+    fixture.replayInputJson = canonicalJson(replay);
+    fixture.replayInputHash = sha256Hex(fixture.replayInputJson);
+    const context = buildContext(replay.contextInput);
+    fixture.expected = { contextHash: context.contextHash, promptHash: context.promptHash };
+    await writeFixture(ws.fixturePath, [fixture]);
+    const provider = new FakeProvider();
+
+    await expect(runBenchmark(options(ws.fixturePath, ws.outPath), {
+      adapterFactory: () => provider,
+      env: { DEEPSEEK_API_KEY: 'test-key' },
+    })).rejects.toThrow(/缺少.*必填私有输入 internal_policy/);
+    expect(provider.observations).toHaveLength(0);
+  });
+
   it('审核引文无效时按生产语义接受提交并降级，原始与归一化结果分开审计', async () => {
     const ws = await workspace();
     await writeFixture(ws.fixturePath, [fixtureCase(ws.loaded, 'review_slot')]);
@@ -279,6 +383,26 @@ describe('S2 单槽位 benchmark runner', () => {
     expect(report.samples.every((sample) => sample.review_filter_audit?.discardedFindings === 1)).toBe(true);
     expect(report.samples.every((sample) => sample.accepted_submissions[0]?.kind === 'review_result')).toBe(true);
     expect(report.samples.every((sample) => sample.rejections.length === 0)).toBe(true);
+  });
+
+  it('拒绝提交到非冻结目标 slot，并保留为失败样本', async () => {
+    const ws = await workspace();
+    await writeFixture(ws.fixturePath, [fixtureCase(ws.loaded, 'fill_slot')]);
+    const content = '医生把药瓶推到灯下，来客要求他承认旧记录被替换。'.repeat(14);
+    const provider = new FakeProvider({
+      turns: Array.from({ length: 3 }, () => ({
+        submitContent: { slotId: 'scene_01', content },
+      })),
+    });
+
+    const report = await runBenchmark(options(ws.fixturePath, ws.outPath), {
+      adapterFactory: () => provider,
+      env: { DEEPSEEK_API_KEY: 'test-key' },
+    });
+
+    expect(report.samples).toHaveLength(3);
+    expect(report.samples.every((sample) => sample.status === 'failure')).toBe(true);
+    expect(report.samples.every((sample) => sample.accepted_submissions.length === 0)).toBe(true);
   });
 
   it('保留 Provider 失败、错误和 trace，且失败样本仍按 repeats 输出', async () => {
@@ -313,6 +437,261 @@ describe('S2 单槽位 benchmark runner', () => {
     await expect(fs.stat(ws.outPath)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
+  it('A/B 输出文件已存在时在任何 Provider 调用前失败且保留原文件', async () => {
+    const ws = await workspace();
+    await writeFixture(ws.fixturePath, [fixtureCase(ws.loaded, 'fill_slot')]);
+    const variantRoot = path.join(ws.dir, 'variant-existing-output');
+    await fs.mkdir(path.join(variantRoot, 'scene-writing'), { recursive: true });
+    const baseline = await fs.readFile(path.join(ROOT, 'tests/fixtures/s2-r0/skills/scene-writing/SKILL.md'), 'utf8');
+    await fs.writeFile(path.join(variantRoot, 'scene-writing/SKILL.md'), baseline.replace('可见行动', '有主次的可见行动'));
+    await fs.writeFile(ws.outPath, 'original\n');
+    const provider = new FakeProvider();
+
+    await expect(runComparisonBenchmark({
+      fixturesPath: ws.fixturePath,
+      outPath: ws.outPath,
+      repeats: 3,
+      providerId: 'deepseek',
+      baselineSkillsDir: path.join(ROOT, 'tests/fixtures/s2-r0/skills'),
+      variantSkillsDir: variantRoot,
+      skillId: 'scene-writing',
+      runId: 'existing-output',
+      conditions: ['baseline'],
+      providerConfig: CONFIG,
+    }, { adapterFactory: () => provider, env: { DEEPSEEK_API_KEY: 'test-key' } }))
+      .rejects.toMatchObject({ code: 'EEXIST' });
+    expect(provider.observations).toHaveLength(0);
+    expect(await fs.readFile(ws.outPath, 'utf8')).toBe('original\n');
+  });
+
+  it('A/B 在 Provider 调用前拒绝不存在的显式 case 选择', async () => {
+    const ws = await workspace();
+    await writeFixture(ws.fixturePath, [fixtureCase(ws.loaded, 'fill_slot')]);
+    const variantRoot = path.join(ws.dir, 'variant-missing-case');
+    await fs.mkdir(path.join(variantRoot, 'scene-writing'), { recursive: true });
+    const baseline = await fs.readFile(path.join(ROOT, 'tests/fixtures/s2-r0/skills/scene-writing/SKILL.md'), 'utf8');
+    await fs.writeFile(path.join(variantRoot, 'scene-writing/SKILL.md'), baseline.replace('可见行动', '有主次的可见行动'));
+    const provider = new FakeProvider();
+
+    await expect(runComparisonBenchmark({
+      fixturesPath: ws.fixturePath,
+      outPath: ws.outPath,
+      repeats: 3,
+      providerId: 'deepseek',
+      baselineSkillsDir: path.join(ROOT, 'tests/fixtures/s2-r0/skills'),
+      variantSkillsDir: variantRoot,
+      skillId: 'scene-writing',
+      runId: 'missing-case',
+      conditions: ['baseline'],
+      caseIds: ['case-fill_slot', 'case-not-found'],
+      providerConfig: CONFIG,
+    }, { adapterFactory: () => provider, env: { DEEPSEEK_API_KEY: 'test-key' } }))
+      .rejects.toThrow(/case-not-found.*不存在|不存在.*case-not-found/);
+    expect(provider.observations).toHaveLength(0);
+  });
+
+  it('A/B 在 Provider 调用前拒绝重复 condition', async () => {
+    const ws = await workspace();
+    await writeFixture(ws.fixturePath, [fixtureCase(ws.loaded, 'fill_slot')]);
+    const variantRoot = path.join(ws.dir, 'variant-duplicate-condition');
+    await fs.mkdir(path.join(variantRoot, 'scene-writing'), { recursive: true });
+    const baseline = await fs.readFile(path.join(ROOT, 'tests/fixtures/s2-r0/skills/scene-writing/SKILL.md'), 'utf8');
+    await fs.writeFile(path.join(variantRoot, 'scene-writing/SKILL.md'), baseline.replace('可见行动', '有主次的可见行动'));
+    const provider = new FakeProvider();
+
+    await expect(runComparisonBenchmark({
+      fixturesPath: ws.fixturePath,
+      outPath: ws.outPath,
+      repeats: 3,
+      providerId: 'deepseek',
+      baselineSkillsDir: path.join(ROOT, 'tests/fixtures/s2-r0/skills'),
+      variantSkillsDir: variantRoot,
+      skillId: 'scene-writing',
+      runId: 'duplicate-condition',
+      conditions: ['baseline', 'baseline'],
+      providerConfig: CONFIG,
+    }, { adapterFactory: () => provider, env: { DEEPSEEK_API_KEY: 'test-key' } }))
+      .rejects.toThrow(/conditions.*重复|重复.*conditions/);
+    expect(provider.observations).toHaveLength(0);
+  });
+
+  it('A/B 在 Provider 调用前拒绝 execution attempt 与 Replay 不一致', async () => {
+    const ws = await workspace();
+    const fixture = fixtureCase(ws.loaded, 'fill_slot');
+    fixture.execution.attemptNumber = 2;
+    await writeFixture(ws.fixturePath, [fixture]);
+    const variantRoot = path.join(ws.dir, 'variant-attempt-drift');
+    await fs.mkdir(path.join(variantRoot, 'scene-writing'), { recursive: true });
+    const baseline = await fs.readFile(path.join(ROOT, 'tests/fixtures/s2-r0/skills/scene-writing/SKILL.md'), 'utf8');
+    await fs.writeFile(path.join(variantRoot, 'scene-writing/SKILL.md'), baseline.replace('可见行动', '有主次的可见行动'));
+    const provider = new FakeProvider();
+
+    await expect(runComparisonBenchmark({
+      fixturesPath: ws.fixturePath,
+      outPath: ws.outPath,
+      repeats: 3,
+      providerId: 'deepseek',
+      baselineSkillsDir: path.join(ROOT, 'tests/fixtures/s2-r0/skills'),
+      variantSkillsDir: variantRoot,
+      skillId: 'scene-writing',
+      runId: 'attempt-drift',
+      conditions: ['baseline'],
+      providerConfig: CONFIG,
+    }, { adapterFactory: () => provider, env: { DEEPSEEK_API_KEY: 'test-key' } }))
+      .rejects.toThrow(/attempt/);
+    expect(provider.observations).toHaveLength(0);
+  });
+
+  it('A/B 在 Provider 调用前拒绝 baseline Skill 偏离 Replay 冻结生产版本', async () => {
+    const ws = await workspace();
+    await writeFixture(ws.fixturePath, [fixtureCase(ws.loaded, 'fill_slot')]);
+    const baselineRoot = path.join(ws.dir, 'drifted-baseline');
+    const variantRoot = path.join(ws.dir, 'variant-for-drifted-baseline');
+    await fs.mkdir(path.join(baselineRoot, 'scene-writing'), { recursive: true });
+    await fs.mkdir(path.join(variantRoot, 'scene-writing'), { recursive: true });
+    const production = await fs.readFile(path.join(ROOT, 'tests/fixtures/s2-r0/skills/scene-writing/SKILL.md'), 'utf8');
+    await fs.writeFile(path.join(baselineRoot, 'scene-writing/SKILL.md'), production.replace('可见行动', '明确行动'));
+    await fs.writeFile(path.join(variantRoot, 'scene-writing/SKILL.md'), production.replace('可见行动', '有主次的可见行动'));
+    const provider = new FakeProvider();
+
+    await expect(runComparisonBenchmark({
+      fixturesPath: ws.fixturePath,
+      outPath: ws.outPath,
+      repeats: 3,
+      providerId: 'deepseek',
+      baselineSkillsDir: baselineRoot,
+      variantSkillsDir: variantRoot,
+      skillId: 'scene-writing',
+      runId: 'baseline-drift',
+      conditions: ['baseline'],
+      providerConfig: CONFIG,
+    }, { adapterFactory: () => provider, env: { DEEPSEEK_API_KEY: 'test-key' } }))
+      .rejects.toThrow(/baseline.*冻结|冻结.*baseline/i);
+    expect(provider.observations).toHaveLength(0);
+  });
+
+  it('A/B 在 Provider 调用前拒绝 variant Skill 的 id 或 operation 不匹配', async () => {
+    const ws = await workspace();
+    await writeFixture(ws.fixturePath, [fixtureCase(ws.loaded, 'fill_slot')]);
+    const variantRoot = path.join(ws.dir, 'variant-wrong-metadata');
+    await fs.mkdir(path.join(variantRoot, 'scene-writing'), { recursive: true });
+    const production = await fs.readFile(path.join(ROOT, 'tests/fixtures/s2-r0/skills/scene-writing/SKILL.md'), 'utf8');
+    await fs.writeFile(
+      path.join(variantRoot, 'scene-writing/SKILL.md'),
+      production.replace('id: scene-writing', 'id: title-writing').replace('可见行动', '有主次的可见行动'),
+    );
+    const provider = new FakeProvider();
+
+    await expect(runComparisonBenchmark({
+      fixturesPath: ws.fixturePath,
+      outPath: ws.outPath,
+      repeats: 3,
+      providerId: 'deepseek',
+      baselineSkillsDir: path.join(ROOT, 'tests/fixtures/s2-r0/skills'),
+      variantSkillsDir: variantRoot,
+      skillId: 'scene-writing',
+      runId: 'variant-metadata-drift',
+      conditions: ['variant'],
+      providerConfig: CONFIG,
+    }, { adapterFactory: () => provider, env: { DEEPSEEK_API_KEY: 'test-key' } }))
+      .rejects.toThrow(/variant Skill.*id|id.*variant Skill/i);
+    expect(provider.observations).toHaveLength(0);
+  });
+
+  it('A/B 在 Provider 调用前拒绝 Replay Skill 与 snapshot 引用不一致', async () => {
+    const ws = await workspace();
+    const fixture = fixtureCase(ws.loaded, 'fill_slot');
+    const replay = JSON.parse(fixture.replayInputJson) as { contextInput: ContextBuilderInput };
+    replay.contextInput.snapshot.compiled = {
+      ...replay.contextInput.snapshot.compiled,
+      skills: replay.contextInput.snapshot.compiled.skills.map((skill) =>
+        skill.id === replay.contextInput.skill.id ? { ...skill, contentHash: '0'.repeat(64) } : skill,
+      ),
+    };
+    const { canonicalJson, sha256Hex } = await import('@server/domain/canonical.ts');
+    fixture.replayInputJson = canonicalJson(replay);
+    fixture.replayInputHash = sha256Hex(fixture.replayInputJson);
+    const rebuilt = buildContext(replay.contextInput);
+    fixture.expected = { contextHash: rebuilt.contextHash, promptHash: rebuilt.promptHash };
+    await writeFixture(ws.fixturePath, [fixture]);
+    const variantRoot = path.join(ws.dir, 'variant-snapshot-skill-drift');
+    await fs.mkdir(path.join(variantRoot, 'scene-writing'), { recursive: true });
+    const baseline = await fs.readFile(path.join(ROOT, 'tests/fixtures/s2-r0/skills/scene-writing/SKILL.md'), 'utf8');
+    await fs.writeFile(path.join(variantRoot, 'scene-writing/SKILL.md'), baseline.replace('可见行动', '有主次的可见行动'));
+    const provider = new FakeProvider();
+
+    await expect(runComparisonBenchmark({
+      fixturesPath: ws.fixturePath,
+      outPath: ws.outPath,
+      repeats: 3,
+      providerId: 'deepseek',
+      baselineSkillsDir: path.join(ROOT, 'tests/fixtures/s2-r0/skills'),
+      variantSkillsDir: variantRoot,
+      skillId: 'scene-writing',
+      runId: 'snapshot-skill-drift',
+      conditions: ['baseline'],
+      providerConfig: CONFIG,
+    }, { adapterFactory: () => provider, env: { DEEPSEEK_API_KEY: 'test-key' } }))
+      .rejects.toThrow(/snapshot.*Skill|Skill.*snapshot/i);
+    expect(provider.observations).toHaveLength(0);
+  });
+
+  it('A/B 在首次 Provider 调用前拒绝多个 provider/model 组', async () => {
+    const ws = await workspace();
+    const first = fixtureCase(ws.loaded, 'fill_slot');
+    first.caseId = 'case-model-a';
+    const second = fixtureCase(ws.loaded, 'fill_slot');
+    second.caseId = 'case-model-b';
+    const replay = JSON.parse(second.replayInputJson) as ContextBuilderInput extends never
+      ? never
+      : { contextInput: ContextBuilderInput };
+    if (replay.contextInput.operation !== 'fill_slot') throw new Error('expected fill_slot fixture');
+    const bindings = replay.contextInput.snapshot.compiled.bindings.fillSlotByType as Record<
+      string,
+      NonNullable<(typeof replay.contextInput.snapshot.compiled.bindings.fillSlotByType)['scene']>
+    >;
+    bindings['scene'] = {
+      ...bindings['scene']!,
+      modelAlias: 'configured',
+    };
+    const { canonicalJson, sha256Hex } = await import('@server/domain/canonical.ts');
+    second.replayInputJson = canonicalJson(replay);
+    second.replayInputHash = sha256Hex(second.replayInputJson);
+    const rebuilt = buildContext(replay.contextInput);
+    second.expected = { contextHash: rebuilt.contextHash, promptHash: rebuilt.promptHash };
+    second.execution.modelAlias = 'configured';
+    second.execution.model = 'deepseek-v4-pro';
+    await writeFixture(ws.fixturePath, [first, second]);
+    const variantRoot = path.join(ws.dir, 'variant-mixed-models');
+    await fs.mkdir(path.join(variantRoot, 'scene-writing'), { recursive: true });
+    const baseline = await fs.readFile(path.join(ROOT, 'tests/fixtures/s2-r0/skills/scene-writing/SKILL.md'), 'utf8');
+    await fs.writeFile(path.join(variantRoot, 'scene-writing/SKILL.md'), baseline.replace('可见行动', '有主次的可见行动'));
+    const provider = new FakeProvider();
+    const mixedConfig: ProviderConfig = {
+      ...CONFIG,
+      providers: [{ ...CONFIG.providers[0]!, models: ['deepseek-chat', 'deepseek-v4-pro'] }],
+      aliases: {
+        ...CONFIG.aliases,
+        configured: [{ provider: 'deepseek', model: 'deepseek-v4-pro' }],
+      },
+    };
+
+    await expect(runComparisonBenchmark({
+      fixturesPath: ws.fixturePath,
+      outPath: ws.outPath,
+      repeats: 3,
+      providerId: 'deepseek',
+      baselineSkillsDir: path.join(ROOT, 'tests/fixtures/s2-r0/skills'),
+      variantSkillsDir: variantRoot,
+      skillId: 'scene-writing',
+      runId: 'mixed-models',
+      conditions: ['baseline'],
+      providerConfig: mixedConfig,
+    }, { adapterFactory: () => provider, env: { DEEPSEEK_API_KEY: 'test-key' } }))
+      .rejects.toThrow(/provider\/model 组/);
+    expect(provider.observations).toHaveLength(0);
+  });
+
   it('输出文件已存在时在任何 Provider 调用前失败且保留原文件', async () => {
     const ws = await workspace();
     await writeFixture(ws.fixturePath, [fixtureCase(ws.loaded, 'fill_slot')]);
@@ -325,6 +704,179 @@ describe('S2 单槽位 benchmark runner', () => {
     })).rejects.toMatchObject({ code: 'EEXIST' });
     expect(provider.observations).toHaveLength(0);
     expect(await fs.readFile(ws.outPath, 'utf8')).toBe('original\n');
+  });
+
+  it('单槽位 A/B 在 Provider 调用前要求防抄原文，并以私有原文执行 sourceOverlap', async () => {
+    const ws = await workspace();
+    const fixture = fixtureCase(ws.loaded, 'fill_slot');
+    const replay = JSON.parse(fixture.replayInputJson) as { contextInput: { slotType: { validation: Record<string, unknown> } } };
+    replay.contextInput.slotType.validation['sourceOverlap'] = { privateInputField: 'source_text', maxContainment: 0.05 };
+    const { canonicalJson, sha256Hex } = await import('@server/domain/canonical.ts');
+    const replayInputJson = canonicalJson(replay);
+    fixture.replayInputJson = replayInputJson;
+    fixture.replayInputHash = sha256Hex(replayInputJson);
+    const built = buildContext(replay.contextInput as unknown as ContextBuilderInput);
+    fixture.expected = { contextHash: built.contextHash, promptHash: built.promptHash };
+    await writeFixture(ws.fixturePath, [fixture]);
+    const variantRoot = path.join(ws.dir, 'variant');
+    await fs.mkdir(path.join(variantRoot, 'scene-writing'), { recursive: true });
+    const baseline = await fs.readFile(path.join(ROOT, 'tests/fixtures/s2-r0/skills/scene-writing/SKILL.md'), 'utf8');
+    await fs.writeFile(path.join(variantRoot, 'scene-writing/SKILL.md'), baseline.replace('可见行动', '有主次的可见行动'));
+    const copied = '我把药瓶放到灯下。'.repeat(35);
+    const missingProvider = new FakeProvider();
+    await expect(runComparisonBenchmark({
+      fixturesPath: ws.fixturePath,
+      outPath: ws.outPath,
+      repeats: 3,
+      providerId: 'deepseek',
+      baselineSkillsDir: path.join(ROOT, 'tests/fixtures/s2-r0/skills'),
+      variantSkillsDir: variantRoot,
+      skillId: 'scene-writing',
+      runId: 'private-source-overlap-missing',
+      conditions: ['baseline'],
+      providerConfig: CONFIG,
+    }, { adapterFactory: () => missingProvider, env: { DEEPSEEK_API_KEY: 'test-key' } }))
+      .rejects.toThrow(/缺少.*私有输入 source_text/);
+    expect(missingProvider.observations).toHaveLength(0);
+
+    const provider = new FakeProvider({
+      turns: Array.from({ length: 3 }, () => [
+        { submitContent: { slotId: 'scene_02', content: copied } },
+        { neverSubmit: true },
+      ]).flat(),
+    });
+    const report = await runComparisonBenchmark({
+      fixturesPath: ws.fixturePath,
+      outPath: ws.outPath,
+      repeats: 3,
+      providerId: 'deepseek',
+      baselineSkillsDir: path.join(ROOT, 'tests/fixtures/s2-r0/skills'),
+      variantSkillsDir: variantRoot,
+      skillId: 'scene-writing',
+      runId: 'private-source-overlap',
+      conditions: ['baseline'],
+      providerConfig: CONFIG,
+    }, {
+      adapterFactory: () => provider,
+      env: { DEEPSEEK_API_KEY: 'test-key' },
+      readPrivateTaskInput: (caseId, fieldId) =>
+        caseId === fixture.caseId && fieldId === 'source_text' ? copied : null,
+    });
+    expect((report['samples'] as BenchmarkSample[]).every((sample) => sample.status === 'failure')).toBe(true);
+    expect((report['samples'] as BenchmarkSample[]).every((sample) =>
+      sample.rejections.some((rejection) => rejection.message.includes('重合度')),
+    )).toBe(true);
+    expect((report['baseline_conditions'] as Record<string, unknown>)['private_source_overlap']).toBe('evaluated_from_runtime_private_input');
+    expect(report['experiment_identity']).toMatchObject({
+      replayInputs: [{ caseId: fixture.caseId, replayInputHash: fixture.replayInputHash }],
+      privateInputs: [{
+        caseId: fixture.caseId,
+        fieldId: 'source_text',
+        sha256: sha256Hex(copied),
+      }],
+    });
+    expect(JSON.stringify(report)).not.toContain(copied);
+  });
+
+  it('A/B 拒绝身份匹配但样本不在实验网格内的 checkpoint', async () => {
+    const ws = await workspace();
+    await writeFixture(ws.fixturePath, [fixtureCase(ws.loaded, 'fill_slot')]);
+    const variantRoot = path.join(ws.dir, 'variant-off-grid-checkpoint');
+    await fs.mkdir(path.join(variantRoot, 'scene-writing'), { recursive: true });
+    const baseline = await fs.readFile(path.join(ROOT, 'tests/fixtures/s2-r0/skills/scene-writing/SKILL.md'), 'utf8');
+    await fs.writeFile(path.join(variantRoot, 'scene-writing/SKILL.md'), baseline.replace('可见行动', '有主次的可见行动'));
+    const comparisonOptions = {
+      fixturesPath: ws.fixturePath,
+      outPath: ws.outPath,
+      repeats: 3,
+      providerId: 'deepseek' as const,
+      baselineSkillsDir: path.join(ROOT, 'tests/fixtures/s2-r0/skills'),
+      variantSkillsDir: variantRoot,
+      skillId: 'scene-writing',
+      runId: 'off-grid-checkpoint',
+      conditions: ['baseline'] as const,
+      providerConfig: CONFIG,
+    };
+    const firstProvider = new FakeProvider({ turns: [{ neverSubmit: true }] });
+    await expect(runComparisonBenchmark(comparisonOptions, {
+      adapterFactory: () => firstProvider,
+      env: { DEEPSEEK_API_KEY: 'test-key' },
+      afterSample: () => { throw new Error('建立 checkpoint'); },
+    })).rejects.toThrow('建立 checkpoint');
+    const partialPath = `${ws.outPath}.partial.json`;
+    const checkpoint = JSON.parse(await fs.readFile(partialPath, 'utf8')) as {
+      samples: Array<{ id: string; repeat: number }>;
+    };
+    checkpoint.samples[0]!.id = 'case-fill_slot-baseline-r4';
+    checkpoint.samples[0]!.repeat = 4;
+    await fs.writeFile(partialPath, `${JSON.stringify(checkpoint, null, 2)}\n`);
+    const resumedProvider = new FakeProvider();
+
+    await expect(runComparisonBenchmark(comparisonOptions, {
+      adapterFactory: () => resumedProvider,
+      env: { DEEPSEEK_API_KEY: 'test-key' },
+    })).rejects.toThrow(/checkpoint.*网格|样本.*网格/);
+    expect(resumedProvider.observations).toHaveLength(0);
+  });
+
+  it('A/B 每个样本原子 checkpoint；中断后只补缺失样本并删除 partial', async () => {
+    const ws = await workspace();
+    await writeFixture(ws.fixturePath, [fixtureCase(ws.loaded, 'fill_slot')]);
+    const variantRoot = path.join(ws.dir, 'variant-skills');
+    const variantDir = path.join(variantRoot, 'scene-writing');
+    await fs.mkdir(variantDir, { recursive: true });
+    const baselinePath = path.join(ROOT, 'tests/fixtures/s2-r0/skills/scene-writing/SKILL.md');
+    const baselineRaw = await fs.readFile(baselinePath, 'utf8');
+    await fs.writeFile(
+      path.join(variantDir, 'SKILL.md'),
+      baselineRaw.replace('通过可见行动与信息变化推进单个场景', '通过有主次的可见行动推进单个场景'),
+    );
+    const longScene = '医生把药瓶推到灯下，我看见瓶底刻着日期。老周没有解释，只让我三天后带真账回来。'.repeat(8);
+    const comparisonOptions = {
+      fixturesPath: ws.fixturePath,
+      outPath: ws.outPath,
+      repeats: 3,
+      providerId: 'deepseek' as const,
+      baselineSkillsDir: path.join(ROOT, 'tests/fixtures/s2-r0/skills'),
+      variantSkillsDir: variantRoot,
+      skillId: 'scene-writing',
+      runId: 'resume-test',
+      conditions: ['baseline'] as const,
+      providerConfig: CONFIG,
+    };
+    const firstProvider = new FakeProvider({ turns: [{ submitContent: { slotId: 'scene_02', content: longScene } }] });
+    await expect(
+      runComparisonBenchmark(comparisonOptions, {
+        adapterFactory: () => firstProvider,
+        env: { DEEPSEEK_API_KEY: 'test-key' },
+        afterSample: () => {
+          throw new Error('模拟进程中断');
+        },
+      }),
+    ).rejects.toThrow('模拟进程中断');
+    expect(firstProvider.observations).toHaveLength(1);
+    const partialPath = `${ws.outPath}.partial.json`;
+    expect(JSON.parse(await fs.readFile(partialPath, 'utf8'))).toMatchObject({
+      identity: {
+        replayInputs: [{ caseId: 'case-fill_slot', replayInputHash: expect.any(String) }],
+      },
+      samples: [{ id: 'case-fill_slot-baseline-r1' }],
+    });
+    await expect(fs.stat(ws.outPath)).rejects.toMatchObject({ code: 'ENOENT' });
+
+    await fs.writeFile(ws.outPath, '');
+    const secondProvider = new FakeProvider({
+      turns: Array.from({ length: 2 }, () => ({ submitContent: { slotId: 'scene_02', content: longScene } })),
+    });
+    const resumed = await runComparisonBenchmark(comparisonOptions, {
+      adapterFactory: () => secondProvider,
+      env: { DEEPSEEK_API_KEY: 'test-key' },
+    });
+    expect(secondProvider.observations).toHaveLength(2);
+    expect(resumed['samples']).toHaveLength(3);
+    expect((resumed['baseline_conditions'] as Record<string, unknown>)['private_source_overlap'])
+      .toBe('not_configured');
+    await expect(fs.stat(partialPath)).rejects.toMatchObject({ code: 'ENOENT' });
   });
 
   it('拒绝小于三次的重复数', async () => {

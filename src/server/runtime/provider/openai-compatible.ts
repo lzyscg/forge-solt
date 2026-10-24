@@ -74,6 +74,7 @@ const StreamChunkSchema = z.object({
         delta: z
           .object({
             content: z.string().nullish(),
+            reasoning_content: z.string().nullish(),
             tool_calls: z.array(StreamToolCallDeltaSchema).optional(),
           })
           .optional(),
@@ -157,7 +158,9 @@ export class OpenAiCompatibleAdapter implements ProviderAdapter {
         type: 'function',
         function: { name: tool.name, description: tool.description, parameters: tool.parameters },
       })),
-      tool_choice: 'auto',
+      tool_choice: input.toolChoice === undefined || input.toolChoice === 'auto'
+        ? 'auto'
+        : { type: 'function', function: { name: input.toolChoice.name } },
     };
 
     let response: Response;
@@ -202,6 +205,7 @@ export class OpenAiCompatibleAdapter implements ProviderAdapter {
     if (response.body === null) {
       throw new ForgeError('PROVIDER_ERROR', 'Provider 返回了空响应体', `provider:${this.#providerId}`);
     }
+    input.onActivity({ kind: 'response_headers' });
 
     return await this.#consumeStream(response.body, input);
   }
@@ -254,17 +258,35 @@ export class OpenAiCompatibleAdapter implements ProviderAdapter {
 
           if (chunk.usage != null) {
             usage = { inputTokens: chunk.usage.prompt_tokens, outputTokens: chunk.usage.completion_tokens };
+            input.onActivity({ kind: 'stream_usage' });
           }
           const choice = chunk.choices?.[0];
           if (choice === undefined) continue;
-          if (choice.finish_reason != null) finishReason = choice.finish_reason;
+          if (choice.finish_reason != null) {
+            finishReason = choice.finish_reason;
+            input.onActivity({ kind: 'stream_finish' });
+          }
 
+          const reasoning = choice.delta?.reasoning_content;
+          if (typeof reasoning === 'string' && reasoning !== '') {
+            input.onActivity({ kind: 'stream_reasoning_delta', byteCount: Buffer.byteLength(reasoning) });
+          }
           const text = choice.delta?.content;
           if (typeof text === 'string' && text !== '') {
             assistantText += text;
+            input.onActivity({ kind: 'stream_text_delta', byteCount: Buffer.byteLength(text) });
             input.onTextDelta(text);
           }
           for (const delta of choice.delta?.tool_calls ?? []) {
+            const argumentDelta = delta.function?.arguments ?? '';
+            const hasIdentity = (delta.id ?? '') !== '' || (delta.function?.name ?? '') !== '';
+            if (argumentDelta !== '' || hasIdentity) {
+              input.onActivity({
+                kind: 'stream_tool_call_delta',
+                byteCount: Buffer.byteLength(argumentDelta),
+                toolNameRecognized: (delta.function?.name ?? '') !== '',
+              });
+            }
             accumulate(toolCalls, delta);
           }
         }

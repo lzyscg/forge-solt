@@ -14,6 +14,8 @@ import { ForgeError } from '@shared/errors.ts';
 import { TaskDetailSchema } from '@shared/contracts.ts';
 import { sha256Hex } from '@server/domain/canonical.ts';
 import { computeArtifactChecksum } from '@server/domain/assembly.ts';
+import { resolveSlotProductionPolicy } from '@server/application/narrative-production-policy.ts';
+import type { StructureProposal } from '@server/domain/structure-validation.ts';
 import { dumpAll } from '../fixtures/db.ts';
 import {
   createAppEnv,
@@ -55,6 +57,119 @@ function expectNoTrace(action: () => void): unknown {
 
 const LONG_OUTLINE = '场景一：雨夜对峙，目标是逼出真相；冲突在于对方拒绝承认。'.repeat(6);
 const SCENE_TEXT = '雨点砸在铁皮棚顶上，像有人在上面不停地敲。她把伞收了，水顺着伞骨往下淌。'.repeat(12);
+
+function narrativeOutline(sectionCount = 8): string {
+  return Array.from({ length: sectionCount }, (_, index) => {
+    const number = index + 1;
+    const priority = number === 1
+      ? 'P0 P001'
+      : number === sectionCount
+        ? 'P0 P002'
+        : 'bridge';
+    const expansion = number % 3 === 1 ? '轻过渡' : number % 3 === 2 ? '标准' : '细写';
+    return `${number}. 第${number}节
+变化：状态${number - 1} → 状态${number}
+重点：${priority}
+展开：${expansion}
+模式：自定义
+容量：对白轮次 1；动作反馈闭环 1；认知转折 1；事后余波 1
+出场：我
+目标：推进第${number}步
+冲突：第${number}步遇到阻力
+结束状态：完成第${number}步`;
+  }).join('\n\n');
+}
+
+function narrativeProposal(sectionCount = 8): StructureProposal {
+  return {
+    rootSlotId: 'chapter',
+    slots: [
+      { id: 'chapter', type: 'chapter', parentId: null, order: 0, instruction: '整章容器', dependsOn: [] },
+      ...Array.from({ length: sectionCount }, (_, index) => ({
+        id: `scene_${String(index + 1).padStart(2, '0')}`,
+        type: 'scene',
+        parentId: 'chapter',
+        order: index,
+        instruction: `完成 Narrative Unit ${index + 1}`,
+        dependsOn: [] as string[],
+      })),
+    ],
+  };
+}
+
+async function useNarrativePlanTemplate(): Promise<void> {
+  await env.cleanup();
+  env = await createAppEnv();
+  await env.workspace.patchTemplate(
+    'zhihu-chapter',
+    `    validation:
+      minChars: 300
+      maxChars: 8000
+      forbidPattern: '(?m)^#{1,6}\\s'`,
+    `    validation:
+      forbidPattern: '(?m)^#{1,6}\\s'`,
+  );
+  await env.workspace.patchTemplate(
+    'zhihu-chapter',
+    `output:
+  fileName: chapter.md
+  mediaType: text/markdown
+  assembler: markdown_concat_v1`,
+    `output:
+  fileName: chapter.md
+  mediaType: text/markdown
+  assembler: markdown_concat_v1
+  validation:
+    outlineCount:
+      inputField: chapter_packet
+      slotType: scene
+    storyHan:
+      min: 2000
+      target: 4000
+      max: 8000
+      slotType: scene
+    narrativePlan:
+      inputField: chapter_packet
+      slotType: scene`,
+  );
+  taskId = await seedNewTask(env, narrativeOutline());
+}
+
+async function useAnswerContractTemplate(): Promise<void> {
+  await env.cleanup();
+  env = await createAppEnv();
+  await env.workspace.patchTemplate(
+    'zhihu-chapter',
+    `    type: textarea
+    required: true
+    hint: 本章的素材、人物状态与情节目标`,
+    `    type: textarea
+    required: true
+    visibility: system
+    toolReadable: true
+    hint: 本章的素材、人物状态与情节目标`,
+  );
+  await env.workspace.patchTemplate(
+    'zhihu-chapter',
+    `    contentBearing: true
+    includeInArtifact: false
+    validation:`,
+    `    contentBearing: true
+    includeInArtifact: false
+    answerContract:
+      kind: narrative-plan
+      version: 2
+      sourceField: chapter_packet
+      sourceSegmentation: preserve-numbered-sections
+      expansionPolicy: source-length-quantiles-v1
+      storyBudget:
+        minHan: 800
+        targetHan: 1000
+        maxHan: 1200
+    validation:`,
+  );
+  taskId = await seedNewTask(env, narrativeOutline());
+}
 
 // ---------------------------------------------------------------------------
 
@@ -192,6 +307,141 @@ describe('提交 Structure（§5.5 边界 3 / D-13）', () => {
     expect(env.uow.repositories.slots.getOrThrow(taskId, 'scene_01').includeInArtifact).toBe(true);
   });
 
+  it('NarrativePlan 启用时按文档序把 unit 绑定真实落库', async () => {
+    await useNarrativePlanTemplate();
+    const { executionId } = startStructureAssignment(env, taskId);
+    const result = env.structures.submit({
+      taskId,
+      executionId,
+      proposal: narrativeProposal(),
+    });
+
+    expect(result.ok, JSON.stringify(result)).toBe(true);
+    const stored = env.uow.repositories.slots.listByTask(taskId);
+    expect(stored.find((slot) => slot.slotId === 'chapter')?.narrativeUnitId).toBeNull();
+    expect(
+      stored
+        .filter((slot) => slot.type === 'scene')
+        .map((slot) => [slot.slotId, slot.narrativeUnitId]),
+    ).toEqual(Array.from({ length: 8 }, (_, index) => [
+      `scene_${String(index + 1).padStart(2, '0')}`,
+      `unit_${String(index + 1).padStart(2, '0')}`,
+    ]));
+  });
+
+  it('NarrativePlan policy 同时驱动 Prompt 与提交 Han 校验', async () => {
+    await useNarrativePlanTemplate();
+    const { executionId } = startStructureAssignment(env, taskId);
+    expect(env.structures.submit({ taskId, executionId, proposal: narrativeProposal() }).ok).toBe(true);
+    const snapshot = env.snapshots.readSnapshot(taskId);
+    const slots = env.uow.repositories.slots.listByTask(taskId);
+    const scene = env.uow.repositories.slots.getOrThrow(taskId, 'scene_01');
+    const sceneType = snapshot.compiled.slotTypes.find((type) => type.id === 'scene');
+    if (sceneType === undefined) throw new Error('缺少 scene type');
+    const policy = resolveSlotProductionPolicy({ snapshot, targetSlot: scene, allSlots: slots, slotType: sceneType });
+    expect(policy.source).toBe('plan');
+    expect(policy.han?.targetHan).not.toBeNull();
+
+    const assignment = startSlotAssignment(env, taskId, scene.slotId);
+    const tooShort = '我'.repeat((policy.han?.minHan ?? 1) - 1);
+    const rejected = env.completions.submitSlotContent({
+      taskId,
+      executionId: assignment.executionId,
+      token: assignment.token,
+      slotId: scene.slotId,
+      content: tooShort,
+      producer: { agentId: 'chapter_writer', skillId: 'scene-writing', skillVersion: '1.0.0' },
+    });
+    expect(rejected.ok).toBe(false);
+    if (rejected.ok) throw new Error('unreachable');
+    expect(rejected.reasons).toContain(
+      `正文有 ${policy.han!.minHan - 1} 个汉字，低于整篇预算分配给本槽位的最少 ${policy.han!.minHan} 个汉字`,
+    );
+    expect(env.uow.repositories.slots.getOrThrow(taskId, scene.slotId).contentText).toBeNull();
+    expect(env.uow.repositories.executions.getOrThrow(assignment.executionId).status).toBe('running');
+  });
+
+  it('拒绝与冻结快照不一致的透传 NarrativePlan policy', async () => {
+    await useNarrativePlanTemplate();
+    const { executionId } = startStructureAssignment(env, taskId);
+    expect(env.structures.submit({ taskId, executionId, proposal: narrativeProposal() }).ok).toBe(true);
+    const snapshot = env.snapshots.readSnapshot(taskId);
+    const slots = env.uow.repositories.slots.listByTask(taskId);
+    const scene = env.uow.repositories.slots.getOrThrow(taskId, 'scene_01');
+    const sceneType = snapshot.compiled.slotTypes.find((type) => type.id === 'scene');
+    if (sceneType === undefined) throw new Error('缺少 scene type');
+    const policy = resolveSlotProductionPolicy({ snapshot, targetSlot: scene, allSlots: slots, slotType: sceneType });
+    const assignment = startSlotAssignment(env, taskId, scene.slotId);
+
+    expect(() => env.completions.submitSlotContent({
+      taskId,
+      executionId: assignment.executionId,
+      token: assignment.token,
+      slotId: scene.slotId,
+      content: '我'.repeat(policy.han!.targetHan!),
+      producer: { agentId: 'chapter_writer', skillId: 'scene-writing', skillVersion: '1.0.0' },
+      productionPolicy: {
+        ...policy,
+        han: { ...policy.han!, minHan: 1 },
+      },
+    })).toThrow(/生产策略与冻结快照不一致/);
+    expect(env.uow.repositories.slots.getOrThrow(taskId, scene.slotId).contentText).toBeNull();
+    expect(env.uow.repositories.executions.getOrThrow(assignment.executionId).status).toBe('running');
+  });
+
+  it('整树替换的新提案数量不符时保留旧树及旧 NarrativePlan 绑定', async () => {
+    await useNarrativePlanTemplate();
+    const first = startStructureAssignment(env, taskId);
+    expect(env.structures.submit({
+      taskId,
+      executionId: first.executionId,
+      proposal: narrativeProposal(),
+    }).ok).toBe(true);
+    const before = env.uow.repositories.slots.listByTask(taskId);
+
+    env.uow.run((repos) => repos.tasks.update(taskId, { phase: 'structure' }));
+    const replacement = startStructureAssignment(env, taskId);
+    const result = env.structures.submit({
+      taskId,
+      executionId: replacement.executionId,
+      proposal: narrativeProposal(7),
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error('unreachable');
+    expect(result.violations.map((violation) => violation.rule)).toContain('OUTPUT_OUTLINE_COUNT');
+    expect(env.uow.repositories.slots.listByTask(taskId)).toEqual(before);
+    expect(env.uow.repositories.executions.getOrThrow(replacement.executionId).status).toBe('running');
+    expect(env.uow.repositories.tasks.getOrThrow(taskId).activeExecutionId).toBe(replacement.executionId);
+  });
+
+  it('整树替换后置 stale 时回滚删除与新绑定，旧树逐字保留', async () => {
+    await useNarrativePlanTemplate();
+    const first = startStructureAssignment(env, taskId);
+    expect(env.structures.submit({
+      taskId,
+      executionId: first.executionId,
+      proposal: narrativeProposal(),
+    }).ok).toBe(true);
+
+    env.uow.run((repos) => repos.tasks.update(taskId, { phase: 'structure' }));
+    const replacement = startStructureAssignment(env, taskId);
+    env.uow.run((repos) => repos.tasks.update(taskId, { activeExecutionId: null }));
+    const thrown = expectNoTrace(() => env.structures.submit({
+      taskId,
+      executionId: replacement.executionId,
+      proposal: narrativeProposal(),
+    }));
+
+    expect((thrown as ForgeError).code).toBe('EXECUTION_STALE');
+    expect(
+      env.uow.repositories.slots
+        .listByTask(taskId)
+        .filter((slot) => slot.type === 'scene')
+        .map((slot) => slot.narrativeUnitId),
+    ).toEqual(Array.from({ length: 8 }, (_, index) => `unit_${String(index + 1).padStart(2, '0')}`));
+  });
+
   it('未通过：数据库里一个槽位都不留，且一次给全部违规（D-13）', () => {
     const { executionId } = startStructureAssignment(env, taskId);
     const result = env.structures.submit({
@@ -322,6 +572,69 @@ describe('提交 Slot Content（§5.5 边界 4 / D-10 / §8.4）', () => {
     });
     expect(env.uow.repositories.executions.getOrThrow(executionId).outputTokens).toBe(340);
     expect(env.uow.repositories.tasks.getOrThrow(taskId).activeExecutionId).toBeNull();
+  });
+
+  it('Answer Contract 槽位拒绝缺失、版本不符或 hash 错误的领域产物', async () => {
+    await useAnswerContractTemplate();
+    seedStructure();
+
+    const invalidArtifacts = [
+      undefined,
+      { kind: 'narrative-plan' as const, version: 1 as never, json: '{"units":[]}', hash: sha256Hex('{"units":[]}') },
+      { kind: 'narrative-plan' as const, version: 2 as const, json: '{"units":[]}', hash: '0'.repeat(64) },
+      { kind: 'narrative-plan' as const, version: 2 as const, json: '{ "units": [] }', hash: sha256Hex('{ "units": [] }') },
+    ];
+    for (const domainArtifact of invalidArtifacts) {
+      const { executionId, token } = startSlotAssignment(env, taskId, 'outline');
+      const action = () => env.completions.submitSlotContent({
+        taskId,
+        executionId,
+        token,
+        slotId: 'outline',
+        content: LONG_OUTLINE,
+        ...(domainArtifact === undefined ? {} : { domainArtifact }),
+        producer: { agentId: 'chapter_writer', skillId: 'outline-writing', skillVersion: '1.0.0' },
+      });
+      expect(action).toThrow(ForgeError);
+      env.uow.run((uow) => {
+        uow.executions.markFailed(executionId, 'SLOT_CONTENT_INVALID', '测试清理');
+        uow.slots.resetToPending(taskId, 'outline');
+        uow.tasks.update(taskId, { activeExecutionId: null });
+      });
+    }
+  });
+
+  it('Answer Contract 槽位原子保存 hash 正确的领域产物与兼容文本', async () => {
+    await useAnswerContractTemplate();
+    seedStructure();
+    const { executionId, token } = startSlotAssignment(env, taskId, 'outline');
+    const json = '{"units":[]}';
+
+    const result = env.completions.submitSlotContent({
+      taskId,
+      executionId,
+      token,
+      slotId: 'outline',
+      content: LONG_OUTLINE,
+      domainArtifact: {
+        kind: 'narrative-plan',
+        version: 2,
+        json,
+        hash: sha256Hex(json),
+      },
+      producer: { agentId: 'chapter_writer', skillId: 'outline-writing', skillVersion: '1.0.0' },
+    });
+
+    expect(result.ok).toBe(true);
+    expect(env.uow.repositories.slots.getOrThrow(taskId, 'outline')).toMatchObject({
+      contentText: LONG_OUTLINE,
+      domainArtifact: {
+        kind: 'narrative-plan',
+        version: 2,
+        json,
+        hash: sha256Hex(json),
+      },
+    });
   });
 
   it('D-05：字数不足被拒，槽位回 pending 且正文一个字都不留', () => {

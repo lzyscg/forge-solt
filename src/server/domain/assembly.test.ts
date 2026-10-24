@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import type { Slot } from './types.ts';
-import { assembleMarkdownConcatV1, assembleNumberedSectionsV1, assemblyOrder, computeArtifactChecksum } from './assembly.ts';
+import {
+  assembleMarkdownConcatV1,
+  assembleNumberedSectionsV1,
+  assembleNumberedSentenceParagraphsV1,
+  assemblyOrder,
+  computeArtifactChecksum,
+  formatSentenceParagraphsV1,
+} from './assembly.ts';
 import { documentOrder } from './readiness.ts';
 
 /** 造一个槽位。默认是「普通内容槽位」，各用例只覆盖它关心的字段。 */
@@ -14,6 +21,7 @@ function slot(partial: Partial<Slot> & Pick<Slot, 'slotId'>): Slot {
     dependsOn: [],
     contentBearing: true,
     includeInArtifact: true,
+    narrativeUnitId: null,
     status: 'completed',
     revisionRound: 0,
     reviewExhausted: false,
@@ -63,6 +71,28 @@ describe('numbered_sections_v1', () => {
       slot({ slotId: 'section_02', type: 'section', parentId: 'story', sortOrder: 2, contentText: '第二节正文' }),
     ];
     expect(assembleNumberedSectionsV1(slots)).toBe('雨夜药瓶\n\n1.\n\n第一节正文\n\n2.\n\n第二节正文\n');
+  });
+});
+
+describe('numbered_sentence_paragraphs_v1', () => {
+  it('只重排空行：完整句末切段，文字与标点逐字不变', () => {
+    const source = '我推门进去。老周抬头：「来了？别站着！」我把欠条放下！最后一句没有句号';
+    const formatted = formatSentenceParagraphsV1(source);
+    expect(formatted).toBe('我推门进去。\n\n老周抬头：「来了？别站着！」\n\n我把欠条放下！\n\n最后一句没有句号');
+    expect(formatted.replace(/\s/gu, '')).toBe(source.replace(/\s/gu, ''));
+  });
+
+  it('ASCII 双引号内部不切段，闭合后再断开', () => {
+    expect(formatSentenceParagraphsV1('我说："真的？别走！"他停下。')).toBe('我说："真的？别走！"\n\n他停下。');
+  });
+
+  it('标题与编号保持，只有 section 正文应用句段排版', () => {
+    const slots = [
+      slot({ slotId: 'story', type: 'story', contentBearing: false }),
+      slot({ slotId: 'title', type: 'title', parentId: 'story', sortOrder: 0, contentText: '雨夜药瓶' }),
+      slot({ slotId: 'section_01', type: 'section', parentId: 'story', sortOrder: 1, contentText: '我推门。老周抬头。' }),
+    ];
+    expect(assembleNumberedSentenceParagraphsV1(slots)).toBe('雨夜药瓶\n\n1.\n\n我推门。\n\n老周抬头。\n');
   });
 });
 

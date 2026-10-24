@@ -34,10 +34,12 @@ import { ForgeError } from '@shared/errors.ts';
 import {
   assembleMarkdownConcatV1,
   assembleNumberedSectionsV1,
+  assembleNumberedSentenceParagraphsV1,
   assemblyOrder,
   computeArtifactChecksum,
 } from '@server/domain/assembly.ts';
 import { allContentSlotsCompleted } from '@server/domain/readiness.ts';
+import { validateArtifactOutput } from '@server/domain/output-validation.ts';
 import type { Artifact } from '@server/infrastructure/database/repositories/index.ts';
 import type { UnitOfWork, UnitOfWorkHandle } from '@server/infrastructure/uow.ts';
 import type { SnapshotService } from './snapshot-service.ts';
@@ -118,9 +120,11 @@ export function createAssemblyService(options: AssemblyServiceOptions): Assembly
         );
       }
 
-      const content = snapshot.compiled.output.assembler === 'numbered_sections_v1'
-        ? assembleNumberedSectionsV1(slots)
-        : assembleMarkdownConcatV1(slots);
+      const content = snapshot.compiled.output.assembler === 'numbered_sentence_paragraphs_v1'
+        ? assembleNumberedSentenceParagraphsV1(slots)
+        : snapshot.compiled.output.assembler === 'numbered_sections_v1'
+          ? assembleNumberedSectionsV1(slots)
+          : assembleMarkdownConcatV1(slots);
       if (content === '') {
         // D-19：这条判断的全部理由见文件头。给出可执行的诊断而不是一句「组装失败」——
         // 用户能改的只有模板里的 includeInArtifact，报错就该指向它。
@@ -129,6 +133,31 @@ export function createAssemblyService(options: AssemblyServiceOptions): Assembly
           '组装结果为空：本任务没有任何进入产物的槽位内容。' +
             '请检查模板中各槽位类型的 includeInArtifact 设置（标为 false 的子树整棵不进正文）',
         );
+      }
+
+      const outputValidation = validateArtifactOutput(
+        content,
+        snapshot.compiled.output.validation,
+        snapshot.compiled.output.fingerprint,
+      );
+      if (outputValidation.errors.length > 0) {
+        return failAssembly(taskId, `产物确定性校验未通过：${outputValidation.errors.join('；')}`);
+      }
+      if (outputValidation.warnings.length > 0) {
+        traces.runWithTraces((_repos, trace) => {
+          trace.record({
+            taskId,
+            executionId: null,
+            actor: 'system',
+            kind: 'validation_warning',
+            title: '产物校验告警',
+            summary: outputValidation.warnings.join('；'),
+            payload: {
+              warnings: outputValidation.warnings,
+              fingerprint: outputValidation.fingerprint,
+            },
+          });
+        });
       }
 
       const order = assemblyOrder(slots);

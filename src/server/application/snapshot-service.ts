@@ -48,6 +48,10 @@ import { randomUUID } from 'node:crypto';
 import type { InputField } from '@shared/contracts.ts';
 import { ForgeError } from '@shared/errors.ts';
 import { canonicalJson, compareCodePoints, sha256Hex } from '@server/domain/canonical.ts';
+import {
+  compileNarrativePlan,
+  type CompiledNarrativePlan,
+} from '@server/domain/narrative-plan.ts';
 import type { Task } from '@server/domain/types.ts';
 import type { TaskSkillSnapshot, TaskSnapshot } from '@server/infrastructure/database/repositories/index.ts';
 import type { UnitOfWork, UnitOfWorkHandle } from '@server/infrastructure/uow.ts';
@@ -114,6 +118,8 @@ export interface FrozenTaskSnapshot {
   templateVersion: string;
   compiled: CompiledTemplate;
   snapshotHash: string;
+  narrativePlan?: CompiledNarrativePlan | null;
+  narrativePlanHash?: string | null;
   /** 按 Skill ID 索引 */
   skills: Readonly<Record<string, FrozenSkill>>;
   /** 冻结的任务输入（键是 `compiled.inputFields[].id`） */
@@ -129,6 +135,8 @@ export interface PreparedSnapshot {
   /** `canonicalJson(compiled)`，`snapshotHash` 与它逐字对应 */
   compiledJson: string;
   snapshotHash: string;
+  narrativePlanJson: string | null;
+  narrativePlanHash: string | null;
   /** 按 skillId 码点序排列，让同一份模板在任何机器上写出同样的行序 */
   skills: readonly TaskSkillSnapshot[];
 }
@@ -171,8 +179,10 @@ function freezeSkill(taskId: string, skill: LoadedSkill): TaskSkillSnapshot {
 export function prepareSnapshot(
   template: Pick<LoadedTemplate, 'compiled' | 'skills'>,
   ids: { taskId: string; snapshotId: string },
+  narrativePlan: CompiledNarrativePlan | null = null,
 ): PreparedSnapshot {
   const compiledJson = canonicalJson(template.compiled);
+  const narrativePlanJson = narrativePlan === null ? null : canonicalJson(narrativePlan);
   const skillIds = Object.keys(template.skills).sort(compareCodePoints);
 
   return {
@@ -185,6 +195,8 @@ export function prepareSnapshot(
     // 就成了两个独立产生的字符串。对着实际落库的那一列取哈希，
     // 「重算一遍对不对得上」才是一句有意义的话（D-12）。
     snapshotHash: sha256Hex(compiledJson),
+    narrativePlanJson,
+    narrativePlanHash: narrativePlanJson === null ? null : sha256Hex(narrativePlanJson),
     skills: skillIds.map((skillId) => {
       const skill = template.skills[skillId];
       if (skill === undefined) {
@@ -398,6 +410,37 @@ function pinAliases(aliases: AliasChains, repos: UnitOfWork): PinResult {
   return { pinned, lines, degraded, paid };
 }
 
+function compileFrozenNarrativePlan(
+  compiled: CompiledTemplate,
+  agentInput: Readonly<Record<string, string>>,
+): CompiledNarrativePlan | null {
+  const planRule = compiled.output.validation?.narrativePlan;
+  if (planRule == null) return null;
+  const storyHan = compiled.output.validation?.storyHan;
+  if (storyHan?.target === undefined) {
+    throw inputInvalid(compiled.id, '模板启用了 NarrativePlan，但冻结的 storyHan.target 缺失');
+  }
+  const outlineMarkdown = agentInput[planRule.inputField];
+  if (outlineMarkdown === undefined) {
+    throw inputInvalid(compiled.id, `NarrativePlan 输入字段 ${planRule.inputField} 缺失`);
+  }
+  const result = compileNarrativePlan({
+    outlineMarkdown,
+    storyBudget: {
+      minHan: storyHan.min,
+      targetHan: storyHan.target,
+      maxHan: storyHan.max,
+    },
+  });
+  if (!result.ok) {
+    throw inputInvalid(
+      compiled.id,
+      `NarrativePlan 编译失败：${result.violations.map((violation) => violation.message).join('；')}`,
+    );
+  }
+  return result.plan;
+}
+
 export function createSnapshotService(options: SnapshotServiceOptions): SnapshotService {
   const { catalog, uow, aliases } = options;
   const newId = options.newId ?? randomUUID;
@@ -424,10 +467,12 @@ export function createSnapshotService(options: SnapshotServiceOptions): Snapshot
       const input = splitTaskInput(loaded.compiled.inputFields, normalizedInput);
 
       const taskId = newId();
+      const narrativePlan = compileFrozenNarrativePlan(loaded.compiled, input.agent);
       // 冻结的入参只取 compiled + skills：presentation 进不来（D-02）
       const prepared = prepareSnapshot(
         { compiled: loaded.compiled, skills: loaded.skills },
         { taskId, snapshotId: newId() },
+        narrativePlan,
       );
 
       // --- 事务内：只做写入。三条 INSERT 要么全成，要么一行都不留 ---
@@ -443,6 +488,8 @@ export function createSnapshotService(options: SnapshotServiceOptions): Snapshot
           templateVersion: prepared.templateVersion,
           compiledJson: prepared.compiledJson,
           snapshotHash: prepared.snapshotHash,
+          narrativePlanJson: prepared.narrativePlanJson,
+          narrativePlanHash: prepared.narrativePlanHash,
         });
         repos.snapshots.insertSkills(prepared.skills);
         // D-67：任务边界定住降级档。
@@ -526,6 +573,36 @@ export function createSnapshotService(options: SnapshotServiceOptions): Snapshot
         throw storageError(taskId, `任务 ${taskId} 的模板快照无法解析`, error);
       }
 
+      const planColumnsPaired = (snapshot.narrativePlanJson === null) === (snapshot.narrativePlanHash === null);
+      if (!planColumnsPaired) {
+        throw storageError(taskId, `任务 ${taskId} 的 NarrativePlan 快照列不完整`);
+      }
+      let narrativePlan: CompiledNarrativePlan | null = null;
+      const expectedPlan = (() => {
+        try {
+          return compileFrozenNarrativePlan(compiled, task.input);
+        } catch (error) {
+          throw storageError(taskId, `任务 ${taskId} 无法从冻结输入重建 NarrativePlan`, error);
+        }
+      })();
+      if (snapshot.narrativePlanJson === null || snapshot.narrativePlanHash === null) {
+        if (expectedPlan !== null) {
+          throw storageError(taskId, `任务 ${taskId} 已启用 NarrativePlan，但计划快照缺失`);
+        }
+      } else {
+        if (expectedPlan === null) {
+          throw storageError(taskId, `任务 ${taskId} 未启用 NarrativePlan，但存在计划快照`);
+        }
+        if (sha256Hex(snapshot.narrativePlanJson) !== snapshot.narrativePlanHash) {
+          throw storageError(taskId, `任务 ${taskId} 的 NarrativePlan JSON 与 hash 不一致`);
+        }
+        const expectedJson = canonicalJson(expectedPlan);
+        if (snapshot.narrativePlanJson !== expectedJson) {
+          throw storageError(taskId, `任务 ${taskId} 的 NarrativePlan 无法由冻结输入重建`);
+        }
+        narrativePlan = expectedPlan;
+      }
+
       const skills: Record<string, FrozenSkill> = {};
       for (const row of snapshots.listSkills(taskId)) {
         skills[row.skillId] = parseFrozenSkill(taskId, row);
@@ -538,6 +615,8 @@ export function createSnapshotService(options: SnapshotServiceOptions): Snapshot
         templateVersion: snapshot.templateVersion,
         compiled,
         snapshotHash: snapshot.snapshotHash,
+        narrativePlan,
+        narrativePlanHash: snapshot.narrativePlanHash,
         skills,
         input: task.input,
       };

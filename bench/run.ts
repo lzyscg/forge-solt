@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 import { loadProviderConfig } from '../src/server/application/provider-config.ts';
 import { runBenchmark } from '../src/server/bench/runner.ts';
+import { loadPrivateTaskInputReader } from './private-task-inputs.ts';
 
 const ROOT = fileURLToPath(new URL('../', import.meta.url));
 
@@ -13,8 +14,9 @@ interface CliArgs {
   fixturesPath: string;
   outPath: string;
   repeats: number;
-  providerId: 'deepseek';
+  providerId: 'volcengine-ark-coding';
   skillsDir: string;
+  privateManifest: string | null;
 }
 
 function usage(): string {
@@ -25,15 +27,18 @@ function usage(): string {
     --fixtures bench/fixtures/export \\
     --out bench/runs/r0.json \\
     --repeats 3 \\
-    --provider-id deepseek \\
-    --skills-dir skills
+    --provider-id volcengine-ark-coding \\
+    --skills-dir skills \\
+    --private-manifest bench/runs/i0/manifest.json
 
 必填参数：
   --fixtures <文件或目录>   含 execution metadata、ReplayInput JSON/hash、expected hashes 的 fixture
   --out <JSON 路径>         report.mjs 可读取的 run JSON；为防覆盖，目标必须尚不存在
   --repeats <n>             每 case 的独立重复次数，整数且 >= 3
-  --provider-id deepseek    固定使用 DeepSeek 官方配置；provider/model 漂移直接失败
+  --provider-id volcengine-ark-coding  固定使用火山方舟 Coding Plan；provider/model 漂移直接失败
   --skills-dir <目录>       当前磁盘 r0 Skill 根目录
+  --private-manifest <JSON> 可选；含 caseId/sourcePath，只在运行进程内读取，不写入 fixture/report。
+                            相对路径默认按仓库根目录；可设 pathBase=manifest-directory。
 
 环境：
   DEEPSEEK_API_KEY          由 config/providers.yaml 的 DeepSeek 条目读取
@@ -58,7 +63,7 @@ function parseArgs(argv: readonly string[]): CliArgs {
     values.set(flag, value);
   }
 
-  const allowed = new Set(['--fixtures', '--out', '--repeats', '--provider-id', '--skills-dir']);
+  const allowed = new Set(['--fixtures', '--out', '--repeats', '--provider-id', '--skills-dir', '--private-manifest']);
   for (const flag of values.keys()) {
     if (!allowed.has(flag)) throw new Error(`未知参数：${flag}`);
   }
@@ -68,7 +73,9 @@ function parseArgs(argv: readonly string[]): CliArgs {
     return value;
   };
   const providerId = requireValue('--provider-id');
-  if (providerId !== 'deepseek') throw new Error('--provider-id 当前只允许 deepseek');
+  if (providerId !== 'volcengine-ark-coding') {
+    throw new Error('--provider-id 当前只允许 volcengine-ark-coding');
+  }
   const repeatsText = requireValue('--repeats');
   if (!/^\d+$/.test(repeatsText)) throw new Error('--repeats 必须是 >= 3 的整数');
 
@@ -78,13 +85,21 @@ function parseArgs(argv: readonly string[]): CliArgs {
     repeats: Number(repeatsText),
     providerId,
     skillsDir: path.resolve(requireValue('--skills-dir')),
+    privateManifest: values.has('--private-manifest')
+      ? path.resolve(requireValue('--private-manifest'))
+      : null,
   };
 }
 
 async function main(): Promise<void> {
   const args = parseArgs(process.argv.slice(2));
   const providerConfig = await loadProviderConfig(path.join(ROOT, 'config/providers.yaml'));
-  const report = await runBenchmark({ ...args, providerConfig });
+  const report = await runBenchmark(
+    { ...args, providerConfig },
+    args.privateManifest === null
+      ? {}
+      : { readPrivateTaskInput: loadPrivateTaskInputReader(args.privateManifest) },
+  );
   const succeeded = report.samples.filter((sample) => sample.status === 'success').length;
   console.log(
     `S2 r0 完成：${report.selection.fixture_cases} cases × ${report.selection.repeats} repeats = ` +

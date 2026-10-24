@@ -1,0 +1,119 @@
+id: zhihu-outline-v3-candidate
+version: 0.2.0
+name: 知乎短故事全篇大纲提取（NarrativePlan v3 候选）
+description: 从完整原文提取逐小节业务分析，由系统编译为可供正文模板使用的执行大纲。
+status: draft
+
+presentation:
+  outputKind: 全篇执行大纲
+  tags: [两级流水线, 大纲提取, NarrativePlan-v2, 候选]
+  exampleStructure:
+    - { name: outline_document, typeId: outline_document, kind: container, depth: 0 }
+    - { name: story_outline, typeId: story_outline, kind: content, depth: 1 }
+
+inputFields:
+  - id: source_text
+    label: 完整原文
+    type: textarea
+    required: true
+    visibility: system
+    toolReadable: true
+    hint: 只用于提取人物、事件、冲突、反转、节奏与逐小节业务分析
+
+slotTypes:
+  - id: outline_document
+    name: 大纲文档容器
+    description: 承载一份完整故事大纲，不直接产出内容
+    contentBearing: false
+    maxRevisionRounds: 2
+
+  - id: story_outline
+    name: 全篇执行大纲
+    description: 由逐分节业务回答编译生成的全篇规划
+    contentBearing: true
+    answerContract:
+      kind: narrative-plan
+      version: 3
+      sourceField: source_text
+      sourceSegmentation: preserve-numbered-sections
+      expansionPolicy: source-length-quantiles-v1
+      storyBudget:
+        minHan: 8000
+        targetHan: 10000
+        maxHan: 12000
+    validation:
+      minChars: 1000
+      maxChars: 12000
+      sourceOverlap:
+        privateInputField: source_text
+        maxContainment: 0.05
+    guidance:
+      - 逐一回答每个原文分节的状态变化与叙事任务
+      - 只做业务分析，不承担编号、预算或 Markdown 格式
+      - 不新增原文事实，不写对白或正文散文
+    maxRevisionRounds: 2
+
+agents:
+  - id: outline_structure_designer
+    name: 大纲任务结构 Agent
+    role: 建立固定的大纲任务槽位结构
+    model: structure
+    systemInstruction: |
+      你只建立大纲任务的固定槽位结构，不分析原文，也不写大纲正文。
+
+  - id: outline_writer
+    name: 全篇大纲业务分析 Agent
+    role: 从完整原文提取逐分节业务回答，由系统编译执行大纲
+    model: main
+    systemInstruction: |
+      你只判断原文的叙事业务内容，不新增事件，不负责编号、预算、格式或正文写作。
+
+  - id: outline_reviewer
+    name: 全篇大纲审核 Agent
+    role: 按指定判据检查系统生成的大纲是否可供下游使用
+    model: main
+    systemInstruction: |
+      你只审核大纲，不改写原文或正文；每条 finding 必须逐字引用大纲。
+
+skills:
+  - id: outline-structure-design
+    version: 1.0.0
+    source: i1-answer-contract-v3/outline-structure-design/SKILL.md
+  - id: outline-writing
+    version: 1.2.0
+    source: i1-answer-contract-v3/outline-writing/SKILL.md
+  - id: outline-review
+    version: 1.1.0
+    source: i1-answer-contract-v3/outline-review/SKILL.md
+
+bindings:
+  createStructure:
+    agentId: outline_structure_designer
+    skillId: outline-structure-design
+    timeoutMs: 90000
+    maxRetries: 1
+
+  fillSlotByType:
+    story_outline:
+      agentId: outline_writer
+      skillId: outline-writing
+      timeoutMs: 180000
+      maxRetries: 1
+
+  reviewSlotByType:
+    story_outline:
+      agentId: outline_reviewer
+      skillId: outline-review
+      maxRetries: 1
+
+limits:
+  maxSlots: 2
+  maxStructureDepth: 2
+  maxExecutionRetries: 2
+  executionTimeoutMs: 180000
+  maxToolCallsPerAssignment: 24
+
+output:
+  fileName: outline.md
+  mediaType: text/markdown
+  assembler: markdown_concat_v1

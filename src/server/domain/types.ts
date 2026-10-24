@@ -67,12 +67,20 @@ export interface Slot extends FailureInfo {
    * 对容器槽位可一次性排除整节工作区。默认 true。
    */
   includeInArtifact: boolean;
+  /** I1 系统绑定；历史或未启用 NarrativePlan 的槽位为 null。 */
+  narrativeUnitId: string | null;
   status: SlotStatus;
   /** 审核返修轮次，从 0 起（003_review.sql 新增列 revision_round） */
   revisionRound: number;
   /** 返修预算耗尽后按现状完成（003_review.sql 新增列 review_exhausted） */
   reviewExhausted: boolean;
   contentText: string | null;
+  domainArtifact?: {
+    kind: string;
+    version: number;
+    json: string;
+    hash: string;
+  } | null;
   producer: SlotProducer | null;
   createdAt: string;
   updatedAt: string;

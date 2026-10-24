@@ -17,8 +17,10 @@
  */
 
 import { ForgeError } from '@shared/errors.ts';
+import type { ToolName } from '@shared/tools.ts';
 import type {
   ProviderMessage,
+  ProviderActivity,
   ProviderToolCall,
   ProviderToolDefinition,
   ProviderToolResult,
@@ -27,7 +29,7 @@ import type {
 import type { SubmissionGate } from './submission-gate.ts';
 import type { TraceWriter } from './trace-writer.ts';
 import { dispatchToolCall } from './tools/index.ts';
-import type { ToolDefinition } from './tools/index.ts';
+import type { DispatchedToolResult, ToolDefinition } from './tools/index.ts';
 
 /**
  * 重试时追加到 User Message 的固定文案（§7.6）。
@@ -53,7 +55,9 @@ export type TurnRunner = (input: {
   messages: readonly ProviderMessage[];
   tools: readonly ProviderToolDefinition[];
   maxTokens: number;
+  toolChoice?: 'auto' | { readonly name: ToolName } | undefined;
   signal: AbortSignal;
+  onActivity: (activity: ProviderActivity) => void;
   onTextDelta: (delta: string) => void;
   onToolCall: (call: ProviderToolCall) => Promise<ProviderToolResult>;
 }) => Promise<ProviderTurnResult>;
@@ -65,6 +69,13 @@ export interface AgentLoopInput {
   readonly maxToolCalls: number;
   readonly maxTokens: number;
   readonly signal: AbortSignal;
+  readonly forceSubmitAfterSensitiveRead?: boolean | undefined;
+  readonly toolExecutionTimeoutMs?: number | undefined;
+  readonly onToolTimeout?: (() => void) | undefined;
+  readonly onToolStart?: (() => void) | undefined;
+  readonly onToolEnd?: (() => void) | undefined;
+  readonly onTurnStart?: (() => void) | undefined;
+  readonly onActivity?: ((activity: ProviderActivity) => void) | undefined;
 }
 
 export interface AgentLoopDeps {
@@ -90,34 +101,55 @@ export async function runAgentLoop(input: AgentLoopInput, deps: AgentLoopDeps): 
   const messages: ProviderMessage[] = [{ role: 'user', content: input.userText }];
   let toolCalls = 0;
   let usage: LoopUsage | null = null;
+  let hasSensitiveContext = false;
 
   for (;;) {
+    input.onTurnStart?.();
     const turn = await deps.runTurn({
       system: input.systemText,
       messages,
       tools: deps.providerTools,
       maxTokens: input.maxTokens,
+      toolChoice: input.forceSubmitAfterSensitiveRead && hasSensitiveContext
+        ? { name: 'submit_answer' }
+        : 'auto',
       signal: input.signal,
+      onActivity: input.onActivity ?? (() => undefined),
       onTextDelta: (delta) => {
         // D-11：提交之后到达的 text delta 一律丢弃——不写 trace，不推 SSE。
         // 用户看到「提交成功」之后又冒出新正文，会以为产物还在变
-        if (deps.gate.isClosed) return;
+        if (deps.gate.isClosed || hasSensitiveContext) return;
         deps.trace.delta(input.executionId, delta);
       },
       onToolCall: async (call) => {
         toolCalls += 1;
         if (toolCalls > input.maxToolCalls) {
-          // 抛出而不是返回错误结果：这是唯一一种「模型不可能自己修好」的工具错误，
-          // 再给它一次机会只是多烧一次调用
           throw new ForgeError(
             'MAX_TOOL_CALLS_EXCEEDED',
             `本次工作的工具调用次数已达上限 ${input.maxToolCalls}`,
           );
         }
-        return await dispatchToolCall(
-          { tools: deps.tools, trace: deps.trace, executionId: input.executionId },
-          call,
-        );
+        input.onToolStart?.();
+        try {
+          const work = dispatchToolCall(
+            { tools: deps.tools, trace: deps.trace, executionId: input.executionId },
+            call,
+          );
+          const result: DispatchedToolResult = input.toolExecutionTimeoutMs === undefined
+            ? await work
+            : await withToolTimeout(
+                work,
+                input.toolExecutionTimeoutMs,
+                input.onToolTimeout ?? (() => undefined),
+              );
+          if (result.sensitive) {
+            hasSensitiveContext = true;
+            deps.trace.suppress();
+          }
+          return result;
+        } finally {
+          input.onToolEnd?.();
+        }
       },
     });
 
@@ -139,6 +171,21 @@ export async function runAgentLoop(input: AgentLoopInput, deps: AgentLoopDeps): 
     }
 
     messages.push(...turn.appendMessages);
+  }
+}
+
+async function withToolTimeout<T>(work: Promise<T>, timeoutMs: number, onTimeout: () => void): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<never>((_resolve, reject) => {
+    timer = setTimeout(() => {
+      onTimeout();
+      reject(new ForgeError('PROVIDER_TIMEOUT', '本地工具执行超过时限'));
+    }, timeoutMs);
+  });
+  try {
+    return await Promise.race([work, timeout]);
+  } finally {
+    if (timer !== null) clearTimeout(timer);
   }
 }
 

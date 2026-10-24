@@ -83,6 +83,26 @@ function describeValidation(validation: CompiledSlotType['validation']): string[
   return rules;
 }
 
+function describeOutputValidation(compiled: CompiledTemplate): string[] {
+  const rules: string[] = [];
+  const validation = compiled.output.validation;
+  for (const [type, range] of Object.entries(validation?.slotCounts ?? {})) {
+    rules.push(range.min === range.max ? `${type} 恰好 ${range.min} 个` : `${type} 数量 ${range.min}–${range.max}`);
+  }
+  if (validation?.outlineCount !== null && validation?.outlineCount !== undefined) {
+    rules.push(`${validation.outlineCount.slotType} 数量与 ${validation.outlineCount.inputField} 编号条目一致`);
+  }
+  if (validation?.storyHan !== null && validation?.storyHan !== undefined) {
+    rules.push(`整篇 ${validation.storyHan.min}–${validation.storyHan.max} 汉字（按实际 ${validation.storyHan.slotType} 数动态分配）`);
+  }
+  const fingerprint = compiled.output.fingerprint;
+  if (fingerprint?.requireFirstPerson === true) rules.push('完整产物以第一人称为主');
+  if (fingerprint?.forbidDoubleQuoteStyle === true) rules.push('完整产物不得使用双引号风格');
+  if (fingerprint?.requireNumberedSections === true) rules.push('完整产物必须有编号小节');
+  if (fingerprint?.warnNoDialogueQuotes === true) rules.push('完整产物无对白引号时告警');
+  return rules;
+}
+
 function toSlotTypeDetail(
   slotType: CompiledSlotType,
   loaded: LoadedTemplate,
@@ -192,7 +212,11 @@ export function createTemplateService(options: TemplateServiceOptions): Template
         // 空数组会让 UI 渲染出一个空的示例区块
         exampleStructure:
           presentation.exampleStructure === null ? null : presentation.exampleStructure.map((n) => ({ ...n })),
-        output: { fileName: compiled.output.fileName, mediaType: compiled.output.mediaType },
+        output: {
+          fileName: compiled.output.fileName,
+          mediaType: compiled.output.mediaType,
+          validationRules: describeOutputValidation(compiled),
+        },
       };
     },
 

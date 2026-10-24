@@ -11,14 +11,23 @@ import type { Operation } from '@shared/contracts.ts';
 import type { CompletionPort, SkillSnapshotView, StructurePort } from '../ports.ts';
 import type { SubmissionGate } from '../submission-gate.ts';
 import type { TraceWriter } from '../trace-writer.ts';
-import type { StructureViolation } from '@server/domain/structure-validation.ts';
+import type { AnyStructureViolation } from '@server/domain/structure-validation.ts';
 import type { ErrorCode } from '@shared/errors.ts';
+import type { PreparedNarrativeAnswerContract } from '@server/domain/narrative-answer.ts';
+import type { NarrativeBudget } from '@server/domain/narrative-plan.ts';
 
 /** 提交被拒的记录。由 AssignmentRunner 收集，用于下一次 attempt 的 D-13 反馈块 */
 export interface SubmissionRejection {
   code: ErrorCode;
   message: string;
-  violations: readonly StructureViolation[];
+  violations: readonly AnyStructureViolation[];
+}
+
+export interface PreparedNarrativeSubmission {
+  readonly kind: 'narrative-plan';
+  readonly version: 2 | 3;
+  readonly contract: PreparedNarrativeAnswerContract;
+  readonly storyBudget: NarrativeBudget;
 }
 
 export interface ToolsetContext {
@@ -44,7 +53,14 @@ export interface ToolsetContext {
    */
   readonly revisionBase: { readonly round: number; readonly content: string; readonly degraded: boolean } | null;
   readonly skill: SkillSnapshotView;
+  /** Agent-visible frozen values. System-private values must never be placed here. */
   readonly taskInput: Readonly<Record<string, string>>;
+  /** System-private field IDs explicitly authorized by the frozen template. */
+  readonly toolReadablePrivateInputIds: readonly string[];
+  /** Reads one authorized value at call time; the returned body must not be traced or serialized. */
+  readonly readPrivateTaskInput: (fieldId: string) => string | null;
+  /** Present only for an Assignment whose frozen template explicitly opted into a business answer contract. */
+  readonly preparedSubmission?: PreparedNarrativeSubmission | undefined;
   readonly gate: SubmissionGate;
   readonly trace: TraceWriter;
   readonly completion: CompletionPort;

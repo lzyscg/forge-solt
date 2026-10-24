@@ -34,6 +34,7 @@ import type { LoadedSkill } from './skill-loader.ts';
 import { loadSkill } from './skill-loader.ts';
 import { checkPatternBudget, DEFAULT_PATTERN_BUDGET_MS } from './regex-budget.ts';
 import type { PatternBudgetSpec } from './regex-budget.ts';
+import type { OutputValidationSpec } from '@server/domain/output-validation.ts';
 import type { RawBinding, RawTemplate } from './template-schema.ts';
 import { RawTemplateSchema } from './template-schema.ts';
 
@@ -58,6 +59,19 @@ export interface CompiledSlotValidation {
   sourceOverlap: { privateInputField: string; maxContainment: number } | null;
 }
 
+export interface CompiledNarrativePlanAnswerContract {
+  kind: 'narrative-plan';
+  version: 2 | 3;
+  sourceField: string;
+  sourceSegmentation: 'preserve-numbered-sections';
+  expansionPolicy: 'source-length-quantiles-v1';
+  storyBudget: {
+    minHan: number;
+    targetHan: number;
+    maxHan: number;
+  };
+}
+
 export interface CompiledSlotType {
   id: string;
   name: string;
@@ -66,6 +80,8 @@ export interface CompiledSlotType {
   /** D-16：默认 true（含容器类型）。这里已经补齐，下游不需要再判 undefined */
   includeInArtifact: boolean;
   validation: CompiledSlotValidation;
+  /** 仅显式 opt-in 时存在；省略保证旧模板 snapshot/hash 与 Replay v1 字节不变。 */
+  answerContract?: CompiledNarrativePlanAnswerContract | null | undefined;
   guidance: readonly string[];
   /** R2：返修上限，默认 2（D-26） */
   maxRevisionRounds: number;
@@ -140,7 +156,18 @@ export interface CompiledTemplate {
     reviewStructure: CompiledBinding | null;
   };
   limits: CompiledLimits;
-  output: { fileName: string; mediaType: string; assembler: 'markdown_concat_v1' | 'numbered_sections_v1' };
+  output: {
+    fileName: string;
+    mediaType: string;
+    assembler: 'markdown_concat_v1' | 'numbered_sections_v1' | 'numbered_sentence_paragraphs_v1';
+    validation: OutputValidationSpec | null;
+    fingerprint: {
+      requireFirstPerson: boolean;
+      forbidDoubleQuoteStyle: boolean;
+      requireNumberedSections: boolean;
+      warnNoDialogueQuotes: boolean;
+    } | null;
+  };
   /** `canonicalHash` 本对象（不含此字段）的结果。见 computeTemplateHash */
   templateHash: string;
 }
@@ -382,6 +409,7 @@ export async function compileTemplate(
         forbidPatternMessage: s.validation?.forbidPatternMessage ?? null,
         sourceOverlap: s.validation?.sourceOverlap ?? null,
       },
+      ...(s.answerContract === undefined ? {} : { answerContract: s.answerContract }),
       guidance: s.guidance ?? [],
       maxRevisionRounds: s.maxRevisionRounds ?? 2,
     };
@@ -389,6 +417,31 @@ export async function compileTemplate(
   const slotTypeById = new Map(slotTypes.map((s) => [s.id, s]));
   const inputFieldById = new Map(raw.inputFields.map((field) => [field.id, field]));
   for (const slotType of slotTypes) {
+    const answerContract = slotType.answerContract;
+    if (answerContract !== undefined && answerContract !== null) {
+      if (!slotType.contentBearing) {
+        throw invalid(templateRef, `槽位类型 ${slotType.id} 声明 answerContract 时必须是 contentBearing 类型`);
+      }
+      const sourceField = inputFieldById.get(answerContract.sourceField);
+      if (sourceField === undefined) {
+        throw invalid(
+          templateRef,
+          `槽位类型 ${slotType.id} 的 answerContract 引用了不存在的输入字段：${answerContract.sourceField}`,
+        );
+      }
+      if (
+        sourceField.visibility !== 'system'
+        || sourceField.type !== 'textarea'
+        || !sourceField.required
+        || !sourceField.toolReadable
+      ) {
+        throw invalid(
+          templateRef,
+          `槽位类型 ${slotType.id} 的 answerContract 字段 ${sourceField.id} 必须是 required、toolReadable 的 visibility=system textarea`,
+        );
+      }
+    }
+
     const overlap = slotType.validation.sourceOverlap;
     if (overlap === null) continue;
     const field = inputFieldById.get(overlap.privateInputField);
@@ -405,6 +458,95 @@ export async function compileTemplate(
   const contentBearingIds = slotTypes.filter((s) => s.contentBearing).map((s) => s.id);
   if (contentBearingIds.length === 0) {
     throw invalid(templateRef, 'slotTypes 中至少要有一个 contentBearing 类型，否则模板产不出任何内容');
+  }
+
+  const rawOutputValidation = raw.output.validation;
+  const outputValidation: OutputValidationSpec | null = rawOutputValidation === undefined
+    ? null
+    : {
+        slotCounts: rawOutputValidation.slotCounts ?? {},
+        outlineCount: rawOutputValidation.outlineCount ?? null,
+        storyHan: rawOutputValidation.storyHan ?? null,
+        narrativePlan: rawOutputValidation.narrativePlan ?? null,
+      };
+  const outputFingerprint = rawOutputValidation?.fingerprint ?? null;
+
+  for (const typeId of Object.keys(outputValidation?.slotCounts ?? {})) {
+    if (!slotTypeById.has(typeId)) {
+      throw invalid(templateRef, `output.validation.slotCounts 引用了不存在的槽位类型：${typeId}`);
+    }
+  }
+  if (outputValidation?.outlineCount !== null && outputValidation?.outlineCount !== undefined) {
+    const { inputField, slotType } = outputValidation.outlineCount;
+    const field = inputFieldById.get(inputField);
+    if (field === undefined) {
+      throw invalid(templateRef, `output.validation.outlineCount 引用了不存在的输入字段：${inputField}`);
+    }
+    if (field.visibility !== 'agent' || field.type !== 'textarea') {
+      throw invalid(templateRef, `output.validation.outlineCount 字段 ${inputField} 必须是 visibility=agent 的 textarea`);
+    }
+    if (!slotTypeById.has(slotType)) {
+      throw invalid(templateRef, `output.validation.outlineCount 引用了不存在的槽位类型：${slotType}`);
+    }
+  }
+  if (outputValidation?.storyHan !== null && outputValidation?.storyHan !== undefined) {
+    const budgetType = slotTypeById.get(outputValidation.storyHan.slotType);
+    if (budgetType === undefined || !budgetType.contentBearing || !budgetType.includeInArtifact) {
+      throw invalid(
+        templateRef,
+        `output.validation.storyHan.slotType ${outputValidation.storyHan.slotType} 必须是进入产物的 contentBearing 类型`,
+      );
+    }
+    const unbounded = slotTypes.filter(
+      (type) =>
+        type.id !== budgetType.id &&
+        type.contentBearing &&
+        type.includeInArtifact &&
+        type.validation.maxChars === null,
+    );
+    if (unbounded.length > 0) {
+      throw invalid(
+        templateRef,
+        `storyHan 预算无法为其他产物槽位预留上限：${unbounded.map((type) => type.id).join(', ')}`,
+      );
+    }
+  }
+  if (outputValidation?.narrativePlan !== null && outputValidation?.narrativePlan !== undefined) {
+    const planRule = outputValidation.narrativePlan;
+    const planField = inputFieldById.get(planRule.inputField);
+    if (planField === undefined) {
+      throw invalid(templateRef, `output.validation.narrativePlan 引用了不存在的输入字段：${planRule.inputField}`);
+    }
+    if (planField.visibility !== 'agent' || planField.type !== 'textarea') {
+      throw invalid(
+        templateRef,
+        `output.validation.narrativePlan 字段 ${planRule.inputField} 必须是 visibility=agent 的 textarea`,
+      );
+    }
+    const planType = slotTypeById.get(planRule.slotType);
+    if (planType === undefined || !planType.contentBearing || !planType.includeInArtifact) {
+      throw invalid(
+        templateRef,
+        `output.validation.narrativePlan.slotType ${planRule.slotType} 必须是进入产物的 contentBearing 类型`,
+      );
+    }
+    const storyHan = outputValidation.storyHan;
+    if (storyHan === null || storyHan.target === undefined) {
+      throw invalid(templateRef, '启用 narrativePlan 时 output.validation.storyHan 必须显式声明 target');
+    }
+    if (storyHan.slotType !== planRule.slotType) {
+      throw invalid(templateRef, 'narrativePlan.slotType 必须与 storyHan.slotType 相同');
+    }
+    const outlineCount = outputValidation.outlineCount;
+    if (outlineCount === null || outlineCount.inputField !== planRule.inputField || outlineCount.slotType !== planRule.slotType) {
+      throw invalid(templateRef, 'narrativePlan 必须与 outlineCount 使用相同的 inputField 和 slotType');
+    }
+    if (planType.validation.minChars !== null || planType.validation.maxChars !== null) {
+      throw invalid(
+        templateRef,
+        `启用 narrativePlan 的槽位类型 ${planRule.slotType} 不得再配置 minChars/maxChars`,
+      );
+    }
   }
 
   // --- 3. Agent ---
@@ -625,6 +767,7 @@ export async function compileTemplate(
       type: f.type,
       required: f.required,
       visibility: f.visibility,
+      toolReadable: f.toolReadable,
       // DTO 侧 hint 是 `string | null`（不是可选），这里就地补齐，
       // 免得每个消费方各自 `?? null` 一次，也免得 canonicalJson 因 undefined 剔除键
       // 而让「有 hint」和「hint 为 null」哈希成同一个值。
@@ -647,7 +790,13 @@ export async function compileTemplate(
       executionTimeoutMs: raw.limits.executionTimeoutMs ?? options.defaults.timeoutMs,
       maxToolCallsPerAssignment: raw.limits.maxToolCallsPerAssignment,
     },
-    output: raw.output,
+    output: {
+      fileName: raw.output.fileName,
+      mediaType: raw.output.mediaType,
+      assembler: raw.output.assembler,
+      validation: outputValidation,
+      fingerprint: outputFingerprint,
+    },
   };
 
   return {

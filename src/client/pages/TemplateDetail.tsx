@@ -218,6 +218,28 @@ export function TemplateDetail() {
                     <ReqBadge required={f.required} />
                   </div>
                 ))}
+                {detail.output.validationRules.length > 0 ? (
+                  <div style={{ marginTop: 22 }}>
+                    <div
+                      style={{
+                        fontSize: 11,
+                        letterSpacing: '.1em',
+                        textTransform: 'uppercase',
+                        color: 'var(--color-neutral-500)',
+                        marginBottom: 9,
+                      }}
+                    >
+                      整篇产物校验
+                    </div>
+                    <div style={{ border: '1px solid var(--color-divider)', borderRadius: 'var(--radius-md)', padding: '10px 14px' }}>
+                      {detail.output.validationRules.map((rule) => (
+                        <div key={rule} style={{ padding: '6px 0', fontSize: 12.5, color: 'var(--color-neutral-700)', lineHeight: 1.6 }}>
+                          {rule}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           </div>

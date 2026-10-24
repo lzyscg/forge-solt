@@ -1699,6 +1699,29 @@ output:
   assembler: markdown_concat_v1
 ```
 
+**S2.5/S3 输出级确定性校验补正（2026-09-02）**
+
+`slotTypes[].validation` 只能约束单个槽位，不能表达「整篇」规则。真实 `zhihu-story`
+任务已经反证：25 个 section 各自满足 `maxChars: 1100`，整篇仍达到 20,491 汉字，
+超过产物上限 15,850。把 section 上限继续写小只会给所有 section 数套同一个拍定值；
+8 节与 30 节显然不该共用同一份预算。
+
+因此 `output` 可声明进入 `templateHash` / Task Snapshot 的 `validation`：
+
+- 内容类型计数（例如 `title = 1`、`section = 8–30`）；
+- 上游编号条目与运行时 section 数量对账；
+- 整篇汉字区间与承载预算的槽位类型；
+- artifact 级人称、引号、编号硬拒，以及无对白引号告警。
+
+结构冻结后，系统按实际 section 数从整篇预算推导本槽位的有效汉字区间；同一份推导结果
+必须同时进入 Prompt、提交校验、`contextHash` 与 ReplayInput。Assembly 落库前再验一次整篇，
+作为防止实现漂移的最后兜底。人称/引号/编号不能伪装成 section 正则：第一人称故事可以出现
+“他/她”，而编号由 assembler 才产生；这些判据只有组装后的 artifact 才具备完整输入。
+
+加载器须在编译期拒绝悬空的预算槽位类型/上游输入、系统私有输入被错误用于模型对账、
+以及按模板声明永远无解的预算区间。历史模板不声明 `output.validation` 时保持原行为，
+历史快照与 ReplayInput 不得因默认值补齐而改变字节或 Prompt。
+
 **`maxToolCallsPerAssignment`（新增）**：TECH-V0.1 §6.9 提到「控制最大工具调用数」但没给配置位。没有它，一个反复调 `read_skill_section` 的模型会一直烧 token 直到超时。超限抛 `MAX_TOOL_CALLS_EXCEEDED`，按重试配额处理。**它是必填项**：`providers.yaml` 的 `defaults` 里没有对应条目，也就是说它没有回退来源，给它编一个隐式默认值等于让「忘了配」变成一个要等到线上烧 token 才发现的问题（与 D-06 对 `modelAlias` 的态度一致）。
 
 **`forbidPattern` 的 `(?m)` 前缀（M2-B 修订）**

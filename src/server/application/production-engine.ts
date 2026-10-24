@@ -20,13 +20,15 @@
 import type { Operation, TaskStatus } from '@shared/contracts.ts';
 import { ForgeError, type ErrorCode } from '@shared/errors.ts';
 import type { Slot, Task } from '@server/domain/types.ts';
-import type { StructureViolation } from '@server/domain/structure-validation.ts';
+import type { AnyStructureViolation } from '@server/domain/structure-validation.ts';
+import { prepareNarrativeAnswerContract } from '@server/domain/narrative-answer.ts';
 import { settleReview } from '@server/domain/review-settlement.ts';
 import type { AssignmentOutcome, RateLimitBackoffConfig } from '@server/runtime/assignment-runner.ts';
 import { AssignmentRunner } from '@server/runtime/assignment-runner.ts';
 import type { ProviderRegistry } from '@server/runtime/provider/provider-registry.ts';
 import type { UnitOfWork, UnitOfWorkHandle } from '@server/infrastructure/uow.ts';
 import type { CompiledBinding, CompiledSlotType } from './template-loader.ts';
+import { splitTaskInput } from './snapshot-service.ts';
 import type { FrozenSkill, FrozenTaskSnapshot, SnapshotService } from './snapshot-service.ts';
 import type { AssignmentService } from './assignment-service.ts';
 import type { CompletionService } from './completion-service.ts';
@@ -45,6 +47,11 @@ import type {
 import { collectPriorRounds } from './revision-source.ts';
 import { isStructureRoot, reviewBindingOf } from './review-binding.ts';
 import { contentUnderReviewOf } from './review-target.ts';
+import {
+  deriveMaxTokens,
+  resolveSlotProductionPolicy,
+  type SlotProductionPolicy,
+} from './narrative-production-policy.ts';
 import {
   createCompletionPort,
   createStructurePort,
@@ -103,29 +110,6 @@ function markProviderExhaustedIfNeeded(
     outcome.provider,
     `${outcome.code}: ${outcome.message ?? '(无 message)'}`,
   );
-}
-
-// ---------------------------------------------------------------------------
-// maxTokens 派生（§7.3 的 M3-C 定案）
-// ---------------------------------------------------------------------------
-
-const MAX_TOKENS_FLOOR = 4096;
-const MAX_TOKENS_CEIL = 16384;
-
-/**
- * 从模板已有的约束派生 `maxTokens`，不新增配置项。
- *
- * 理由见文档 §7.3：这个数的**唯一**作用是「别让模型写到一半被截断」，
- * 而「最多该写多少」模板已经用 `validation.maxChars` 说过一遍了。
- * 取一个与模板无关的常量，等于让一个 400 字的标题槽和一个 8000 字的场景槽
- * 拿到同一个上限——前者浪费额度，后者可能不够。
- */
-export function deriveMaxTokens(slotType: CompiledSlotType | null): number {
-  const maxChars = slotType?.validation.maxChars ?? null;
-  if (maxChars === null) return MAX_TOKENS_CEIL;
-  // 系数 2 是「一个汉字最坏约 2 token」的保守估计，+1024 留给工具调用的 JSON 包装
-  const derived = maxChars * 2 + 1024;
-  return Math.min(MAX_TOKENS_CEIL, Math.max(MAX_TOKENS_FLOOR, derived));
 }
 
 // ---------------------------------------------------------------------------
@@ -346,6 +330,20 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
         const task = repos.tasks.get(taskId);
         // 已经是终态就不要再改写它：逃逸的异常有可能发生在收尾之后
         if (task === null || task.status !== 'running') return;
+        const execution = task.activeExecutionId === null
+          ? null
+          : repos.executions.get(task.activeExecutionId);
+        if (execution !== null && (execution.status === 'running' || execution.status === 'created')) {
+          repos.executions.markCancelled(execution.id, '引擎异常收尾，未完成的执行已取消');
+          if (execution.targetSlotId !== null) {
+            const slot = repos.slots.get(taskId, execution.targetSlotId);
+            if (slot !== null && slot.status === 'reviewing') {
+              repos.slots.cancelReview(taskId, execution.targetSlotId);
+            } else {
+              repos.slots.resetToPending(taskId, execution.targetSlotId);
+            }
+          }
+        }
         repos.tasks.update(taskId, {
           status: 'failed',
           activeExecutionId: null,
@@ -710,6 +708,13 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
     const key = budgetKeyOfFill(slot);
     const previous = slotRetryOf(round, key);
     const deps = scheduler.dependenciesOf(taskId, slot);
+    const allSlots = uow.repositories.slots.listByTask(taskId);
+    const productionPolicy = resolveSlotProductionPolicy({
+      snapshot,
+      targetSlot: slot,
+      allSlots,
+      slotType,
+    });
 
     /**
      * R3 / D-31：返修那一轮，把上一轮**从库里重建出来**接上去。
@@ -742,7 +747,8 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
       operation: 'fill_slot',
       targetSlotId: slot.slotId,
       slotType,
-      slots: uow.repositories.slots.listByTask(taskId),
+      slots: allSlots,
+      productionPolicy,
       targetSlot: slot,
       dependencies: deps.contents,
       allowedDependencySlotIds: deps.slotIds,
@@ -804,6 +810,8 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
     operation: Operation;
     targetSlotId: string | null;
     slotType: CompiledSlotType | null;
+    /** fill_slot 的唯一冻结生产策略；Prompt、runtime 与提交校验共用同一解析契约。 */
+    productionPolicy?: SlotProductionPolicy | null;
     slots?: readonly Slot[];
     targetSlot?: Slot;
     dependencies?: readonly { slotId: string; content: string }[];
@@ -825,6 +833,25 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
 
   async function runAssignment(input: RunAssignmentInput): Promise<AssignmentOutcome> {
     const { taskId, snapshot, binding, operation, targetSlotId, record } = input;
+    const privateFields = snapshot.compiled.inputFields.filter(
+      (field) => field.visibility === 'system',
+    );
+    const toolReadablePrivateFields = privateFields.filter((field) => field.toolReadable);
+    const privateInputValues = new Map<string, string>();
+    for (const field of privateFields) {
+      const value = snapshots.readPrivateInput(taskId, field.id);
+      if (value === null) {
+        if (field.required) {
+          throw new ForgeError(
+            'STORAGE_ERROR',
+            `任务 ${taskId} 缺少必填系统私有输入「${field.id}」`,
+            `task:${taskId}`,
+          );
+        }
+        continue;
+      }
+      if (field.toolReadable) privateInputValues.set(field.id, value);
+    }
 
     const skill = snapshot.skills[binding.skillId];
     if (skill === undefined) {
@@ -868,6 +895,7 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
               slots: input.slots ?? [],
               targetSlot: mustHave(input.targetSlot, 'targetSlot'),
               slotType: mustHave(input.slotType, 'slotType'),
+              productionPolicy: mustHave(input.productionPolicy, 'productionPolicy'),
               dependencies: input.dependencies ?? [],
               retry: input.contextRetry as FillSlotRetryInput | null,
               revision: input.revision ?? null,
@@ -891,9 +919,39 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
                 input.slots ?? [],
               ),
             };
+    const answerContract = operation === 'fill_slot' ? input.slotType?.answerContract : undefined;
     // One object is the source for both the live prompt and persisted replay provenance.
     const context = buildContext(contextInput);
-    const replayInput = serializeReplayInput(contextInput);
+    const replayInput = answerContract == null
+      ? serializeReplayInput(contextInput)
+      : serializeReplayInput(contextInput, {
+          readPrivateInput: (fieldId) => privateInputValues.get(fieldId) ?? null,
+        });
+    let preparedSubmission;
+    if (answerContract !== undefined && answerContract !== null) {
+      const source = privateInputValues.get(answerContract.sourceField);
+      if (source === undefined || source.trim() === '') {
+        throw new ForgeError(
+          'STORAGE_ERROR',
+          `任务 ${taskId} 的 Answer Contract 缺少非空系统私有输入「${answerContract.sourceField}」`,
+          `task:${taskId}`,
+        );
+      }
+      const prepared = prepareNarrativeAnswerContract(source);
+      if (!prepared.ok) {
+        throw new ForgeError(
+          'ASSIGNMENT_OUTPUT_INVALID',
+          `系统私有输入「${answerContract.sourceField}」没有 8–30 个可保留的编号分节，无法准备 narrative-plan/v2`,
+          `task:${taskId}`,
+        );
+      }
+      preparedSubmission = {
+        kind: answerContract.kind,
+        version: answerContract.version,
+        contract: prepared.contract,
+        storyBudget: answerContract.storyBudget,
+      } as const;
+    }
 
     /**
      * D-03：**每次 attempt 重新解析**别名，不缓存。
@@ -954,7 +1012,14 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
       registry,
       trace: tracePort,
       structure: structurePort,
-      completion: createCompletionPort({ completion, structure, snapshots, uow, record }),
+      completion: createCompletionPort({
+        completion,
+        structure,
+        snapshots,
+        uow,
+        record,
+        productionPolicy: input.productionPolicy ?? null,
+      }),
       rateLimitBackoff,
     });
 
@@ -969,11 +1034,17 @@ export function createProductionEngine(options: ProductionEngineOptions): Produc
         systemText: context.systemText,
         userText: context.userText,
         maxToolCalls: snapshot.compiled.limits.maxToolCallsPerAssignment,
-        maxTokens: deriveMaxTokens(input.slotType),
+        maxTokens: input.productionPolicy?.runtimeMaxTokens ?? deriveMaxTokens(input.slotType),
         timeoutMs: binding.timeoutMs,
         allowedDependencySlotIds: input.allowedDependencySlotIds ?? [],
         skill: toSkillView(skill),
-        taskInput: snapshot.input,
+        taskInput: splitTaskInput(snapshot.compiled.inputFields, snapshot.input).agent,
+        toolReadablePrivateInputIds: toolReadablePrivateFields.map((field) => field.id),
+        readPrivateTaskInput: (fieldId) =>
+          toolReadablePrivateFields.some((field) => field.id === fieldId)
+            ? privateInputValues.get(fieldId) ?? null
+            : null,
+        ...(preparedSubmission === undefined ? {} : { preparedSubmission }),
         /*
          * R6 / D-61：返修轮的编辑基线。
          *
@@ -1289,4 +1360,4 @@ export function isEngineRunnable(task: Pick<Task, 'status'>): boolean {
   return runnable.includes(task.status);
 }
 
-export type { StructureViolation, ErrorCode };
+export type { AnyStructureViolation as StructureViolation, ErrorCode };
